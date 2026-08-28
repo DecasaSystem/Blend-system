@@ -1,0 +1,379 @@
+@import "tailwindcss";
+
+/* ------------------------------------------------------------------
+   BLEND — sistema visual "sobreimpresión"
+   Tinta plana + grano + mix-blend-mode. Naranja, morado, verde.
+------------------------------------------------------------------ */
+
+@theme {
+  --color-ink: #1b0b2e;
+  --color-ink-2: #2c1147;
+  --color-ink-3: #422066;
+  --color-ube: #7b3ff2;
+  --color-ube-deep: #4b1f9e;
+  --color-mango: #ff6a1a;
+  --color-mango-deep: #d84a00;
+  --color-matcha: #8fd14f;
+  --color-matcha-deep: #4e9b34;
+  --color-paper: #f7f1ff;
+  --color-paper-2: #efe4ff;
+  --color-pulp: #ffd166;
+
+  --font-display: var(--font-fraunces), Georgia, "Times New Roman", serif;
+  --font-sans: var(--font-archivo), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-martian), ui-monospace, "SF Mono", monospace;
+
+  --ease-blend: cubic-bezier(0.2, 0.85, 0.2, 1);
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    scroll-padding-top: 5.5rem;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--color-paper);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-synthesis-weight: none;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: clip;
+  }
+
+  ::selection {
+    background: var(--color-mango);
+    color: #fff;
+  }
+
+  :focus-visible {
+    outline: 3px solid var(--color-ube);
+    outline-offset: 3px;
+    border-radius: 4px;
+  }
+
+  button,
+  a {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    font-variation-settings: "SOFT" 100, "WONK" 1, "opsz" 120;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    line-height: 0.92;
+    text-wrap: balance;
+  }
+}
+
+/* Todo lo propio vive en la capa `components` para que las utilidades de
+   Tailwind (text-sm, mt-4, shadow-…) siempre puedan sobrescribirlo. */
+@layer components {
+  /* ---------- tipografía ---------- */
+
+  .u-display {
+    font-family: var(--font-display);
+    font-variation-settings: "SOFT" 100, "WONK" 1, "opsz" 144;
+    font-weight: 600;
+    letter-spacing: -0.03em;
+    line-height: 0.88;
+  }
+
+  .u-italic {
+    font-style: italic;
+    font-variation-settings: "SOFT" 100, "WONK" 1, "opsz" 144;
+  }
+
+  .u-mono {
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    font-weight: 500;
+    line-height: 1.5;
+  }
+
+  /* ---------- grano de impresión ---------- */
+
+  .grain {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    pointer-events: none;
+    opacity: 0.4;
+    mix-blend-mode: multiply;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
+  }
+
+  /* ---------- manchas de tinta (elemento firma) ---------- */
+
+  .ink-field {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+    isolation: isolate;
+  }
+
+  .ink-blob {
+    position: absolute;
+    border-radius: 50%;
+    mix-blend-mode: multiply;
+    filter: blur(2px);
+    will-change: transform;
+  }
+
+  .ink-field[data-tone="dark"] .ink-blob {
+    mix-blend-mode: screen;
+    filter: blur(6px);
+  }
+
+  /* ---------- superficies ---------- */
+
+  .card-ink {
+    position: relative;
+    border: 1.5px solid var(--color-ink);
+    border-radius: 26px;
+    background: #fffdfb;
+    box-shadow: 4px 5px 0 0 var(--color-ink);
+    transition:
+      transform 0.35s var(--ease-blend),
+      box-shadow 0.35s var(--ease-blend);
+  }
+
+  @media (hover: hover) {
+    .card-ink:hover {
+      transform: translate(-2px, -3px);
+      box-shadow: 7px 9px 0 0 var(--color-ink);
+    }
+  }
+
+  .rule {
+    height: 1.5px;
+    background: var(--color-ink);
+    opacity: 0.16;
+  }
+
+  /* ---------- botones ---------- */
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.55rem;
+    border-radius: 999px;
+    border: 1.5px solid var(--color-ink);
+    padding: 0.85rem 1.5rem;
+    /* 44 px: mínimo cómodo para el pulgar */
+    min-height: 2.75rem;
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    font-weight: 600;
+    line-height: 1;
+    cursor: pointer;
+    box-shadow: 3px 4px 0 0 var(--color-ink);
+    transition:
+      transform 0.2s var(--ease-blend),
+      box-shadow 0.2s var(--ease-blend),
+      background-color 0.2s var(--ease-blend),
+      color 0.2s var(--ease-blend);
+  }
+
+  .btn:active {
+    transform: translate(3px, 4px);
+    box-shadow: 0 0 0 0 var(--color-ink);
+  }
+
+  .btn-mango {
+    background: var(--color-mango);
+    color: #fff;
+  }
+
+  .btn-ube {
+    background: var(--color-ube);
+    color: #fff;
+  }
+
+  .btn-paper {
+    background: #fffdfb;
+    color: var(--color-ink);
+  }
+
+  .btn-ghost {
+    background: transparent;
+    color: var(--color-ink);
+    box-shadow: none;
+  }
+
+  .btn-ghost:active {
+    transform: none;
+  }
+
+  .btn-sm {
+    padding: 0.6rem 1.05rem;
+    font-size: 0.62rem;
+  }
+
+  /* ---------- stickers ---------- */
+
+  .sticker {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    border: 1.5px solid var(--color-ink);
+    border-radius: 999px;
+    padding: 0.3rem 0.7rem;
+    background: var(--color-pulp);
+    font-family: var(--font-mono);
+    font-size: 0.6rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    font-weight: 600;
+    line-height: 1.4;
+  }
+
+  /* ---------- campos de formulario ---------- */
+
+  .input {
+    width: 100%;
+    border: 1.5px solid rgba(27, 11, 46, 0.2);
+    border-radius: 999px;
+    background: #fff;
+    padding: 0.8rem 1.15rem;
+    /* 16 px: por debajo de eso, iOS hace zoom al enfocar */
+    font-size: 1rem;
+    color: var(--color-ink);
+    outline: none;
+    transition: border-color 0.2s var(--ease-blend);
+  }
+
+  .input::placeholder {
+    color: rgba(27, 11, 46, 0.32);
+  }
+
+  .input:focus {
+    border-color: var(--color-ink);
+  }
+
+  /* ---------- rieles horizontales ---------- */
+
+  .rail {
+    display: flex;
+    gap: 0.6rem;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+    padding-bottom: 0.4rem;
+  }
+
+  .rail::-webkit-scrollbar {
+    display: none;
+  }
+
+  .rail > * {
+    scroll-snap-align: start;
+    flex: 0 0 auto;
+  }
+}
+
+/* ---------- animaciones ---------- */
+
+@keyframes blend-marquee {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(-50%, 0, 0);
+  }
+}
+
+@keyframes blend-drift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  33% {
+    transform: translate3d(4%, -6%, 0) scale(1.08);
+  }
+  66% {
+    transform: translate3d(-5%, 4%, 0) scale(0.95);
+  }
+}
+
+@keyframes blend-swirl {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes blend-rise {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 18px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes blend-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-9px);
+  }
+}
+
+@layer components {
+  .marquee-track {
+    display: flex;
+    width: max-content;
+    animation: blend-marquee 34s linear infinite;
+  }
+
+  .drift {
+    animation: blend-drift 18s ease-in-out infinite;
+  }
+
+  .swirl {
+    animation: blend-swirl 26s linear infinite;
+  }
+
+  .rise {
+    animation: blend-rise 0.75s var(--ease-blend) both;
+  }
+
+  .bob {
+    animation: blend-bob 5s ease-in-out infinite;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  .marquee-track,
+  .drift,
+  .swirl,
+  .rise,
+  .bob {
+    animation: none !important;
+  }
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+  }
+}
