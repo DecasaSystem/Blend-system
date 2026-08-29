@@ -1,16 +1,26 @@
-import { totals, type CartLine, type DeliveryMode } from "./cart";
+import type { CartLine, DeliveryMode } from "./cart";
 import type { Product, Store } from "./content";
 
 /**
- * Pedidos. Viven en localStorage hasta que entre la base de datos (fase 7).
- * Se avisa por evento para que el tablero se entere de un pedido nuevo tanto si
- * llegó desde otra pestaña como desde esta misma.
+ * Pedidos: tipos y ayudas que comparten el servidor y el navegador.
+ * Leer y escribir vive en `src/actions/orders.ts`, contra Postgres.
  */
 
+/** Las cuatro columnas del tablero. */
 export const STATUSES = ["nuevo", "preparando", "listo", "entregado"] as const;
-export type OrderStatus = (typeof STATUSES)[number];
+
+/**
+ * `pago` es un estado previo: el pedido existe pero aún no está pagado con
+ * tarjeta, así que no aparece en el tablero. La barra no debe ponerse a
+ * preparar algo que todavía no se ha cobrado.
+ */
+export const ALL_STATUSES = ["pago", ...STATUSES] as const;
+
+export type OrderStatus = (typeof ALL_STATUSES)[number];
+export type BoardStatus = (typeof STATUSES)[number];
 
 export const STATUS_LABEL: Record<OrderStatus, string> = {
+  pago: "Esperando pago",
   nuevo: "Nuevo",
   preparando: "Preparando",
   listo: "Listo",
@@ -19,6 +29,7 @@ export const STATUS_LABEL: Record<OrderStatus, string> = {
 
 /** Lo que se hace con un pedido en cada estado. */
 export const STATUS_ACTION: Record<OrderStatus, string | null> = {
+  pago: null,
   nuevo: "Empezar",
   preparando: "Marcar listo",
   listo: "Marcar entregado",
@@ -26,6 +37,7 @@ export const STATUS_ACTION: Record<OrderStatus, string | null> = {
 };
 
 export const STATUS_COLOR: Record<OrderStatus, string> = {
+  pago: "#8A7BA0",
   nuevo: "#FF6A1A",
   preparando: "#7B3FF2",
   listo: "#8FD14F",
@@ -34,6 +46,7 @@ export const STATUS_COLOR: Record<OrderStatus, string> = {
 
 /** Minutos a partir de los cuales el pedido se marca en rojo. */
 export const LATE_AFTER: Record<OrderStatus, number> = {
+  pago: Infinity,
   nuevo: 3,
   preparando: 8,
   listo: 12,
@@ -64,105 +77,14 @@ export type Order = {
   channel: "web" | "mostrador";
 };
 
-const KEY = "blend.orders.v1";
-const COUNTER_KEY = "blend.orders.counter";
-const EVENT = "blend:orders";
-
-export function readOrders(): Order[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = localStorage.getItem(KEY);
-    const list = raw ? (JSON.parse(raw) as Order[]) : [];
-    return Array.isArray(list) ? list : [];
-  } catch {
-    return [];
-  }
+/** Avanzar y retroceder sólo se mueven entre las columnas del tablero. */
+export function nextStatus(status: OrderStatus): BoardStatus | null {
+  const i = (STATUSES as readonly string[]).indexOf(status);
+  return i >= 0 && i < STATUSES.length - 1 ? STATUSES[i + 1] : null;
 }
 
-function writeOrders(list: Order[]) {
-  try {
-    localStorage.setItem(KEY, JSON.stringify(list));
-  } catch {
-    /* almacenamiento no disponible */
-  }
-  // `storage` no se dispara en la pestaña que escribe; este evento sí.
-  window.dispatchEvent(new CustomEvent(EVENT));
-}
-
-/** Avisa de cambios propios y de otras pestañas. */
-export function subscribeOrders(fn: () => void) {
-  const onStorage = (e: StorageEvent) => {
-    if (e.key === KEY) fn();
-  };
-  window.addEventListener(EVENT, fn);
-  window.addEventListener("storage", onStorage);
-  return () => {
-    window.removeEventListener(EVENT, fn);
-    window.removeEventListener("storage", onStorage);
-  };
-}
-
-function nextId() {
-  let n = 1042;
-  try {
-    n = Number(localStorage.getItem(COUNTER_KEY) ?? 1042) + 1;
-    localStorage.setItem(COUNTER_KEY, String(n));
-  } catch {
-    n = Math.floor(Math.random() * 9000) + 1000;
-  }
-  return `B-${n}`;
-}
-
-export type NewOrder = {
-  lines: CartLine[];
-  mode: DeliveryMode;
-  storeId: string;
-  customer: Customer;
-  payment?: Order["payment"];
-  channel?: Order["channel"];
-};
-
-export function createOrder(input: NewOrder): Order {
-  const t = totals(input.lines, input.mode);
-  const now = Date.now();
-  const order: Order = {
-    id: nextId(),
-    createdAt: now,
-    statusAt: now,
-    status: "nuevo",
-    mode: input.mode,
-    storeId: input.storeId,
-    customer: input.customer,
-    lines: input.lines,
-    subtotal: t.subtotal,
-    delivery: t.delivery,
-    total: t.total,
-    payment: input.payment ?? "pendiente",
-    channel: input.channel ?? "web",
-  };
-  writeOrders([order, ...readOrders()]);
-  return order;
-}
-
-export function setOrderStatus(id: string, status: OrderStatus) {
-  writeOrders(readOrders().map((o) => (o.id === id ? { ...o, status, statusAt: Date.now() } : o)));
-}
-
-export function removeOrder(id: string) {
-  writeOrders(readOrders().filter((o) => o.id !== id));
-}
-
-export function clearOrders() {
-  writeOrders([]);
-}
-
-export function nextStatus(status: OrderStatus): OrderStatus | null {
-  const i = STATUSES.indexOf(status);
-  return i < STATUSES.length - 1 ? STATUSES[i + 1] : null;
-}
-
-export function prevStatus(status: OrderStatus): OrderStatus | null {
-  const i = STATUSES.indexOf(status);
+export function prevStatus(status: OrderStatus): BoardStatus | null {
+  const i = (STATUSES as readonly string[]).indexOf(status);
   return i > 0 ? STATUSES[i - 1] : null;
 }
 
@@ -189,6 +111,15 @@ export function formatClock(ms: number) {
   return new Date(ms).toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" });
 }
 
+export type NewOrder = {
+  lines: CartLine[];
+  mode: DeliveryMode;
+  storeId: string;
+  customer: Customer;
+  payment?: Order["payment"];
+  channel?: Order["channel"];
+};
+
 /** Un pedido de ejemplo para probar el tablero sin pasar por la tienda. */
 export function demoOrder(products: Product[], stores: Store[]): NewOrder {
   const pool = products.filter((p) => p.category !== "extras" && !p.soldOut);
@@ -198,10 +129,10 @@ export function demoOrder(products: Product[], stores: Store[]): NewOrder {
   const pick = () => pool[Math.floor(Math.random() * pool.length)];
   const names = ["Camila Ruiz", "Andrés Peña", "Valentina Gómez", "Julián Mora", "Sara Cárdenas"];
   const addresses = [
-    "Calle 70 #11-32, apto 402",
-    "Carrera 13 #85-19, oficina 3",
-    "Calle 116 #15-40, torre B",
-    "Carrera 7 #45-08",
+    "Cra. 14 #12-40, apto 302",
+    "Av. Bolívar #14-25, oficina 3",
+    "Calle 21 Norte #18-06, torre B",
+    "Cra. 19 #10-55",
   ];
   const notes = ["", "", "Sin popote, gracias", "Alergia a la nuez", "Tocar el timbre 2 veces"];
   const mode: DeliveryMode = Math.random() > 0.4 ? "envio" : "recoger";

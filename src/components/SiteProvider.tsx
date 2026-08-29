@@ -1,25 +1,24 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState } from "react";
-import { defaultSite, readSite, subscribeSite, type SiteContent } from "@/lib/site";
+import { createContext, useContext } from "react";
+import { defaultSite, type SiteContent } from "@/lib/site";
 
 /**
  * Contenido del sitio para toda la app.
- * Arranca con los valores de fábrica (los mismos que renderiza el servidor) y
- * cambia a lo guardado tras hidratar, para no romper el HTML del servidor.
+ *
+ * Llega ya resuelto desde el servidor (ver el layout raíz), así que el HTML del
+ * servidor y el del navegador coinciden y no hay parpadeo al hidratar.
  */
 const Ctx = createContext<SiteContent>(defaultSite());
 
-export function SiteProvider({ children }: { children: React.ReactNode }) {
-  const [site, setSite] = useState<SiteContent>(defaultSite);
-
-  useEffect(() => {
-    const sync = () => setSite(readSite());
-    sync();
-    return subscribeSite(sync);
-  }, []);
-
-  return <Ctx.Provider value={site}>{children}</Ctx.Provider>;
+export function SiteProvider({
+  value,
+  children,
+}: {
+  value: SiteContent;
+  children: React.ReactNode;
+}) {
+  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 
 export function useSite() {

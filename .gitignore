@@ -14,6 +14,7 @@
 /coverage
 
 # next.js
+
 /.next/
 /out/
 
@@ -32,6 +33,8 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# la plantilla sí se versiona: no lleva valores, sólo los nombres
+!.env.example
 
 # vercel
 .vercel
@@ -39,3 +42,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# copiado desde node_modules por scripts/setup-maplibre.mjs antes de dev y build
+/public/maplibre/
+
+# capturas de revisión
+/shots*/

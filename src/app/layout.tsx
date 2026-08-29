@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Fraunces, Archivo, Martian_Mono } from "next/font/google";
 import { CartProvider } from "@/components/CartProvider";
 import { SiteProvider } from "@/components/SiteProvider";
+import { loadSiteContent } from "@/actions/content";
 import "./globals.css";
 
 const fraunces = Fraunces({
@@ -38,7 +39,11 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  // El contenido se resuelve en el servidor: la tienda llega pintada y no
+  // parpadea al hidratar.
+  const site = await loadSiteContent();
+
   return (
     <html
       lang="es"
@@ -48,7 +53,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <body>
         {/* El carrito vive aquí para que /checkout lea el mismo pedido que la tienda.
             El contenido va por fuera: el carrito necesita los precios de los toppings. */}
-        <SiteProvider>
+        <SiteProvider value={site}>
           <CartProvider>{children}</CartProvider>
         </SiteProvider>
         <div className="grain" aria-hidden="true" />

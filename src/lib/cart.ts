@@ -73,7 +73,11 @@ export function toppingPrice(name: string, toppings: Topping[]) {
 }
 
 /** Precio unitario a partir del precio base del producto y sus opciones. */
-export function unitPrice(basePrice: number, options: LineOptions | undefined, toppings: Topping[]) {
+export function unitPrice(
+  basePrice: number,
+  options: LineOptions | undefined,
+  toppings: Topping[],
+) {
   if (!options) return basePrice;
   const size = SIZES.find((s) => s.id === options.size)?.delta ?? 0;
   const extras = options.extras.reduce((n, name) => n + toppingPrice(name, toppings), 0);
@@ -124,4 +128,3 @@ export function totals(lines: CartLine[], mode: DeliveryMode) {
   const missingForFree = Math.max(0, FREE_DELIVERY_FROM - subtotal);
   return { count, subtotal, delivery, total: subtotal + delivery, freeDelivery, missingForFree };
 }
-

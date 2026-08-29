@@ -27,12 +27,10 @@ import {
 /**
  * Contenido editable del sitio.
  *
- * `content.ts` son los valores de fábrica. Lo que el equipo guarda desde /equipo
- * vive aparte y gana. Se guarda el objeto completo, no parches: así lo que se ve
- * en el editor es exactamente lo que se publica, y "Restaurar" es volver a los
- * valores de fábrica sin ambigüedad.
- *
- * En la fase 7 esto pasa a base de datos; la forma del objeto no cambia.
+ * `content.ts` son los valores de fábrica. Lo que el equipo publica desde
+ * /equipo vive en la base de datos y gana. Se guarda el objeto entero, no
+ * parches: así lo que se ve en el editor es exactamente lo que se publica, y
+ * "Restaurar" es volver a los valores de fábrica sin ambigüedad.
  */
 
 export type Topping = { name: string; price: number };
@@ -57,10 +55,7 @@ export type SiteContent = {
   faqs: Faq[];
 };
 
-const KEY = "blend.site.v1";
-const EVENT = "blend:site";
-
-/** Copia profunda de los valores de fábrica: el editor nunca debe mutarlos. */
+/** Copia profunda de los valores de fábrica: nadie debe mutarlos. */
 export function defaultSite(): SiteContent {
   return structuredClone({
     brand,
@@ -79,73 +74,6 @@ export function defaultSite(): SiteContent {
     rewards,
     faqs,
   });
-}
-
-export function readSite(): SiteContent {
-  const base = defaultSite();
-  if (typeof window === "undefined") return base;
-  try {
-    const raw = localStorage.getItem(KEY);
-    if (!raw) return base;
-    const saved = JSON.parse(raw) as Partial<SiteContent>;
-    // Mezcla superficial: si el código añade una sección nueva, aparece aunque
-    // el equipo tenga contenido guardado de antes.
-    return { ...base, ...saved };
-  } catch {
-    return base;
-  }
-}
-
-export function writeSite(next: SiteContent) {
-  try {
-    localStorage.setItem(KEY, JSON.stringify(next));
-  } catch (err) {
-    // Sobre todo: cuota llena por imágenes pesadas.
-    throw new Error(
-      err instanceof Error && err.name === "QuotaExceededError"
-        ? "No cabe. Borra alguna imagen antes de guardar otra."
-        : "No se pudo guardar el contenido.",
-    );
-  }
-  window.dispatchEvent(new CustomEvent(EVENT));
-}
-
-export function resetSite() {
-  try {
-    localStorage.removeItem(KEY);
-  } catch {
-    /* almacenamiento no disponible */
-  }
-  window.dispatchEvent(new CustomEvent(EVENT));
-}
-
-export function hasSavedSite() {
-  try {
-    return localStorage.getItem(KEY) !== null;
-  } catch {
-    return false;
-  }
-}
-
-/** Cuánto ocupa el contenido guardado, en KB. Las fotos son lo que pesa. */
-export function savedSizeKb() {
-  try {
-    return Math.round(((localStorage.getItem(KEY)?.length ?? 0) * 2) / 1024);
-  } catch {
-    return 0;
-  }
-}
-
-export function subscribeSite(fn: () => void) {
-  const onStorage = (e: StorageEvent) => {
-    if (e.key === KEY) fn();
-  };
-  window.addEventListener(EVENT, fn);
-  window.addEventListener("storage", onStorage);
-  return () => {
-    window.removeEventListener(EVENT, fn);
-    window.removeEventListener("storage", onStorage);
-  };
 }
 
 /** Un producto nuevo, listo para editar. */
@@ -170,9 +98,15 @@ export function blankStore(): Store {
     address: "Dirección de la sede",
     area: "Zona",
     hours: "8:00 – 20:00",
-    phone: "+57 601 400 0000",
-    x: 50,
-    y: 40,
+    phone: "+57 606 400 0000",
+    // Centro de Armenia; el equipo la mueve a su dirección real.
+    lat: 4.540962,
+    lng: -75.659869,
     services: [],
   };
+}
+
+/** Cuánto ocupa el contenido, en KB. Las fotos son lo que pesa. */
+export function sizeKb(site: SiteContent) {
+  return Math.round(JSON.stringify(site).length / 1024);
 }

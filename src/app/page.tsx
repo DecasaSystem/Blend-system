@@ -13,12 +13,15 @@ import CartDrawer from "@/components/CartDrawer";
 import CartToast from "@/components/CartToast";
 import ProductSheet from "@/components/ProductSheet";
 import MobileBar from "@/components/MobileBar";
+import { getCustomer } from "@/lib/customer-session";
 
-export default function Home() {
+export default async function Home() {
+  const customer = await getCustomer();
+
   return (
     <>
       <Marquee />
-      <Nav />
+      <Nav signedIn={Boolean(customer)} />
       <main>
         <Hero />
         <DailyBlends />

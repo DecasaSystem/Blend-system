@@ -66,9 +66,33 @@ Next.js 15 (App Router) · TypeScript · Tailwind v4 · Framer Motion
 En la fase 7 se migra a base de datos (Neon/Supabase vía Vercel Marketplace) sin
 cambiar la forma de los objetos ni la UI.
 
-**Pagos:** Stripe Checkout. En la fase visual va simulado; se conecta al final.
+**Pagos: Wompi.** Todo lo que sabe la app de la pasarela está en
+`src/lib/payments.ts`. Sin claves, la tienda funciona igual y sólo se cobra al
+recibir o al recoger.
 
-**Mapa:** MapLibre GL + tiles gratuitos, con pines y estilo propio (sin logo de Google).
+Un pedido con tarjeta nace en estado `pago` y **no aparece en el tablero**: la
+barra no debe preparar nada que no se haya cobrado.
+
+Lo libera el webhook, y ahí hay dos comprobaciones, no una:
+
+1. Se recalcula el checksum del aviso con el secreto de eventos.
+2. **Se le vuelve a preguntar a Wompi por la transacción.** Hace falta porque la
+   firma sólo cubre los campos que el propio aviso lista en
+   `signature.properties`, y `reference` no está entre ellos. Con la firma a
+   secas, alguien podría tomar el aviso legítimo de su propio pago, cambiarle la
+   referencia por la de otro pedido —el checksum seguiría cuadrando— y sacar ese
+   pedido a la barra sin pagarlo. La referencia y el monto se leen de la
+   respuesta de Wompi, nunca del cuerpo recibido.
+
+Además se comprueba que lo cobrado sea lo que costaba el pedido.
+
+**Mapa:** MapLibre GL con teselas de OpenFreeMap (libres, sin clave ni cuota).
+Se carga sólo al entrar en pantalla; si falla, queda el mapa ilustrado.
+
+El worker de MapLibre se copia a `public/maplibre/` antes de `dev` y `build`
+(`scripts/setup-maplibre.mjs`): MapLibre lo busca en `import.meta.url`, que tras
+el bundler apunta a la propia página, y el mapa se queda cargando para siempre
+sin dar ningún error.
 
 ---
 
@@ -112,9 +136,11 @@ cambiar la forma de los objetos ni la UI.
 | **2** | **Carrito funcional + personalización de producto** | **listo — en revisión** |
 | **3** | **Vista `/equipo`: tablero de pedidos** | **listo — en revisión** |
 | **4** | **Vista `/equipo`: editor de contenido** | **listo — en revisión** |
-| 5 | Mapa interactivo real | pendiente |
-| 6 | Checkout + Stripe | pendiente |
-| 7 | Base de datos, tiempo real y deploy | pendiente |
+| **5** | **Mapa interactivo real** | **listo — en revisión** |
+| **6** | **Pago con tarjeta** | **listo — falta probarlo contra Stripe real** |
+| **7a** | **Base de datos, login del equipo y sesiones** | **listo — en revisión** |
+| **7b** | **Cuentas de clientes** | **listo — en revisión** |
+| 7c | Deploy en Vercel | pendiente |
 
 **Fase 1 se revisa antes de continuar.** Cualquier ajuste de color, tipografía o
 composición se corrige ahí, porque todo lo demás hereda ese sistema.
@@ -132,6 +158,35 @@ node scripts/shots-editor.mjs         # capturas del editor de contenido
 node scripts/cart-flow.mjs            # prueba el carrito de punta a punta
 node scripts/board-flow.mjs           # prueba tienda → barra → estados
 node scripts/editor-flow.mjs          # prueba editar → publicar → tienda
+node scripts/shots-map.mjs            # capturas del mapa
+node scripts/map-flow.mjs             # prueba el mapa, con y sin red
+```
+
+Las que tocan la base necesitan las credenciales:
+
+```bash
+npm run db:push                       # aplica el esquema
+npm run db:check                      # comprueba la conexión
+node --env-file=.env.local scripts/create-user.mjs correo "Nombre" admin
+node --env-file=.env.local scripts/auth-flow.mjs    # acceso y sesión
+node --env-file=.env.local scripts/board-flow.mjs   # tienda → Postgres → barra
+node --env-file=.env.local scripts/editor-flow.mjs  # publicar → servidor
+node --env-file=.env.local scripts/account-flow.mjs # cuentas de clientes
+node --env-file=.env.local scripts/google-flow.mjs  # entrar con Google
+node --env-file=.env.local scripts/payment-flow.mjs # capa de pagos
+node --env-file=.env.local scripts/shots-account.mjs # capturas de la cuenta
+```
+
+El webhook se prueba aparte, con claves ficticias y un servidor que hace de API
+de Wompi, porque hay que arrancar el servidor apuntando a él:
+
+```bash
+$env:WOMPI_PUBLIC_KEY='pub_test_ficticia'
+$env:WOMPI_INTEGRITY_SECRET='test_integrity_ficticio'
+$env:WOMPI_EVENTS_SECRET='test_events_ficticio'
+$env:WOMPI_API_BASE='http://localhost:4010/v1'
+npm run dev
+node --env-file=.env.local scripts/webhook-flow.mjs
 node scripts/overflow.mjs <url> <sel> # busca desbordamiento horizontal
 ```
 
@@ -146,10 +201,22 @@ Rutas: `/` (tienda) · `/equipo` y `/checkout` (marcadores de las fases siguient
 - **Ciudad:** Bogotá, con cuatro sedes de ejemplo (Chapinero, Usaquén, Parque 93,
   La Candelaria). Se cambian en `src/lib/content.ts`.
 - **Moneda:** peso colombiano, sin decimales (`es-CO`).
-- **Clave de la barra:** `blend2026`, en `src/lib/team.ts`. Es un pestillo, no una
-  cerradura: viaja en el bundle del navegador. Se reemplaza por autenticación real
-  en la fase 7, y hasta entonces la vista de equipo no muestra nada que no pueda
-  ser público.
+- **Ciudad:** Armenia, Quindío, con dos sedes reales (Cra. 14 #25 Norte-2 y
+  Cra. 6 #3-423) y sus coordenadas.
+- **Entrar con Google:** flujo de token de identidad, así que no se guarda
+  ningún secreto de cliente — sólo `NEXT_PUBLIC_GOOGLE_CLIENT_ID`, que es
+  público por diseño. Sin él, la tienda funciona igual y sólo desaparece el
+  botón. Si alguien que ya tenía cuenta con contraseña entra con Google usando
+  el mismo correo, se vincula en vez de duplicarse; es seguro porque sólo se
+  aceptan correos que Google marca como verificados.
+- **Cuentas de clientes:** tabla `customers` y cookie propias, separadas de las
+  del equipo a propósito. Así un descuido en una comprobación de rol no puede
+  darle a un cliente el tablero de pedidos. Comprar sin cuenta sigue siendo
+  posible: `orders.customer_id` admite nulo.
+- **Acceso a la barra:** usuarios en la tabla `users`, contraseñas con scrypt.
+  Sesión en cookie `httpOnly` y token guardado como hash en `sessions`. La
+  comprobación vive en el servidor: sin sesión, el panel ni se renderiza.
+  Se crean usuarios con `scripts/create-user.mjs`.
 - **Imágenes y videos:** no hay fotos de stock. Cada bebida se dibuja con su
   recipiente real y los ingredientes sobreimpresos dentro. Cuando el equipo suba
   una foto o un video, el campo `media` la reemplaza sin tocar el código.

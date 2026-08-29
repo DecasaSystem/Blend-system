@@ -15,29 +15,41 @@ import {
 } from "./useOrders";
 import { money } from "@/lib/cart";
 import {
-  clearOrders,
-  createOrder,
   demoOrder,
   STATUSES,
   STATUS_COLOR,
   STATUS_LABEL,
+  type BoardStatus,
   type Order,
-  type OrderStatus,
 } from "@/lib/orders";
-import { TEAM_SESSION_KEY } from "@/lib/team";
+import { clearAllOrders, placeOrder, updateOrderStatus } from "@/actions/orders";
+import { signOut } from "@/actions/auth";
+import type { SessionUser } from "@/lib/session";
 import { useSite } from "../SiteProvider";
 
 const SOUND_KEY = "blend.team.sound";
 
-export default function OrderBoard() {
+export default function OrderBoard({
+  user,
+  initialOrders,
+}: {
+  user: SessionUser;
+  initialOrders: Order[];
+}) {
   const site = useSite();
-  const { orders, ready } = useOrders();
+  const { orders, offline, refresh } = useOrders(initialOrders);
   const now = useNow();
   const [sound, setSound] = useState(false);
-  const [tab, setTab] = useState<OrderStatus>("nuevo");
+  const [tab, setTab] = useState<BoardStatus>("nuevo");
   const [view, setView] = useState<"pedidos" | "contenido">("pedidos");
   const arrived = useNewOrderAlert(orders, sound);
   const wide = useMediaQuery("(min-width: 1024px)");
+
+  /** Mover un pedido: se pide al servidor y se recarga la lista. */
+  const move = async (id: string, status: BoardStatus) => {
+    await updateOrderStatus(id, status);
+    await refresh();
+  };
 
   useEffect(() => {
     try {
@@ -48,14 +60,19 @@ export default function OrderBoard() {
   }, []);
 
   const byStatus = useMemo(() => {
-    const map: Record<OrderStatus, Order[]> = {
+    const map: Record<BoardStatus, Order[]> = {
       nuevo: [],
       preparando: [],
       listo: [],
       entregado: [],
     };
     // El más viejo primero: se atiende por orden de llegada.
-    [...orders].sort((a, b) => a.createdAt - b.createdAt).forEach((o) => map[o.status].push(o));
+    // Los que esperan pago no llegan aquí, pero por si acaso se ignoran.
+    [...orders]
+      .sort((a, b) => a.createdAt - b.createdAt)
+      .forEach((o) => {
+        if (o.status !== "pago") map[o.status].push(o);
+      });
     return map;
   }, [orders]);
 
@@ -88,15 +105,6 @@ export default function OrderBoard() {
       chime();
       await askForNotifications();
     }
-  };
-
-  const signOut = () => {
-    try {
-      sessionStorage.removeItem(TEAM_SESSION_KEY);
-    } catch {
-      /* almacenamiento no disponible */
-    }
-    location.reload();
   };
 
   return (
@@ -153,9 +161,11 @@ export default function OrderBoard() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
+                  onClick={async () => {
                     try {
-                      createOrder(demoOrder(site.products, site.stores));
+                      const res = await placeOrder(demoOrder(site.products, site.stores));
+                      if ("error" in res) alert(res.error);
+                      await refresh();
                     } catch (e) {
                       alert(e instanceof Error ? e.message : "No se pudo crear el pedido.");
                     }
@@ -166,13 +176,15 @@ export default function OrderBoard() {
                 </button>
               </>
             ) : null}
-            <button
-              type="button"
-              onClick={signOut}
-              className="u-mono min-h-11 rounded-full border-[1.5px] border-ink/25 px-3.5 text-ink/60 transition-colors hover:border-ink hover:text-ink"
-            >
-              Salir
-            </button>
+            <form action={signOut}>
+              <button
+                type="submit"
+                title={`${user.name} · ${user.email}`}
+                className="u-mono min-h-11 rounded-full border-[1.5px] border-ink/25 px-3.5 text-ink/60 transition-colors hover:border-ink hover:text-ink"
+              >
+                Salir
+              </button>
+            </form>
           </div>
         </div>
       </header>
@@ -221,10 +233,16 @@ export default function OrderBoard() {
 
               <div className="mt-4 grid gap-3">
                 {byStatus[tab].length === 0 ? (
-                  <Empty status={tab} ready={ready} />
+                  <Empty status={tab} offline={offline} />
                 ) : (
                   byStatus[tab].map((o) => (
-                    <OrderCard key={o.id} order={o} now={now} fresh={arrived?.id === o.id} />
+                    <OrderCard
+                      key={o.id}
+                      order={o}
+                      now={now}
+                      fresh={arrived?.id === o.id}
+                      onMove={move}
+                    />
                   ))
                 )}
               </div>
@@ -250,10 +268,16 @@ export default function OrderBoard() {
                     style={{ minHeight: "12rem" }}
                   >
                     {byStatus[s].length === 0 ? (
-                      <Empty status={s} ready={ready} />
+                      <Empty status={s} offline={offline} />
                     ) : (
                       byStatus[s].map((o) => (
-                        <OrderCard key={o.id} order={o} now={now} fresh={arrived?.id === o.id} />
+                        <OrderCard
+                          key={o.id}
+                          order={o}
+                          now={now}
+                          fresh={arrived?.id === o.id}
+                          onMove={move}
+                        />
                       ))
                     )}
                   </div>
@@ -266,8 +290,11 @@ export default function OrderBoard() {
             <div className="mt-8 flex justify-end">
               <button
                 type="button"
-                onClick={() => {
-                  if (confirm("¿Borrar todos los pedidos guardados?")) clearOrders();
+                onClick={async () => {
+                  if (!confirm("¿Borrar todos los pedidos guardados?")) return;
+                  const res = await clearAllOrders();
+                  if ("error" in res) alert(res.error);
+                  await refresh();
                 }}
                 className="u-mono min-h-11 rounded-full border-[1.5px] border-ink/20 px-3.5 text-ink/40 transition-colors hover:border-mango-deep hover:text-mango-deep"
               >
@@ -304,8 +331,8 @@ function Metric({ label, value, tone }: { label: string; value: string; tone?: s
   );
 }
 
-function Empty({ status, ready }: { status: OrderStatus; ready: boolean }) {
-  const copy: Record<OrderStatus, string> = {
+function Empty({ status, offline }: { status: BoardStatus; offline: boolean }) {
+  const copy: Record<BoardStatus, string> = {
     nuevo: "Nada esperando. Los pedidos entran solos.",
     preparando: "Ninguno en la licuadora.",
     listo: "Nada esperando en la barra.",
@@ -313,7 +340,7 @@ function Empty({ status, ready }: { status: OrderStatus; ready: boolean }) {
   };
   return (
     <p className="u-mono grid place-items-center px-3 py-8 text-center normal-case tracking-[0.01em] text-ink/35">
-      {ready ? copy[status] : "Cargando…"}
+      {offline ? "Sin conexión con el servidor" : copy[status]}
     </p>
   );
 }

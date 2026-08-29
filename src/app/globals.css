@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "maplibre-gl/dist/maplibre-gl.css";
 
 /* ------------------------------------------------------------------
    BLEND — sistema visual "sobreimpresión"
@@ -357,6 +358,100 @@
 
   .bob {
     animation: blend-bob 5s ease-in-out infinite;
+  }
+}
+
+/* ---------- mapa ----------
+   Fuera de @layer a propósito: el CSS de MapLibre viene sin capa y, en la
+   cascada, lo sin-capa gana a lo que está en una. Aquí decide la especificidad. */
+
+/* MapLibre pone `.maplibregl-map { position: relative }` al inicializar, lo que
+   pisa el `absolute inset-0` de Tailwind y deja el contenedor sin altura: el
+   mapa nunca renderiza ni dispara `load`. Aquí gana la especificidad. */
+.blend-map.maplibregl-map {
+  position: absolute;
+  inset: 0;
+}
+
+/* Las teselas se tiñen hacia el papel lila. El filtro sólo toca el lienzo:
+   los pines son elementos del DOM y quedan con su color. */
+.blend-map .maplibregl-canvas {
+  filter: saturate(0.55) contrast(0.96) hue-rotate(-12deg) brightness(1.03);
+}
+
+.blend-map .maplibregl-ctrl-group {
+  border: 1.5px solid var(--color-ink);
+  border-radius: 999px;
+  overflow: hidden;
+  box-shadow: 2px 3px 0 0 var(--color-ink);
+}
+
+.blend-map .maplibregl-ctrl-group button {
+  width: 36px;
+  height: 36px;
+}
+
+.blend-map .maplibregl-ctrl-attrib {
+  font-family: var(--font-mono);
+  font-size: 0.55rem;
+}
+
+.blend-map .maplibregl-ctrl-attrib a {
+  color: var(--color-ink);
+}
+
+.blend-pin {
+  display: grid;
+  justify-items: center;
+  gap: 1px;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  transition: transform 0.25s var(--ease-blend);
+}
+
+.blend-pin:hover {
+  transform: translateY(-2px) scale(1.06);
+}
+
+.blend-pin svg {
+  display: block;
+}
+
+.blend-pin-halo {
+  opacity: 0;
+  transition: opacity 0.25s var(--ease-blend);
+}
+
+.blend-pin[data-active="true"] .blend-pin-halo {
+  opacity: 1;
+}
+
+.blend-pin-label {
+  font-family: var(--font-mono);
+  font-size: 0.55rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-ink);
+  background: #fffdfbdd;
+  border-radius: 999px;
+  padding: 1px 6px;
+  white-space: nowrap;
+  opacity: 0.75;
+}
+
+.blend-pin[data-active="true"] .blend-pin-label {
+  opacity: 1;
+  background: var(--color-ink);
+  color: var(--color-paper);
+}
+
+/* En móvil las sedes quedan cerca y las etiquetas se pisan entre sí:
+   sólo se muestra la de la sede seleccionada. */
+@media (max-width: 639px) {
+  .blend-pin:not([data-active="true"]) .blend-pin-label {
+    display: none;
   }
 }
 

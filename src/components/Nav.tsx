@@ -12,7 +12,7 @@ const LINKS = [
   { href: "#contacto", label: "Contacto" },
 ];
 
-export default function Nav() {
+export default function Nav({ signedIn = false }: { signedIn?: boolean }) {
   const { count, setOpen } = useCart();
   const [sheet, setSheet] = useState(false);
   const [stuck, setStuck] = useState(false);
@@ -61,10 +61,10 @@ export default function Nav() {
 
           <div className="ml-auto flex items-center gap-2 lg:ml-3">
             <a
-              href="/equipo"
+              href={signedIn ? "/cuenta" : "/cuenta/entrar"}
               className="u-mono hidden min-h-11 items-center rounded-full border-[1.5px] border-ink/25 px-3.5 text-ink/60 transition-colors hover:border-ink hover:text-ink sm:inline-flex"
             >
-              Equipo
+              {signedIn ? "Mi cuenta" : "Entrar"}
             </a>
             <button
               type="button"
@@ -178,10 +178,18 @@ export default function Nav() {
 
           <div className="rule my-4" />
           <a
-            href="/equipo"
+            href={signedIn ? "/cuenta" : "/cuenta/entrar"}
             tabIndex={sheet ? 0 : -1}
             onClick={() => setSheet(false)}
             className="u-mono flex min-h-11 items-center justify-between text-ink/55"
+          >
+            {signedIn ? "Mi cuenta" : "Entrar a mi cuenta"} <span aria-hidden="true">→</span>
+          </a>
+          <a
+            href="/equipo"
+            tabIndex={sheet ? 0 : -1}
+            onClick={() => setSheet(false)}
+            className="u-mono flex min-h-11 items-center justify-between text-ink/35"
           >
             Vista de equipo <span aria-hidden="true">→</span>
           </a>

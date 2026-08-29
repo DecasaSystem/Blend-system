@@ -1,21 +1,59 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { readOrders, subscribeOrders, type Order } from "@/lib/orders";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { listOrders } from "@/actions/orders";
+import type { Order } from "@/lib/orders";
 
-/** Los pedidos guardados, al día con lo que pase en cualquier pestaña. */
-export function useOrders() {
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [ready, setReady] = useState(false);
+/**
+ * Los pedidos, al día.
+ *
+ * Se consulta al servidor cada pocos segundos. No es tiempo real de verdad,
+ * pero funciona en cualquier despliegue y no deja conexiones abiertas; si hace
+ * falta más inmediatez, el siguiente paso son eventos del servidor (SSE).
+ */
+const REFRESH_MS = 4000;
 
-  useEffect(() => {
-    const sync = () => setOrders(readOrders());
-    sync();
-    setReady(true);
-    return subscribeOrders(sync);
+export function useOrders(initial: Order[]) {
+  const [orders, setOrders] = useState<Order[]>(initial);
+  const [offline, setOffline] = useState(false);
+  const inFlight = useRef(false);
+
+  const refresh = useCallback(async () => {
+    // Si la red va lenta, no encadenar peticiones encima de la anterior.
+    if (inFlight.current) return;
+    inFlight.current = true;
+    try {
+      setOrders(await listOrders());
+      setOffline(false);
+    } catch {
+      setOffline(true);
+    } finally {
+      inFlight.current = false;
+    }
   }, []);
 
-  return { orders, ready };
+  useEffect(() => {
+    const timer = setInterval(refresh, REFRESH_MS);
+    // Al volver a la pestaña, ponerse al día sin esperar al siguiente ciclo.
+    const onVisible = () => document.visibilityState === "visible" && refresh();
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [refresh]);
+
+  return { orders, offline, refresh };
+}
+
+/** Un reloj compartido: un solo intervalo para todos los cronómetros. */
+export function useNow(intervalMs = 1000) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), intervalMs);
+    return () => clearInterval(t);
+  }, [intervalMs]);
+  return now;
 }
 
 /**
@@ -33,16 +71,6 @@ export function useMediaQuery(query: string) {
     return () => mq.removeEventListener("change", sync);
   }, [query]);
   return matches;
-}
-
-/** Un reloj compartido: un solo intervalo para todos los cronómetros. */
-export function useNow(intervalMs = 1000) {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), intervalMs);
-    return () => clearInterval(t);
-  }, [intervalMs]);
-  return now;
 }
 
 /**

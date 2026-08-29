@@ -52,20 +52,20 @@ export type Store = {
   area: string;
   hours: string;
   phone: string;
-  /** Coordenadas relativas al mapa (0–100). Se cambian por lat/lng reales en la fase 5. */
-  x: number;
-  y: number;
+  /** Coordenadas reales. El mapa ilustrado las proyecta; el mapa real las usa tal cual. */
+  lat: number;
+  lng: number;
   services: string[];
 };
 
 export const brand = {
   name: "BLEND",
   tagline: "Casa de batidos, matcha y açaí",
-  city: "Bogotá",
+  city: "Armenia",
   /** Si está vacío, se dibuja la marca de tres tintas. Editable desde /equipo. */
   logo: "https://res.cloudinary.com/dmcjbwyhv/image/upload/v1787925497/WhatsApp_Image_2026-08-27_at_10.05.27_qcqywf.jpg",
   delivery: "Entrega en 25 min",
-  phone: "+57 601 400 1180",
+  phone: "+57 606 400 1180",
   email: "hola@blend.cafe",
   instagram: "@blend.cafe",
 };
@@ -406,48 +406,26 @@ export const toppings = [
 
 export const stores: Store[] = [
   {
-    id: "chapinero",
-    name: "Blend Chapinero",
-    address: "Carrera 11 #69-24, Chapinero",
-    area: "Chapinero",
+    id: "norte",
+    name: "Blend Norte",
+    address: "Cra. 14 #25 Norte-2, Armenia, Quindío",
+    area: "Norte",
     hours: "7:00 – 21:00",
-    phone: "+57 601 400 1180",
-    x: 38,
-    y: 46,
+    phone: "+57 606 400 1180",
+    lat: 4.561402,
+    lng: -75.652527,
     services: ["Barra de matcha", "Pedido para llevar", "Pet friendly"],
   },
   {
-    id: "usaquen",
-    name: "Blend Usaquén",
-    address: "Carrera 6 #117-30, Usaquén",
-    area: "Usaquén",
-    hours: "8:00 – 21:00",
-    phone: "+57 601 400 1182",
-    x: 63,
-    y: 22,
-    services: ["Pedido en 10 min", "Parqueadero", "Catering"],
-  },
-  {
-    id: "parque93",
-    name: "Blend Parque 93",
-    address: "Calle 93B #12-48, Chicó",
-    area: "Parque 93",
-    hours: "7:30 – 20:30",
-    phone: "+57 601 400 1181",
-    x: 19,
-    y: 60,
-    services: ["Terraza", "Bowls hasta las 18:00", "Wi-Fi"],
-  },
-  {
-    id: "candelaria",
-    name: "Blend La Candelaria",
-    address: "Calle 12C #2-38, La Candelaria",
-    area: "Candelaria",
+    id: "centro",
+    name: "Blend Centro",
+    address: "Cra. 6 #3-423, Armenia, Quindío",
+    area: "Centro",
     hours: "8:00 – 20:00",
-    phone: "+57 601 400 1183",
-    x: 76,
-    y: 62,
-    services: ["Patio", "Granola a granel", "Pet friendly"],
+    phone: "+57 606 400 1181",
+    lat: 4.540962,
+    lng: -75.659869,
+    services: ["Terraza", "Bowls hasta las 18:00", "Wi-Fi"],
   },
 ];
 
@@ -483,10 +461,10 @@ export const sections: Record<SectionKey, SectionCopy> = {
     body: "Los mismos ingredientes que usamos en barra. El color de arriba es el que vas a recibir.",
   },
   stores: {
-    eyebrow: "Cuatro tiendas",
+    eyebrow: "Dos tiendas en Armenia",
     title: "Dónde nos",
     accent: "encuentras",
-    body: "Toca un pin para ver horarios y cómo llegar. Todas hacen pedido para llevar.",
+    body: "Toca un pin para ver horarios y cómo llegar. Las dos hacen pedido para llevar.",
   },
   contact: {
     eyebrow: "Contacto",

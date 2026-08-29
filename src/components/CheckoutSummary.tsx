@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import Link from "next/link";
 import Logo from "./Logo";
 import { useCart } from "./CartProvider";
 import { describe, money, MAX_QTY } from "@/lib/cart";
-import { createOrder } from "@/lib/orders";
+import { placeOrder } from "@/actions/orders";
+import { payWithCard } from "@/actions/checkout";
 import { useSite } from "./SiteProvider";
 
 /**
@@ -13,7 +14,20 @@ import { useSite } from "./SiteProvider";
  * El pago con tarjeta entra en la fase 6; por ahora el pedido sale marcado
  * como "pago pendiente" y aparece igual en /equipo.
  */
-export default function CheckoutSummary() {
+type SavedAddress = { id: string; label: string; address: string };
+
+export default function CheckoutSummary({
+  customer,
+  addresses = [],
+  cardPayments = false,
+  cancelled = false,
+}: {
+  customer?: { name: string; email: string; phone: string | null } | null;
+  addresses?: SavedAddress[];
+  /** Falso si no hay pasarela configurada: entonces sólo se cobra al recibir. */
+  cardPayments?: boolean;
+  cancelled?: boolean;
+}) {
   const {
     lines,
     setQty,
@@ -32,17 +46,24 @@ export default function CheckoutSummary() {
   } = useCart();
   const { stores } = useSite();
 
-  const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [address, setAddress] = useState("");
+  // Con cuenta, los datos vienen puestos: nadie debería reescribir su nombre
+  // y su teléfono en cada pedido.
+  const [name, setName] = useState(customer?.name ?? "");
+  const [phone, setPhone] = useState(customer?.phone ?? "");
+  const [address, setAddress] = useState(addresses[0]?.address ?? "");
   const [notes, setNotes] = useState("");
   const [sent, setSent] = useState<{ id: string; mode: string } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [method, setMethod] = useState<"tarjeta" | "recibir">(cardPayments ? "tarjeta" : "recibir");
+  const [pending, startTransition] = useTransition();
 
   const store = stores.find((s) => s.id === storeId) ?? stores[0];
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    const order = createOrder({
+    setError(null);
+
+    const order = {
       lines,
       mode,
       storeId,
@@ -52,11 +73,30 @@ export default function CheckoutSummary() {
         address: mode === "envio" ? address.trim() : undefined,
         notes: notes.trim() || undefined,
       },
-      payment: "pendiente",
-      channel: "web",
+      channel: "web" as const,
+    };
+
+    startTransition(async () => {
+      if (cardPayments && method === "tarjeta") {
+        const res = await payWithCard(order);
+        if ("error" in res) {
+          setError(res.error);
+          return;
+        }
+        // El carrito se vacía al volver de la pasarela, no antes: si el pago
+        // se cancela, el pedido sigue ahí.
+        window.location.href = res.url;
+        return;
+      }
+
+      const res = await placeOrder({ ...order, payment: "pendiente" });
+      if ("error" in res) {
+        setError(res.error);
+        return;
+      }
+      setSent({ id: res.id, mode });
+      clear();
     });
-    setSent({ id: order.id, mode });
-    clear();
   };
 
   if (sent) {
@@ -92,8 +132,8 @@ export default function CheckoutSummary() {
             <Link href="/" className="btn btn-mango">
               Volver al menú
             </Link>
-            <Link href="/equipo" className="btn btn-paper">
-              Ver la barra
+            <Link href={customer ? "/cuenta" : "/cuenta/registro"} className="btn btn-paper">
+              {customer ? "Ver mis pedidos" : "Crear una cuenta"}
             </Link>
           </div>
         </div>
@@ -127,6 +167,12 @@ export default function CheckoutSummary() {
             <h1 className="u-display mt-8 text-[clamp(2.4rem,7vw,4rem)]">
               Revisa antes de <span className="u-italic text-mango">pagar</span>
             </h1>
+
+            {cancelled ? (
+              <p className="u-mono mt-4 rounded-2xl border-[1.5px] border-ink/15 bg-white px-4 py-3 normal-case tracking-[0.01em] text-ink/60">
+                No se cobró nada. Tu pedido sigue aquí por si quieres intentarlo otra vez.
+              </p>
+            ) : null}
 
             <div className="mt-8 grid gap-2 rounded-[26px] border-[1.5px] border-ink bg-white p-2">
               <div className="grid grid-cols-2 gap-1 rounded-full border-[1.5px] border-ink p-1">
@@ -261,6 +307,16 @@ export default function CheckoutSummary() {
                 {mode === "envio" ? "¿Dónde te lo dejamos?" : "¿A nombre de quién?"}
               </h2>
 
+              {!customer ? (
+                <p className="u-mono mt-3 normal-case tracking-[0.01em] text-ink/45">
+                  Puedes pedir así, sin cuenta.{" "}
+                  <Link href="/cuenta/entrar" className="text-ube underline underline-offset-4">
+                    O entra a la tuya
+                  </Link>{" "}
+                  para guardar direcciones y acumular sellos.
+                </p>
+              ) : null}
+
               <div className="mt-6 grid gap-4 sm:grid-cols-2">
                 <Field label="Nombre" id="nombre">
                   <input
@@ -288,6 +344,29 @@ export default function CheckoutSummary() {
                 </Field>
               </div>
 
+              {mode === "envio" && addresses.length > 0 ? (
+                <div className="mt-4">
+                  <p className="u-mono mb-2 text-ink/45">Tus direcciones</p>
+                  <div className="rail">
+                    {addresses.map((a) => (
+                      <button
+                        key={a.id}
+                        type="button"
+                        onClick={() => setAddress(a.address)}
+                        aria-pressed={address === a.address}
+                        className={`u-mono min-h-11 whitespace-nowrap rounded-full border-[1.5px] px-3.5 transition-colors ${
+                          address === a.address
+                            ? "border-ink bg-ink text-paper"
+                            : "border-ink/20 bg-white text-ink/65 hover:border-ink"
+                        }`}
+                      >
+                        {a.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
               {mode === "envio" ? (
                 <div className="mt-4">
                   <Field label="Dirección" id="direccion">
@@ -297,7 +376,7 @@ export default function CheckoutSummary() {
                       onChange={(e) => setAddress(e.target.value)}
                       required
                       autoComplete="street-address"
-                      placeholder="Calle 70 #11-32, apto 402"
+                      placeholder="Cra. 14 #12-40, apto 302"
                       className="input"
                     />
                   </Field>
@@ -318,13 +397,62 @@ export default function CheckoutSummary() {
                 </Field>
               </div>
 
-              <button type="submit" className="btn btn-mango mt-6 w-full sm:w-auto">
-                Enviar el pedido · {money(total)}
+              {/* Cómo pagar */}
+              {cardPayments ? (
+                <div className="mt-8">
+                  <p className="u-mono mb-2.5 text-ink/45">Cómo pagas</p>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {(
+                      [
+                        { id: "tarjeta", label: "Con tarjeta ahora", hint: "Pago seguro" },
+                        {
+                          id: "recibir",
+                          label: mode === "envio" ? "Al recibir" : "Al recoger",
+                          hint: "Efectivo o datáfono",
+                        },
+                      ] as const
+                    ).map((m) => (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => setMethod(m.id)}
+                        aria-pressed={method === m.id}
+                        className={`min-h-11 rounded-2xl border-[1.5px] px-4 py-3 text-left transition-colors ${
+                          method === m.id
+                            ? "border-ink bg-ink text-paper"
+                            : "border-ink/20 bg-white text-ink hover:border-ink"
+                        }`}
+                      >
+                        <span className="block text-[0.9rem] font-medium">{m.label}</span>
+                        <span className="u-mono block opacity-55">{m.hint}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
+              <button
+                type="submit"
+                disabled={pending}
+                className="btn btn-mango mt-6 w-full disabled:opacity-60 sm:w-auto"
+              >
+                {pending
+                  ? "Un momento…"
+                  : cardPayments && method === "tarjeta"
+                    ? `Pagar ${money(total)}`
+                    : `Enviar el pedido · ${money(total)}`}
               </button>
 
+              {error ? (
+                <p className="u-mono mt-3 text-mango-deep" role="alert">
+                  {error}
+                </p>
+              ) : null}
+
               <p className="u-mono mt-3 text-ink/40">
-                El pago con tarjeta entra en la fase 6. Por ahora el pedido llega a la barra marcado
-                como pago pendiente.
+                {cardPayments && method === "tarjeta"
+                  ? "Te llevamos a Wompi. La barra ve tu pedido cuando el pago se confirme."
+                  : "El pedido llega a la barra marcado como pago pendiente."}
               </p>
             </form>
 

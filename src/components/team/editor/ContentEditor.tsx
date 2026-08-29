@@ -1,19 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Area, Color, Media, Num, Panel, Row, Select, StringList, Text, Toggle } from "./fields";
 import { money } from "@/lib/cart";
-import {
-  blankProduct,
-  blankStore,
-  defaultSite,
-  hasSavedSite,
-  readSite,
-  resetSite,
-  savedSizeKb,
-  writeSite,
-  type SiteContent,
-} from "@/lib/site";
+import { blankProduct, blankStore, defaultSite, sizeKb, type SiteContent } from "@/lib/site";
+import { resetSiteContent, saveSiteContent } from "@/actions/content";
+import { useSite } from "@/components/SiteProvider";
 import type { SectionKey, Vessel } from "@/lib/content";
 
 const TABS = [
@@ -44,24 +37,31 @@ const SECTION_LABEL: Record<SectionKey, string> = {
 };
 
 export default function ContentEditor() {
-  // Borrador local: nada se publica hasta pulsar Guardar.
-  const [draft, setDraft] = useState<SiteContent>(() => defaultSite());
-  const [saved, setSaved] = useState<SiteContent>(() => defaultSite());
+  const router = useRouter();
+  // Lo publicado, tal y como lo está sirviendo el servidor ahora mismo.
+  const published = useSite();
+
+  // Borrador local: nada se publica hasta pulsar Publicar.
+  const [draft, setDraft] = useState<SiteContent>(published);
+  const [saved, setSaved] = useState<SiteContent>(published);
   const [tab, setTab] = useState<TabId>("carrusel");
   const [error, setError] = useState<string | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
-  const [sizeKb, setSizeKb] = useState(0);
-  const [customized, setCustomized] = useState(false);
+  const [pending, startTransition] = useTransition();
 
+  // Si otra persona publica cambios, el borrador propio no se pisa: sólo se
+  // actualiza la referencia de lo publicado si no hay nada sin guardar.
   useEffect(() => {
-    const current = readSite();
-    setDraft(current);
-    setSaved(current);
-    setSizeKb(savedSizeKb());
-    setCustomized(hasSavedSite());
-  }, []);
+    setSaved(published);
+    setDraft((d) => (JSON.stringify(d) === JSON.stringify(saved) ? published : d));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [published]);
 
   const dirty = useMemo(() => JSON.stringify(draft) !== JSON.stringify(saved), [draft, saved]);
+  const customized = useMemo(
+    () => JSON.stringify(saved) !== JSON.stringify(defaultSite()),
+    [saved],
+  );
 
   // Aviso del navegador si se cierra la pestaña con cambios sin guardar.
   useEffect(() => {
@@ -76,32 +76,39 @@ export default function ContentEditor() {
 
   const save = () => {
     setError(null);
-    try {
-      writeSite(draft);
-      setSaved(draft);
-      setSizeKb(savedSizeKb());
-      setCustomized(true);
-      setFlash("Publicado. La tienda ya lo muestra.");
-      setTimeout(() => setFlash(null), 3000);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo guardar.");
-    }
+    startTransition(async () => {
+      try {
+        await saveSiteContent(draft);
+        setSaved(draft);
+        setFlash("Publicado. La tienda ya lo muestra.");
+        setTimeout(() => setFlash(null), 3000);
+        router.refresh();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "No se pudo guardar.");
+      }
+    });
   };
 
   const discard = () => setDraft(saved);
 
   const restore = () => {
-    if (!confirm("¿Volver a los textos y precios originales? Se pierde lo que hayas guardado.")) {
+    if (!confirm("¿Volver a los textos y precios originales? Se pierde lo que hayas publicado.")) {
       return;
     }
-    resetSite();
-    const base = defaultSite();
-    setDraft(base);
-    setSaved(base);
-    setSizeKb(0);
-    setCustomized(false);
-    setFlash("Contenido restaurado.");
-    setTimeout(() => setFlash(null), 3000);
+    setError(null);
+    startTransition(async () => {
+      try {
+        await resetSiteContent();
+        const base = defaultSite();
+        setDraft(base);
+        setSaved(base);
+        setFlash("Contenido restaurado.");
+        setTimeout(() => setFlash(null), 3000);
+        router.refresh();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "No se pudo restaurar.");
+      }
+    });
   };
 
   return (
@@ -661,8 +668,8 @@ export default function ContentEditor() {
         {tab === "tiendas" ? (
           <>
             <Note>
-              La posición en el mapa va de 0 a 100: 0 es arriba a la izquierda, 100 abajo a la
-              derecha.
+              Las coordenadas ubican la sede en el mapa real y también en el ilustrado, que es el
+              que se ve si el mapa no carga.
             </Note>
             {draft.stores.map((s, i) => {
               const upd = (patch: Partial<typeof s>) =>
@@ -700,17 +707,20 @@ export default function ContentEditor() {
                     <Text label="Teléfono" value={s.phone} onChange={(v) => upd({ phone: v })} />
                   </Row>
                   <Row>
-                    <Num
-                      label="Posición horizontal"
-                      value={s.x}
-                      onChange={(v) => upd({ x: Math.min(95, v) })}
+                    <Text
+                      label="Latitud"
+                      value={String(s.lat)}
+                      onChange={(v) => upd({ lat: Number(v) || s.lat })}
                     />
-                    <Num
-                      label="Posición vertical"
-                      value={s.y}
-                      onChange={(v) => upd({ y: Math.min(66, v) })}
+                    <Text
+                      label="Longitud"
+                      value={String(s.lng)}
+                      onChange={(v) => upd({ lng: Number(v) || s.lng })}
                     />
                   </Row>
+                  <p className="u-mono normal-case tracking-[0.01em] text-ink/35">
+                    Sácalas de Google Maps: clic derecho sobre el punto y copia los dos números.
+                  </p>
                   <StringList
                     label="Servicios"
                     values={s.services}
@@ -828,10 +838,12 @@ export default function ContentEditor() {
               <span className="text-mango-deep">{error}</span>
             ) : flash ? (
               <span className="text-matcha-deep">{flash}</span>
+            ) : pending ? (
+              "Publicando…"
             ) : dirty ? (
               "Cambios sin publicar"
             ) : customized ? (
-              `Publicado · ${sizeKb} KB guardados`
+              `Publicado · ${sizeKb(saved)} KB en la base`
             ) : (
               "Contenido original"
             )}
@@ -859,7 +871,7 @@ export default function ContentEditor() {
             <button
               type="button"
               onClick={save}
-              disabled={!dirty}
+              disabled={!dirty || pending}
               className="btn btn-sm btn-mango disabled:cursor-not-allowed disabled:opacity-40"
             >
               Publicar

@@ -8,13 +8,13 @@ import {
   LATE_AFTER,
   nextStatus,
   prevStatus,
-  setOrderStatus,
   STATUS_ACTION,
   STATUS_COLOR,
   STATUS_LABEL,
+  type BoardStatus,
   type Order,
 } from "@/lib/orders";
-import { stores } from "@/lib/content";
+import { useSite } from "../SiteProvider";
 
 /** Corto a propósito: en la ficha compite con el total. */
 const PAYMENT_LABEL: Record<Order["payment"], string> = {
@@ -27,12 +27,15 @@ export default function OrderCard({
   order,
   now,
   fresh,
+  onMove,
 }: {
   order: Order;
   now: number;
   /** Recién llegado: se resalta unos segundos. */
   fresh?: boolean;
+  onMove: (id: string, status: BoardStatus) => void;
 }) {
+  const { stores } = useSite();
   const store = stores.find((s) => s.id === order.storeId);
   const mins = elapsedMinutes(order.statusAt, now);
   const late = mins >= LATE_AFTER[order.status];
@@ -148,7 +151,7 @@ export default function OrderCard({
           {back ? (
             <button
               type="button"
-              onClick={() => setOrderStatus(order.id, back)}
+              onClick={() => onMove(order.id, back)}
               className="u-mono grid h-11 w-11 shrink-0 place-items-center rounded-full border-[1.5px] border-ink/20 text-ink/50 transition-colors hover:border-ink hover:text-ink"
               aria-label={`Devolver a ${STATUS_LABEL[back]}`}
               title={`Devolver a ${STATUS_LABEL[back]}`}
@@ -159,7 +162,7 @@ export default function OrderCard({
           {action && next ? (
             <button
               type="button"
-              onClick={() => setOrderStatus(order.id, next)}
+              onClick={() => onMove(order.id, next)}
               className="btn btn-sm min-w-0 flex-1 text-white"
               style={{ background: STATUS_COLOR[order.status] }}
             >
