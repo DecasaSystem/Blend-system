@@ -175,6 +175,9 @@ node --env-file=.env.local scripts/account-flow.mjs # cuentas de clientes
 node --env-file=.env.local scripts/google-flow.mjs  # entrar con Google
 node --env-file=.env.local scripts/payment-flow.mjs # capa de pagos
 node --env-file=.env.local scripts/shots-account.mjs # capturas de la cuenta
+node --env-file=.env.local scripts/personalizar-flow.mjs # foto del hero, precios y adicionales
+node --env-file=.env.local scripts/media-flow.mjs   # subida a Cloudinary (sube y borra)
+node --env-file=.env.local scripts/stats-flow.mjs   # métricas (siembra pedidos y los borra)
 ```
 
 El webhook se prueba aparte, con claves ficticias y un servidor que hace de API

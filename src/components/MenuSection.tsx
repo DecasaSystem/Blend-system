@@ -10,7 +10,7 @@ import { defaultOptions, money } from "@/lib/cart";
 export default function MenuSection() {
   const [cat, setCat] = useState("todo");
   const { add, openSheet } = useCart();
-  const { sections, categories, products, builderBases } = useSite();
+  const { sections, categories, products, builderBases, sizes } = useSite();
 
   const list = cat === "todo" ? products : products.filter((p) => p.category === cat);
   const active = categories.find((c) => c.id === cat);
@@ -128,7 +128,7 @@ export default function MenuSection() {
                         name: p.name,
                         color: p.color,
                         basePrice: p.price,
-                        options: defaultOptions(builderBases[0].name),
+                        options: defaultOptions(builderBases[0]?.name ?? "", sizes[0]?.id ?? ""),
                       })
                     }
                     className="grid h-11 w-11 place-items-center rounded-full border-[1.5px] border-ink bg-mango text-white transition-transform active:scale-95 disabled:bg-ink/20 disabled:text-ink/40"

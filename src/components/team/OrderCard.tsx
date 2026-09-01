@@ -35,7 +35,7 @@ export default function OrderCard({
   fresh?: boolean;
   onMove: (id: string, status: BoardStatus) => void;
 }) {
-  const { stores } = useSite();
+  const { stores, sizes } = useSite();
   const store = stores.find((s) => s.id === order.storeId);
   const mins = elapsedMinutes(order.statusAt, now);
   const late = mins >= LATE_AFTER[order.status];
@@ -110,7 +110,7 @@ export default function OrderCard({
       {/* Qué preparar */}
       <ul className="mt-3 grid gap-2">
         {order.lines.map((l) => {
-          const detail = describe(l);
+          const detail = describe(l, sizes);
           return (
             <li key={l.key} className="flex gap-2.5">
               <span

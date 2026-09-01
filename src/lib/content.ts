@@ -41,8 +41,18 @@ export type Slide = {
   cta: { label: string; href: string };
   tone: string;
   vessel: Vessel;
-  /** Video del carrusel. Editable desde /equipo. */
+  /** Video o foto de fondo del carrusel. Editable desde /equipo. */
   media?: string;
+  /**
+   * Foto grande que va encima del carrusel, al lado del texto. Si está vacía se
+   * dibuja el recipiente ilustrado (`vessel`). Editable desde /equipo.
+   */
+  art?: string;
+  /**
+   * Cuánto se ve el fondo, de 0 a 100. Por debajo de 100 la tinta oscura lo
+   * apaga para que el texto siga legible. Editable desde /equipo.
+   */
+  mediaOpacity?: number;
 };
 
 export type Store = {
@@ -403,6 +413,31 @@ export const toppings = [
   { name: "Coco tostado", price: 3500 },
   { name: "Proteína de guisante", price: 7500 },
 ];
+
+/** Un tamaño de la hoja de personalización. `delta` es lo que suma al precio. */
+export type Size = { id: string; label: string; volume: string; delta: number };
+
+export const sizes: Size[] = [
+  { id: "chico", label: "Chico", volume: "350 ml", delta: 0 },
+  { id: "grande", label: "Grande", volume: "500 ml", delta: 4500 },
+];
+
+/**
+ * Los precios que no viven en una bebida concreta: domicilio, tamaños y el
+ * constructor. Estaban repartidos por el código como constantes; ahora los
+ * edita el equipo desde /equipo y el servidor cobra con estos mismos números.
+ */
+export type Pricing = {
+  /** Cuánto cuesta el domicilio y a partir de cuánto va gratis. */
+  delivery: { fee: number; freeFrom: number };
+  /** «Arma tu blend»: precio con dos ingredientes y recargo del tercero. */
+  builder: { base: number; perExtra: number };
+};
+
+export const pricing: Pricing = {
+  delivery: { fee: 6900, freeFrom: 60000 },
+  builder: { base: 18900, perExtra: 3000 },
+};
 
 export const stores: Store[] = [
   {

@@ -5,6 +5,7 @@ import Link from "next/link";
 import Logo from "../Logo";
 import OrderCard from "./OrderCard";
 import ContentEditor from "./editor/ContentEditor";
+import StatsPanel from "./stats/StatsPanel";
 import {
   askForNotifications,
   chime,
@@ -41,7 +42,7 @@ export default function OrderBoard({
   const now = useNow();
   const [sound, setSound] = useState(false);
   const [tab, setTab] = useState<BoardStatus>("nuevo");
-  const [view, setView] = useState<"pedidos" | "contenido">("pedidos");
+  const [view, setView] = useState<"pedidos" | "metricas" | "contenido">("pedidos");
   const arrived = useNewOrderAlert(orders, sound);
   const wide = useMediaQuery("(min-width: 1024px)");
 
@@ -116,7 +117,7 @@ export default function OrderBoard({
             <Logo size={30} />
             <span className="u-display text-2xl">BLEND</span>
           </Link>
-          {/* Las dos mitades de la vista de equipo */}
+          {/* Las tres partes de la vista de equipo */}
           <div
             className="flex items-center gap-1 rounded-full border-[1.5px] border-ink p-1"
             role="tablist"
@@ -124,6 +125,7 @@ export default function OrderBoard({
             {(
               [
                 { id: "pedidos", label: "Pedidos" },
+                { id: "metricas", label: "Métricas" },
                 { id: "contenido", label: "Contenido" },
               ] as const
             ).map((v) => (
@@ -189,7 +191,11 @@ export default function OrderBoard({
         </div>
       </header>
 
-      {view === "contenido" ? (
+      {view === "metricas" ? (
+        <div className="mx-auto max-w-[1400px] px-4 py-6 sm:px-6">
+          <StatsPanel />
+        </div>
+      ) : view === "contenido" ? (
         // Más angosto que el tablero: un formulario de 1600 px no se lee.
         <div className="mx-auto max-w-4xl px-4 py-6 sm:px-6">
           <ContentEditor />

@@ -3,10 +3,11 @@
 import { desc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { counters, orders, ORDER_COUNTER } from "@/db/schema";
-import { totals, type CartLine, type DeliveryMode } from "@/lib/cart";
+import { repriceLines, totals, type CartLine, type DeliveryMode } from "@/lib/cart";
 import { requireUser } from "@/lib/session";
 import { getCustomer } from "@/lib/customer-session";
 import { STATUSES, type BoardStatus, type Customer, type Order } from "@/lib/orders";
+import { loadSiteContent } from "./content";
 
 /**
  * Pedidos.
@@ -56,6 +57,12 @@ export type PlaceOrderInput = {
   channel?: Order["channel"];
   /** Con tarjeta el pedido nace en `pago` y no sale al tablero hasta cobrarse. */
   awaitingPayment?: boolean;
+  /**
+   * El total que el cliente tenía en pantalla. Si el servidor calcula otro
+   * —porque el equipo cambió un precio a mitad de compra— no se cobra a ciegas:
+   * se rechaza para que lo vuelva a mirar.
+   */
+  expectedTotal?: number;
 };
 
 export async function placeOrder(
@@ -71,9 +78,19 @@ export async function placeOrder(
     return { error: "Falta la dirección de entrega." };
   }
 
-  // Los importes se recalculan en el servidor: los que manda el navegador
-  // son sólo para pintar, nunca para cobrar.
-  const t = totals(input.lines, input.mode);
+  // Los importes se recalculan en el servidor contra el contenido publicado:
+  // los que manda el navegador son sólo para pintar, nunca para cobrar.
+  const site = await loadSiteContent();
+  const repriced = repriceLines(input.lines, site);
+  if ("error" in repriced) return repriced;
+
+  const lines = repriced.lines;
+  const t = totals(lines, input.mode, site.pricing);
+
+  if (typeof input.expectedTotal === "number" && input.expectedTotal !== t.total) {
+    return { error: "Los precios cambiaron mientras pedías. Revisa el total antes de pagar." };
+  }
+
   const id = await nextOrderId();
 
   // El cliente sale de la sesión, no de lo que mande el navegador: si no,
@@ -91,7 +108,7 @@ export async function placeOrder(
       address: input.customer.address?.trim().slice(0, 200),
       notes: input.customer.notes?.trim().slice(0, 300),
     },
-    lines: input.lines,
+    lines,
     subtotal: t.subtotal,
     delivery: t.delivery,
     total: t.total,

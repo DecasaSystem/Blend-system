@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { useCart } from "./CartProvider";
 import { useSite } from "./SiteProvider";
-import { describe, money, MAX_QTY, FREE_DELIVERY_FROM } from "@/lib/cart";
+import { describe, money, MAX_QTY } from "@/lib/cart";
 
 export default function CartDrawer() {
   const {
@@ -26,7 +26,7 @@ export default function CartDrawer() {
     add,
     openSheet,
   } = useCart();
-  const { stores, toppings, products } = useSite();
+  const { stores, toppings, products, sizes, pricing } = useSite();
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
@@ -172,7 +172,7 @@ export default function CartDrawer() {
 
               <ul className="grid gap-3">
                 {lines.map((l) => {
-                  const detail = describe(l);
+                  const detail = describe(l, sizes);
                   const product = products.find((p) => p.id === l.productId);
                   const cap = Math.min(l.maxQty ?? MAX_QTY, MAX_QTY);
                   return (
@@ -240,7 +240,7 @@ export default function CartDrawer() {
                               tabIndex={open ? 0 : -1}
                               onClick={() => {
                                 setOpen(false);
-                                openSheet(product, l.key);
+                                openSheet(product, { lineKey: l.key });
                               }}
                               className="u-mono text-ink/45 underline-offset-4 hover:text-ink hover:underline"
                             >
@@ -300,7 +300,7 @@ export default function CartDrawer() {
                       <div
                         className="h-full bg-matcha transition-all duration-500"
                         style={{
-                          width: `${Math.min(100, (subtotal / FREE_DELIVERY_FROM) * 100)}%`,
+                          width: `${Math.min(100, (subtotal / Math.max(1, pricing.delivery.freeFrom)) * 100)}%`,
                         }}
                       />
                     </div>

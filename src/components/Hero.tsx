@@ -4,13 +4,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import InkField from "./InkField";
 import VesselArt from "./VesselArt";
 import { useSite } from "./SiteProvider";
+import { isVideoUrl, mediaSrcSet, mediaUrl } from "@/lib/media";
 
 const DURATION = 7200;
-
-/** El equipo puede pegar la URL de un video o de una foto en el mismo campo. */
-function isVideo(src: string) {
-  return /\.(mp4|webm|ogv|mov)(\?|#|$)/i.test(src) || src.startsWith("data:video");
-}
 
 export default function Hero() {
   const { slides, brand } = useSite();
@@ -22,21 +18,28 @@ export default function Hero() {
 
   const go = useCallback(
     (next: number) => {
+      if (slides.length === 0) return;
       setI((next + slides.length) % slides.length);
     },
     [slides.length],
   );
 
   useEffect(() => {
-    if (paused) return;
+    if (paused || slides.length < 2) return;
     const t = setTimeout(() => go(i + 1), DURATION);
     return () => clearTimeout(t);
-  }, [i, paused, go]);
+  }, [i, paused, go, slides.length]);
 
   useEffect(() => {
     const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
     if (mq.matches) setPaused(true);
   }, []);
+
+  // Sin slides no hay carrusel: mejor nada que una pantalla rota.
+  if (!slide) return null;
+
+  // Cuánto se ve el fondo. Por defecto apagado a la mitad para que el texto lea.
+  const mediaOpacity = Math.min(100, Math.max(0, slide.mediaOpacity ?? 55)) / 100;
 
   return (
     <section
@@ -64,23 +67,30 @@ export default function Hero() {
       {/* Fondo: video del equipo o composición de tintas */}
       <div className="absolute inset-0 -z-10">
         {slide.media ? (
-          isVideo(slide.media) ? (
+          isVideoUrl(slide.media) ? (
             <video
               key={slide.id}
-              src={slide.media}
+              src={mediaUrl(slide.media, { width: 1600 })}
               autoPlay
               muted
               loop
               playsInline
-              className="h-full w-full object-cover opacity-55"
+              // El video del carrusel no debe frenar la primera pintada.
+              preload="metadata"
+              className="h-full w-full object-cover"
+              style={{ opacity: mediaOpacity }}
             />
           ) : (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               key={slide.id}
-              src={slide.media}
+              src={mediaUrl(slide.media, { width: 1600 })}
+              srcSet={mediaSrcSet(slide.media, 1600)}
               alt=""
-              className="h-full w-full object-cover opacity-55"
+              // Es lo primero que se ve: se pide con prioridad, no en diferido.
+              fetchPriority="high"
+              className="h-full w-full object-cover"
+              style={{ opacity: mediaOpacity }}
             />
           )
         ) : (
@@ -104,7 +114,15 @@ export default function Hero() {
             />
           </>
         )}
-        <div className="absolute inset-0 bg-gradient-to-r from-ink via-ink/78 to-ink/25" />
+        {/* Velo para que el titular lea. Sobre una foto se afloja: si no, daría
+            igual lo que suba el equipo. La izquierda sigue densa por el texto. */}
+        <div
+          className={
+            slide.media
+              ? "absolute inset-0 bg-gradient-to-r from-ink via-ink/60 to-transparent"
+              : "absolute inset-0 bg-gradient-to-r from-ink via-ink/78 to-ink/25"
+          }
+        />
       </div>
 
       <div className="mx-auto grid max-w-[1400px] gap-8 px-4 pb-14 pt-10 sm:px-6 lg:grid-cols-[1.15fr_0.85fr] lg:items-center lg:gap-4 lg:px-10 lg:pb-20 lg:pt-14">
@@ -143,23 +161,35 @@ export default function Hero() {
           </div>
         </div>
 
-        {/* Ilustración */}
+        {/* Foto del equipo o, si no la han subido, el recipiente ilustrado */}
         <div className="relative order-1 flex justify-center lg:order-2 lg:justify-end">
           <div className="bob w-[42%] max-w-[190px] sm:w-[38%] sm:max-w-[260px] lg:w-full lg:max-w-[400px]">
-            <VesselArt
-              uid={`hero-${slide.id}`}
-              vessel={slide.vessel}
-              color={slide.tone}
-              ingredients={[
-                { name: "", color: "#FF6A1A" },
-                { name: "", color: "#7B3FF2" },
-                { name: "", color: "#8FD14F" },
-              ]}
-              className="h-auto w-full drop-shadow-[0_24px_40px_rgba(0,0,0,0.45)]"
-              alt=""
-              outline="#F7F1FF"
-              empty="#241038"
-            />
+            {slide.art ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                key={`art-${slide.id}`}
+                src={mediaUrl(slide.art, { width: 800 })}
+                srcSet={mediaSrcSet(slide.art, 800)}
+                alt=""
+                fetchPriority="high"
+                className="aspect-square h-auto w-full rounded-[32px] border-[1.5px] border-paper/25 object-cover drop-shadow-[0_24px_40px_rgba(0,0,0,0.45)]"
+              />
+            ) : (
+              <VesselArt
+                uid={`hero-${slide.id}`}
+                vessel={slide.vessel}
+                color={slide.tone}
+                ingredients={[
+                  { name: "", color: "#FF6A1A" },
+                  { name: "", color: "#7B3FF2" },
+                  { name: "", color: "#8FD14F" },
+                ]}
+                className="h-auto w-full drop-shadow-[0_24px_40px_rgba(0,0,0,0.45)]"
+                alt=""
+                outline="#F7F1FF"
+                empty="#241038"
+              />
+            )}
           </div>
         </div>
       </div>

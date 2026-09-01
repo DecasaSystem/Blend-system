@@ -28,7 +28,7 @@ export default function AccountPanel({
   addresses: Address[];
   stamps: { delivered: number; toward: number };
 }) {
-  const { stores, rewards } = useSite();
+  const { stores, rewards, sizes } = useSite();
   const router = useRouter();
   const [adding, setAdding] = useState(false);
   const [state, action] = useActionState<AccountState, FormData>(async (prev, data) => {
@@ -132,9 +132,9 @@ export default function AccountPanel({
                         </span>
                         <span className="min-w-0">
                           <span className="font-medium">{l.name}</span>
-                          {describe(l) ? (
+                          {describe(l, sizes) ? (
                             <span className="u-mono ml-2 text-[0.72rem] normal-case tracking-[0.01em] text-ink/45">
-                              {describe(l)}
+                              {describe(l, sizes)}
                             </span>
                           ) : null}
                         </span>

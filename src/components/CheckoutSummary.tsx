@@ -44,7 +44,7 @@ export default function CheckoutSummary({
     freeDelivery,
     missingForFree,
   } = useCart();
-  const { stores } = useSite();
+  const { stores, sizes } = useSite();
 
   // Con cuenta, los datos vienen puestos: nadie debería reescribir su nombre
   // y su teléfono en cada pedido.
@@ -74,6 +74,9 @@ export default function CheckoutSummary({
         notes: notes.trim() || undefined,
       },
       channel: "web" as const,
+      // El servidor cobra lo que él calcule; esto es sólo para que avise si no
+      // coincide con lo que el cliente está viendo en pantalla.
+      expectedTotal: total,
     };
 
     startTransition(async () => {
@@ -125,7 +128,7 @@ export default function CheckoutSummary({
           <p className="mt-4 leading-relaxed text-ink/65">
             {sent.mode === "envio"
               ? "Te llamamos cuando el domiciliario salga. Veinticinco minutos desde ahora."
-              : `Te avisamos cuando esté listo para recoger en ${store.name}.`}
+              : `Te avisamos cuando esté listo para recoger en ${store?.name ?? "la tienda"}.`}
           </p>
 
           <div className="mt-8 flex flex-wrap justify-center gap-3">
@@ -214,7 +217,7 @@ export default function CheckoutSummary({
                     ))}
                   </select>
                   <p className="u-mono mt-2 text-ink/40">
-                    {store.hours} · {store.phone}
+                    {store?.hours} · {store?.phone}
                   </p>
                 </div>
               ) : null}
@@ -222,7 +225,7 @@ export default function CheckoutSummary({
 
             <ul className="mt-6 divide-y-[1.5px] divide-ink/10 border-y-[1.5px] border-ink/10">
               {lines.map((l) => {
-                const detail = describe(l);
+                const detail = describe(l, sizes);
                 const cap = Math.min(l.maxQty ?? MAX_QTY, MAX_QTY);
                 return (
                   <li key={l.key} className="flex gap-4 py-4">

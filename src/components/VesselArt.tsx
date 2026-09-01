@@ -1,4 +1,5 @@
 import type { Ingredient, Vessel } from "@/lib/content";
+import { mediaSrcSet, mediaUrl } from "@/lib/media";
 
 /**
  * Ilustración del producto. No usamos fotos de stock: cada bebida se dibuja con
@@ -61,6 +62,7 @@ export default function VesselArt({
   color,
   ingredients,
   media,
+  width = 400,
   className = "",
   alt,
   outline = "#1B0B2E",
@@ -71,6 +73,8 @@ export default function VesselArt({
   color: string;
   ingredients: Ingredient[];
   media?: string;
+  /** A cuántos píxeles se va a ver, para no bajar una foto más grande que eso. */
+  width?: number;
   className?: string;
   alt?: string;
   /** Color del trazo. En fondos oscuros hay que pasar uno claro. */
@@ -82,10 +86,12 @@ export default function VesselArt({
     return (
       // eslint-disable-next-line @next/next/no-img-element
       <img
-        src={media}
+        src={mediaUrl(media, { width })}
+        srcSet={mediaSrcSet(media, width)}
         alt={alt ?? ""}
         className={`h-full w-full object-cover ${className}`}
         loading="lazy"
+        decoding="async"
       />
     );
   }

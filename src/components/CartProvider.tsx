@@ -39,7 +39,22 @@ export type AddInput = {
   keySuffix?: string;
 };
 
-type SheetTarget = { product: Product; lineKey?: string } | null;
+/**
+ * Lo que hace distinta a una bebida del día de la misma bebida a precio de
+ * lista. Viaja con la hoja para que personalizar una oferta no la convierta en
+ * un pedido normal a precio completo.
+ */
+export type SheetOffer = {
+  basePrice: number;
+  listPrice: number;
+  offerLabel: string;
+  maxQty: number;
+  keySuffix: string;
+};
+
+type SheetTarget = { product: Product; lineKey?: string; offer?: SheetOffer } | null;
+
+export type OpenSheetOptions = { lineKey?: string; offer?: SheetOffer };
 
 type CartState = {
   lines: CartLine[];
@@ -62,7 +77,7 @@ type CartState = {
   setOpen: (v: boolean) => void;
   setMode: (m: DeliveryMode) => void;
   setStoreId: (id: string) => void;
-  openSheet: (product: Product, lineKey?: string) => void;
+  openSheet: (product: Product, opts?: OpenSheetOptions) => void;
   closeSheet: () => void;
   dismissToast: () => void;
   lineByKey: (key: string) => CartLine | undefined;
@@ -73,10 +88,11 @@ const Ctx = createContext<CartState | null>(null);
 type Persisted = { lines: CartLine[]; mode: DeliveryMode; storeId: string };
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
-  const { toppings, stores } = useSite();
+  const { toppings, sizes, pricing, stores } = useSite();
   const [lines, setLines] = useState<CartLine[]>([]);
   const [mode, setMode] = useState<DeliveryMode>("envio");
-  const [storeId, setStoreId] = useState(stores[0].id);
+  // El equipo edita las sedes: puede no quedar ninguna en el momento del render.
+  const [storeId, setStoreId] = useState(stores[0]?.id ?? "");
   const [open, setOpen] = useState(false);
   const [sheet, setSheet] = useState<SheetTarget>(null);
   const [toast, setToast] = useState<{ name: string; color: string } | null>(null);
@@ -102,7 +118,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   // Si el equipo borra la sede elegida, vuelve a la primera.
   useEffect(() => {
-    if (!stores.some((s) => s.id === storeId)) setStoreId(stores[0].id);
+    if (stores.length > 0 && !stores.some((s) => s.id === storeId)) setStoreId(stores[0].id);
   }, [stores, storeId]);
 
   useEffect(() => {
@@ -144,7 +160,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         productId: input.productId,
         name: input.name,
         color: input.color,
-        unitPrice: unitPrice(input.basePrice, input.options, toppings),
+        unitPrice: unitPrice(input.basePrice, input.options, toppings, sizes),
         basePrice: input.basePrice,
         listPrice: input.listPrice,
         qty: input.qty ?? 1,
@@ -155,7 +171,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         keySuffix: input.keySuffix,
       };
     },
-    [toppings],
+    [toppings, sizes],
   );
 
   const add = useCallback<CartState["add"]>(
@@ -217,8 +233,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   const clear = useCallback(() => setLines([]), []);
 
-  const openSheet = useCallback((product: Product, key?: string) => {
-    setSheet({ product, lineKey: key });
+  const openSheet = useCallback((product: Product, opts?: OpenSheetOptions) => {
+    setSheet({ product, lineKey: opts?.lineKey, offer: opts?.offer });
   }, []);
 
   const closeSheet = useCallback(() => setSheet(null), []);
@@ -229,7 +245,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const value = useMemo<CartState>(() => {
-    const t = totals(lines, mode);
+    const t = totals(lines, mode, pricing);
     return {
       lines,
       ...t,
@@ -254,6 +270,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   }, [
     lines,
     mode,
+    pricing,
     storeId,
     open,
     toast,

@@ -7,18 +7,22 @@ import {
   dailyOffer,
   faqs,
   marquee,
+  pricing,
   processSteps,
   products,
   rewards,
   sections,
+  sizes,
   slides,
   stores,
   toppings,
   type Category,
   type Ingredient,
+  type Pricing,
   type Product,
   type SectionCopy,
   type SectionKey,
+  type Size,
   type Slide,
   type Step,
   type Store,
@@ -46,6 +50,8 @@ export type SiteContent = {
   dailyIds: string[];
   dailyOffer: Record<string, DailyOffer>;
   toppings: Topping[];
+  sizes: Size[];
+  pricing: Pricing;
   builderBases: Ingredient[];
   builderIngredients: Ingredient[];
   stores: Store[];
@@ -66,6 +72,8 @@ export function defaultSite(): SiteContent {
     dailyIds,
     dailyOffer,
     toppings,
+    sizes,
+    pricing,
     builderBases,
     builderIngredients,
     stores,
@@ -88,6 +96,15 @@ export function blankProduct(categoryId: string): Product {
     color: "#7B3FF2",
     vessel: "cup",
     ingredients: [{ name: "Ingrediente", color: "#FFB020" }],
+  };
+}
+
+/** Una categoría nueva del menú. */
+export function blankCategory(): Category {
+  return {
+    id: `cat-${Date.now().toString(36)}`,
+    name: "Categoría nueva",
+    note: "Describe qué agrupa",
   };
 }
 

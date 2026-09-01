@@ -20,8 +20,10 @@
   --color-paper-2: #efe4ff;
   --color-pulp: #ffd166;
 
-  --font-display: var(--font-fraunces), Georgia, "Times New Roman", serif;
-  --font-sans: var(--font-archivo), ui-sans-serif, system-ui, sans-serif;
+  /* Poppins en los dos papeles de texto; la mono se queda para precios y
+     etiquetas, que es donde la letra de ticket significa algo. */
+  --font-display: var(--font-poppins), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-poppins), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-martian), ui-monospace, "SF Mono", monospace;
 
   --ease-blend: cubic-bezier(0.2, 0.85, 0.2, 1);
@@ -63,10 +65,11 @@
   h2,
   h3 {
     font-family: var(--font-display);
-    font-variation-settings: "SOFT" 100, "WONK" 1, "opsz" 120;
     font-weight: 600;
-    letter-spacing: -0.02em;
-    line-height: 0.92;
+    /* Poppins es geométrica y de ojo alto: aguanta menos interlínea negativa
+       que la serif de antes, o las colas de la «g» y la «y» se pisan. */
+    letter-spacing: -0.03em;
+    line-height: 1;
     text-wrap: balance;
   }
 }
@@ -78,15 +81,13 @@
 
   .u-display {
     font-family: var(--font-display);
-    font-variation-settings: "SOFT" 100, "WONK" 1, "opsz" 144;
     font-weight: 600;
-    letter-spacing: -0.03em;
-    line-height: 0.88;
+    letter-spacing: -0.035em;
+    line-height: 0.98;
   }
 
   .u-italic {
     font-style: italic;
-    font-variation-settings: "SOFT" 100, "WONK" 1, "opsz" 144;
   }
 
   .u-mono {

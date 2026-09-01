@@ -5,11 +5,9 @@ import SectionHead from "./SectionHead";
 import InkField from "./InkField";
 import { useCart } from "./CartProvider";
 import { useSite } from "./SiteProvider";
-import { money } from "@/lib/cart";
+import { builderPrice, money } from "@/lib/cart";
 
 const MAX = 3;
-const BASE_PRICE = 18900;
-const THIRD_INGREDIENT = 3000;
 
 const hexToRgb = (hex: string) => {
   const n = parseInt(hex.slice(1), 16);
@@ -50,12 +48,14 @@ const NAMES = [
 
 export default function BlendBuilder() {
   const { add } = useCart();
-  const { sections, builderBases, builderIngredients } = useSite();
-  const [baseName, setBaseName] = useState(builderBases[0].name);
+  const { sections, builderBases, builderIngredients, pricing } = useSite();
+  const [baseName, setBaseName] = useState(builderBases[0]?.name ?? "");
   const [picked, setPicked] = useState<string[]>(["Mango", "Maracuyá"]);
 
   // Se guarda el nombre, no el objeto: el equipo puede editar las bases.
-  const base = builderBases.find((b) => b.name === baseName) ?? builderBases[0];
+  // El último respaldo cubre el caso de que las borre todas.
+  const base = builderBases.find((b) => b.name === baseName) ??
+    builderBases[0] ?? { name: "", color: "#F0E6D6" };
 
   const inks = picked
     .map((n) => builderIngredients.find((i) => i.name === n)?.color)
@@ -63,7 +63,7 @@ export default function BlendBuilder() {
 
   const color = useMemo(() => mixColors(inks, base.color), [inks, base.color]);
   const kcal = 90 + picked.length * 42 + (base.name.includes("avena") ? 55 : 20);
-  const price = BASE_PRICE + Math.max(0, picked.length - 2) * THIRD_INGREDIENT;
+  const price = builderPrice(picked.length, pricing);
   const name = picked.length
     ? `${picked[0]} ${NAMES[(picked.length + picked[0].length) % NAMES.length]}`
     : "Tu blend";

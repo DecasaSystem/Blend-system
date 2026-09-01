@@ -8,8 +8,8 @@ import { useSite } from "./SiteProvider";
 import { defaultOptions, money } from "@/lib/cart";
 
 export default function DailyBlends() {
-  const { add } = useCart();
-  const { sections, dailyIds, dailyOffer, products, builderBases } = useSite();
+  const { add, openSheet } = useCart();
+  const { sections, dailyIds, dailyOffer, products, builderBases, sizes } = useSite();
 
   const today = new Intl.DateTimeFormat("es-CO", {
     weekday: "long",
@@ -51,6 +51,19 @@ export default function DailyBlends() {
           {items.map((p, idx) => {
             const offer = dailyOffer[p.id];
             const pct = Math.min(100, Math.round((offer.left / 30) * 100));
+            const agotado = p.soldOut || offer.left <= 0;
+
+            /* Lo que hay que arrastrar para que personalizarla no le quite el
+               precio del día. */
+            const oferta = {
+              basePrice: offer.price,
+              listPrice: p.price,
+              offerLabel: "Precio del día",
+              maxQty: offer.left,
+              keySuffix: "dia",
+            };
+            const personalizar = () => openSheet(p, { offer: oferta });
+
             return (
               <article
                 key={p.id}
@@ -63,9 +76,14 @@ export default function DailyBlends() {
                   <span className="u-mono text-ink/40">{p.kcal} kcal</span>
                 </div>
 
-                <div
-                  className="relative mx-auto my-2 w-[62%] max-w-[190px]"
+                {/* Igual que en el menú: la ilustración y el nombre abren la hoja. */}
+                <button
+                  type="button"
+                  onClick={personalizar}
+                  disabled={agotado}
+                  className="relative mx-auto my-2 w-[62%] max-w-[190px] transition-transform duration-500 hover:-rotate-2 hover:scale-105 disabled:cursor-not-allowed"
                   style={{ filter: "drop-shadow(3px 5px 0 rgba(27,11,46,0.10))" }}
+                  aria-label={`Personalizar ${p.name}`}
                 >
                   <VesselArt
                     uid={`daily-${p.id}`}
@@ -76,10 +94,17 @@ export default function DailyBlends() {
                     className="h-auto w-full"
                     alt={p.name}
                   />
-                </div>
+                </button>
 
-                <h3 className="u-display text-4xl">{p.name}</h3>
-                <p className="mt-2 text-[0.95rem] leading-relaxed text-ink/62">{p.tagline}</p>
+                <button
+                  type="button"
+                  onClick={personalizar}
+                  disabled={agotado}
+                  className="text-left disabled:cursor-not-allowed"
+                >
+                  <h3 className="u-display text-4xl">{p.name}</h3>
+                  <p className="mt-2 text-[0.95rem] leading-relaxed text-ink/62">{p.tagline}</p>
+                </button>
                 {offer.why ? <p className="u-mono mt-3 text-ink/40">{offer.why}</p> : null}
 
                 <div className="mt-5 flex items-end gap-2.5">
@@ -102,27 +127,37 @@ export default function DailyBlends() {
                   </div>
                 </div>
 
-                <button
-                  type="button"
-                  disabled={p.soldOut || offer.left <= 0}
-                  onClick={() =>
-                    add({
-                      productId: p.id,
-                      // Separa esta línea de la misma bebida a precio de lista
-                      keySuffix: "dia",
-                      name: p.name,
-                      color: p.color,
-                      basePrice: offer.price,
-                      listPrice: p.price,
-                      offerLabel: "Precio del día",
-                      maxQty: offer.left,
-                      options: defaultOptions(builderBases[0].name),
-                    })
-                  }
-                  className="btn btn-ube mt-5 w-full disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  {p.soldOut || offer.left <= 0 ? "Agotado" : `Agregar ${money(offer.price)}`}
-                </button>
+                <div className="mt-5 flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={personalizar}
+                    disabled={agotado}
+                    className="u-mono min-h-11 shrink-0 rounded-full border-[1.5px] border-ink/25 px-3.5 text-ink/60 transition-colors hover:border-ink hover:text-ink disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    Personalizar
+                  </button>
+                  <button
+                    type="button"
+                    disabled={agotado}
+                    onClick={() =>
+                      add({
+                        productId: p.id,
+                        // Separa esta línea de la misma bebida a precio de lista
+                        keySuffix: "dia",
+                        name: p.name,
+                        color: p.color,
+                        basePrice: offer.price,
+                        listPrice: p.price,
+                        offerLabel: "Precio del día",
+                        maxQty: offer.left,
+                        options: defaultOptions(builderBases[0]?.name ?? "", sizes[0]?.id ?? ""),
+                      })
+                    }
+                    className="btn btn-ube min-w-0 flex-1 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    {agotado ? "Agotado" : `Agregar ${money(offer.price)}`}
+                  </button>
+                </div>
               </article>
             );
           })}

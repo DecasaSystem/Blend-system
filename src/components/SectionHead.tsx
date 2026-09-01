@@ -1,4 +1,5 @@
 import type { SectionCopy } from "@/lib/content";
+import { mediaSrcSet, mediaUrl } from "@/lib/media";
 
 export default function SectionHead({
   copy,
@@ -52,7 +53,14 @@ export default function SectionHead({
           }`}
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={copy.image} alt="" className="h-[clamp(9rem,26vw,18rem)] w-full object-cover" />
+          <img
+            src={mediaUrl(copy.image, { width: 1600 })}
+            srcSet={mediaSrcSet(copy.image, 1600)}
+            alt=""
+            loading="lazy"
+            decoding="async"
+            className="h-[clamp(9rem,26vw,18rem)] w-full object-cover"
+          />
         </div>
       ) : null}
     </>

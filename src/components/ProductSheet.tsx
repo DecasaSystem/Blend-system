@@ -5,7 +5,6 @@ import VesselArt from "./VesselArt";
 import { useCart } from "./CartProvider";
 import {
   MAX_QTY,
-  SIZES,
   SWEETNESS,
   defaultOptions,
   money,
@@ -21,17 +20,20 @@ import { useSite } from "./SiteProvider";
  */
 export default function ProductSheet() {
   const { sheet, closeSheet, add, replaceLine, lineByKey } = useCart();
-  const { toppings, builderBases } = useSite();
+  const { toppings, sizes, builderBases } = useSite();
   const product = sheet?.product ?? null;
   const editing = sheet?.lineKey ? lineByKey(sheet.lineKey) : undefined;
 
-  const [options, setOptions] = useState<LineOptions>(defaultOptions(builderBases[0].name));
+  // El equipo puede quedarse sin bases o sin tamaños; la hoja no debe romperse.
+  const blank = defaultOptions(builderBases[0]?.name ?? "", sizes[0]?.id ?? "");
+
+  const [options, setOptions] = useState<LineOptions>(blank);
   const [qty, setQty] = useState(1);
 
   // Al abrir: opciones de la línea que se edita, o valores por defecto.
   useEffect(() => {
     if (!product) return;
-    setOptions(editing?.options ?? defaultOptions(builderBases[0].name));
+    setOptions(editing?.options ?? blank);
     setQty(editing?.qty ?? 1);
     // La identidad de la hoja es el producto y la línea, no el objeto `editing`.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -43,15 +45,20 @@ export default function ProductSheet() {
     return () => document.removeEventListener("keydown", onKey);
   }, [closeSheet]);
 
-  const basePrice = editing?.basePrice ?? product?.price ?? 0;
+  // Al editar manda lo que ya tiene la línea; al abrir de nuevo, la oferta del
+  // día si viene de ahí; si no, el precio de lista.
+  const offer = sheet?.offer;
+  const basePrice = editing?.basePrice ?? offer?.basePrice ?? product?.price ?? 0;
+  const offerLabel = editing?.offerLabel ?? offer?.offerLabel;
+  const listPrice = editing?.listPrice ?? offer?.listPrice;
   const unit = useMemo(
-    () => unitPrice(basePrice, options, toppings),
-    [basePrice, options, toppings],
+    () => unitPrice(basePrice, options, toppings, sizes),
+    [basePrice, options, toppings, sizes],
   );
 
   if (!product) return null;
 
-  const cap = Math.min(editing?.maxQty ?? MAX_QTY, MAX_QTY);
+  const cap = Math.min(editing?.maxQty ?? offer?.maxQty ?? MAX_QTY, MAX_QTY);
   const set = <K extends keyof LineOptions>(k: K, v: LineOptions[K]) =>
     setOptions((o) => ({ ...o, [k]: v }));
 
@@ -67,10 +74,12 @@ export default function ProductSheet() {
       name: product.name,
       color: product.color,
       basePrice,
-      listPrice: editing?.listPrice,
-      offerLabel: editing?.offerLabel,
-      maxQty: editing?.maxQty,
-      keySuffix: editing?.keySuffix,
+      listPrice,
+      offerLabel,
+      maxQty: editing?.maxQty ?? offer?.maxQty,
+      // Sin esto, personalizar la bebida del día la fusionaría con la misma
+      // bebida a precio de lista y el servidor le cobraría el precio completo.
+      keySuffix: editing?.keySuffix ?? offer?.keySuffix,
       qty,
       options,
     };
@@ -120,6 +129,7 @@ export default function ProductSheet() {
                 color={product.color}
                 ingredients={product.ingredients}
                 media={product.media}
+                width={600}
                 className="h-auto w-full"
                 alt={product.name}
               />
@@ -140,28 +150,36 @@ export default function ProductSheet() {
           <div>
             <div className="flex items-start justify-between gap-3">
               <h3 className="u-display text-4xl sm:text-5xl">{product.name}</h3>
-              {editing?.offerLabel ? (
+              {offerLabel ? (
                 <span className="sticker shrink-0" style={{ background: "#8FD14F" }}>
-                  {editing.offerLabel}
+                  {offerLabel}
                 </span>
               ) : null}
             </div>
             <p className="mt-2 leading-relaxed text-ink/62">{product.tagline}</p>
+            {listPrice && listPrice > basePrice ? (
+              <p className="u-mono mt-2 text-ink/45">
+                {money(basePrice)}{" "}
+                <span className="text-ink/35 line-through">{money(listPrice)}</span>
+              </p>
+            ) : null}
 
-            <Field label="Tamaño">
-              <div className="grid grid-cols-2 gap-2">
-                {SIZES.map((s) => (
-                  <Choice
-                    key={s.id}
-                    active={options.size === s.id}
-                    onClick={() => set("size", s.id)}
-                  >
-                    {s.label} · {s.volume}
-                    {s.delta ? <span className="text-mango"> +{money(s.delta)}</span> : null}
-                  </Choice>
-                ))}
-              </div>
-            </Field>
+            {sizes.length > 0 ? (
+              <Field label="Tamaño">
+                <div className="grid grid-cols-2 gap-2">
+                  {sizes.map((s) => (
+                    <Choice
+                      key={s.id}
+                      active={options.size === s.id}
+                      onClick={() => set("size", s.id)}
+                    >
+                      {s.label} · {s.volume}
+                      {s.delta ? <span className="text-mango"> +{money(s.delta)}</span> : null}
+                    </Choice>
+                  ))}
+                </div>
+              </Field>
+            ) : null}
 
             <Field label="Base">
               <div className="grid grid-cols-2 gap-2">

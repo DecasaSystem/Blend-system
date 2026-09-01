@@ -6,11 +6,10 @@
  * La contraseña se pide por teclado y no queda en el historial de la terminal
  * ni en ningún archivo: sólo se guarda su hash.
  */
-import { createInterface } from "node:readline/promises";
 import { randomBytes, randomUUID, scrypt } from "node:crypto";
 import { promisify } from "node:util";
-import { stdin, stdout } from "node:process";
 import postgres from "postgres";
+import { askHidden } from "./lib/ask.mjs";
 
 const scryptAsync = promisify(scrypt);
 
@@ -31,21 +30,6 @@ if (!process.env.DATABASE_URL) {
   process.exit(1);
 }
 
-/** Lee sin mostrar lo que se teclea. */
-async function askHidden(question) {
-  const rl = createInterface({ input: stdin, output: stdout, terminal: true });
-  const onData = (char) => {
-    if (["\n", "\r", ""].includes(String(char))) return;
-    stdout.write("\x1B[2K\x1B[200D" + question);
-  };
-  stdin.on("data", onData);
-  const answer = await rl.question(question);
-  stdin.off("data", onData);
-  rl.close();
-  stdout.write("\n");
-  return answer;
-}
-
 const password = await askHidden("Contraseña: ");
 const again = await askHidden("Repítela: ");
 
@@ -58,7 +42,11 @@ if (password.length < 10) {
   process.exit(1);
 }
 
-
+// La longitud sirve para cazar un problema concreto: si aquí sale un número
+// distinto del que crees haber escrito, la terminal se comió alguna tecla y
+// estarías guardando una contraseña que en el navegador nunca vas a poder
+// teclear igual.
+console.log(`Longitud de la contraseña: ${password.length} caracteres`);
 
 const salt = randomBytes(16);
 const key = await scryptAsync(password.normalize("NFKC"), salt, 64);

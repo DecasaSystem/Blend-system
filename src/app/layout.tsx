@@ -1,24 +1,24 @@
 import type { Metadata, Viewport } from "next";
-import { Fraunces, Archivo, Martian_Mono } from "next/font/google";
+import { Poppins, Martian_Mono } from "next/font/google";
 import { CartProvider } from "@/components/CartProvider";
 import { SiteProvider } from "@/components/SiteProvider";
 import { loadSiteContent } from "@/actions/content";
 import "./globals.css";
 
-const fraunces = Fraunces({
+/**
+ * Poppins lleva los titulares y el cuerpo. No es variable como las que había
+ * antes, así que hay que pedir los pesos uno a uno: sólo los cinco que el
+ * sistema usa de verdad, para no bajar archivos que nadie va a ver.
+ */
+const poppins = Poppins({
   subsets: ["latin"],
-  variable: "--font-fraunces",
-  axes: ["SOFT", "WONK", "opsz"],
+  weight: ["300", "400", "500", "600", "700"],
+  style: ["normal", "italic"],
+  variable: "--font-poppins",
   display: "swap",
 });
 
-const archivo = Archivo({
-  subsets: ["latin"],
-  variable: "--font-archivo",
-  axes: ["wdth"],
-  display: "swap",
-});
-
+/** Se queda: es la letra de ticket de precios, etiquetas y números de pedido. */
 const martian = Martian_Mono({
   subsets: ["latin"],
   variable: "--font-martian",
@@ -48,7 +48,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
     <html
       lang="es"
       data-scroll-behavior="smooth"
-      className={`${fraunces.variable} ${archivo.variable} ${martian.variable}`}
+      className={`${poppins.variable} ${martian.variable}`}
     >
       <body>
         {/* El carrito vive aquí para que /checkout lea el mismo pedido que la tienda.

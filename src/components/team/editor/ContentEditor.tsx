@@ -2,9 +2,28 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Area, Color, Media, Num, Panel, Row, Select, StringList, Text, Toggle } from "./fields";
+import {
+  Area,
+  Color,
+  Media,
+  Num,
+  Panel,
+  Range,
+  Row,
+  Select,
+  StringList,
+  Text,
+  Toggle,
+} from "./fields";
 import { money } from "@/lib/cart";
-import { blankProduct, blankStore, defaultSite, sizeKb, type SiteContent } from "@/lib/site";
+import {
+  blankCategory,
+  blankProduct,
+  blankStore,
+  defaultSite,
+  sizeKb,
+  type SiteContent,
+} from "@/lib/site";
 import { resetSiteContent, saveSiteContent } from "@/actions/content";
 import { useSite } from "@/components/SiteProvider";
 import type { SectionKey, Vessel } from "@/lib/content";
@@ -13,6 +32,7 @@ const TABS = [
   { id: "carrusel", label: "Carrusel" },
   { id: "dia", label: "Del día" },
   { id: "menu", label: "Menú" },
+  { id: "precios", label: "Precios y adicionales" },
   { id: "textos", label: "Textos" },
   { id: "tiendas", label: "Tiendas" },
   { id: "marca", label: "Marca" },
@@ -134,8 +154,9 @@ export default function ContentEditor() {
         {tab === "carrusel" ? (
           <>
             <Note>
-              Cada slide es una pantalla del carrusel. El video o la foto se ve de fondo; si lo
-              dejas vacío, se dibuja la composición de tintas.
+              Cada slide es una pantalla del carrusel. Tiene dos imágenes: la <b>foto principal</b>,
+              que va grande al lado del texto y reemplaza al vaso dibujado, y el <b>fondo</b>, que
+              va detrás de todo y admite video. Si dejas una vacía, se dibuja la ilustración.
             </Note>
             {draft.slides.map((s, i) => (
               <Panel
@@ -202,18 +223,34 @@ export default function ContentEditor() {
                           ]}
                         />
                       </Row>
-                      <Select
-                        label="Recipiente ilustrado"
-                        value={s.vessel}
-                        onChange={(v) => upd({ vessel: v as Vessel })}
-                        options={VESSELS}
-                      />
                       <Media
-                        label="Video o foto de fondo"
+                        label="Foto principal (la grande, encima del carrusel)"
+                        value={s.art}
+                        onChange={(v) => upd({ art: v })}
+                      />
+                      {s.art ? null : (
+                        <Select
+                          label="Recipiente ilustrado (se usa mientras no haya foto)"
+                          value={s.vessel}
+                          onChange={(v) => upd({ vessel: v as Vessel })}
+                          options={VESSELS}
+                        />
+                      )}
+
+                      <Media
+                        label="Fondo: video o foto"
                         value={s.media}
                         onChange={(v) => upd({ media: v })}
                         allowVideo
                       />
+                      {s.media ? (
+                        <Range
+                          label="Cuánto se ve el fondo"
+                          value={s.mediaOpacity ?? 55}
+                          onChange={(v) => upd({ mediaOpacity: v })}
+                          hint="Bájalo si el titular cuesta leerse"
+                        />
+                      ) : null}
                     </>
                   );
                 })()}
@@ -278,7 +315,10 @@ export default function ContentEditor() {
                         });
                       }
                     }}
-                    options={draft.products.map((p) => ({ value: p.id, label: p.name }))}
+                    options={[
+                      { value: "", label: "— Sin asignar —" },
+                      ...draft.products.map((p) => ({ value: p.id, label: p.name })),
+                    ]}
                   />
                   {product ? (
                     <>
@@ -314,8 +354,54 @@ export default function ContentEditor() {
           <>
             <Note>
               Todo lo que ve el cliente en el menú. Si subes una foto, reemplaza a la ilustración
-              dibujada.
+              dibujada. Los toppings y los tamaños están en «Precios y adicionales».
             </Note>
+
+            <Panel title="Categorías" meta={`${draft.categories.length} en el menú`}>
+              {draft.categories.map((c, i) => {
+                const used = draft.products.filter((p) => p.category === c.id).length;
+                const upd = (patch: Partial<typeof c>) =>
+                  set(
+                    "categories",
+                    draft.categories.map((x, j) => (j === i ? { ...x, ...patch } : x)),
+                  );
+                return (
+                  <div
+                    key={c.id}
+                    className="grid gap-3 border-t-[1.5px] border-ink/10 pt-3 first:border-0 first:pt-0"
+                  >
+                    <Row>
+                      <Text label="Nombre" value={c.name} onChange={(v) => upd({ name: v })} />
+                      <Text
+                        label="Nota"
+                        value={c.note}
+                        onChange={(v) => upd({ note: v })}
+                        hint="Sale bajo los filtros del menú"
+                      />
+                    </Row>
+                    {/* Borrar una categoría con bebidas dentro las dejaría invisibles
+                        en el menú, así que primero hay que vaciarla o moverlas. */}
+                    <button
+                      type="button"
+                      disabled={used > 0 || draft.categories.length < 2}
+                      onClick={() =>
+                        set(
+                          "categories",
+                          draft.categories.filter((_, j) => j !== i),
+                        )
+                      }
+                      className="u-mono min-h-11 justify-self-start rounded-full border-[1.5px] border-ink/20 px-3.5 text-ink/45 transition-colors hover:border-mango-deep hover:text-mango-deep disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      {used > 0 ? `No se puede: tiene ${used} bebida(s)` : "Eliminar categoría"}
+                    </button>
+                  </div>
+                );
+              })}
+              <AddButton
+                label="Añadir categoría"
+                onClick={() => set("categories", [...draft.categories, blankCategory()])}
+              />
+            </Panel>
 
             {draft.categories.map((c) => (
               <div key={c.id} className="mt-2">
@@ -432,60 +518,199 @@ export default function ContentEditor() {
                 />
               </div>
             ))}
+          </>
+        ) : null}
 
-            <div className="mt-6">
-              <p className="u-mono mb-2 text-ink/45">Toppings</p>
-              <div className="grid gap-2">
-                {draft.toppings.map((t, i) => (
-                  <div key={i} className="flex items-end gap-2">
-                    <div className="min-w-0 flex-1">
-                      <Text
-                        label="Nombre"
-                        value={t.name}
-                        onChange={(v) =>
-                          set(
-                            "toppings",
-                            draft.toppings.map((x, j) => (j === i ? { ...x, name: v } : x)),
-                          )
-                        }
-                      />
-                    </div>
-                    <div className="w-32 shrink-0">
-                      <Num
-                        label="Precio"
-                        value={t.price}
-                        step={100}
-                        onChange={(v) =>
-                          set(
-                            "toppings",
-                            draft.toppings.map((x, j) => (j === i ? { ...x, price: v } : x)),
-                          )
-                        }
-                      />
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() =>
+        {tab === "precios" ? (
+          <>
+            <Note>
+              Los precios que no son de una bebida concreta. Se cobran desde el servidor, así que lo
+              que pongas aquí es exactamente lo que paga el cliente.
+            </Note>
+
+            <Panel
+              title="Adicionales"
+              meta={`${draft.toppings.length} · se suman al precio de la bebida`}
+              defaultOpen
+            >
+              {draft.toppings.map((t, i) => (
+                <div key={i} className="flex items-end gap-2">
+                  <div className="min-w-0 flex-1">
+                    <Text
+                      label="Nombre"
+                      value={t.name}
+                      onChange={(v) =>
                         set(
                           "toppings",
-                          draft.toppings.filter((_, j) => j !== i),
+                          draft.toppings.map((x, j) => (j === i ? { ...x, name: v } : x)),
                         )
                       }
-                      className="grid h-11 w-11 shrink-0 place-items-center rounded-full border-[1.5px] border-ink/20 text-ink/50 transition-colors hover:border-mango-deep hover:text-mango-deep"
-                      aria-label={`Quitar ${t.name}`}
-                    >
-                      ×
-                    </button>
+                    />
                   </div>
-                ))}
-              </div>
+                  <div className="w-32 shrink-0">
+                    <Num
+                      label="Precio"
+                      value={t.price}
+                      step={100}
+                      onChange={(v) =>
+                        set(
+                          "toppings",
+                          draft.toppings.map((x, j) => (j === i ? { ...x, price: v } : x)),
+                        )
+                      }
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      set(
+                        "toppings",
+                        draft.toppings.filter((_, j) => j !== i),
+                      )
+                    }
+                    className="grid h-11 w-11 shrink-0 place-items-center rounded-full border-[1.5px] border-ink/20 text-ink/50 transition-colors hover:border-mango-deep hover:text-mango-deep"
+                    aria-label={`Quitar ${t.name}`}
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
               <AddButton
-                label="Añadir topping"
+                label="Añadir adicional"
                 onClick={() =>
-                  set("toppings", [...draft.toppings, { name: "Topping", price: 3000 }])
+                  set("toppings", [...draft.toppings, { name: "Adicional", price: 3000 }])
                 }
               />
-            </div>
+              <p className="u-mono normal-case tracking-[0.01em] text-ink/35">
+                Si le cambias el nombre a uno, los carritos que ya lo tenían dejan de cobrarlo. Es a
+                propósito: nunca se cobra algo que ya no existe.
+              </p>
+            </Panel>
+
+            <Panel
+              title="Tamaños"
+              meta={draft.sizes.map((s) => s.label).join(" · ") || "Ninguno"}
+              defaultOpen
+            >
+              {draft.sizes.map((s, i) => {
+                const upd = (patch: Partial<typeof s>) =>
+                  set(
+                    "sizes",
+                    draft.sizes.map((x, j) => (j === i ? { ...x, ...patch } : x)),
+                  );
+                return (
+                  <div
+                    key={s.id}
+                    className="grid gap-3 border-t-[1.5px] border-ink/10 pt-3 first:border-0 first:pt-0"
+                  >
+                    <Row cols={3}>
+                      <Text label="Nombre" value={s.label} onChange={(v) => upd({ label: v })} />
+                      <Text
+                        label="Volumen"
+                        value={s.volume}
+                        onChange={(v) => upd({ volume: v })}
+                        hint="350 ml, 16 oz…"
+                      />
+                      <Num
+                        label="Suma al precio"
+                        value={s.delta}
+                        step={100}
+                        onChange={(v) => upd({ delta: v })}
+                      />
+                    </Row>
+                    {draft.sizes.length > 1 ? (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          set(
+                            "sizes",
+                            draft.sizes.filter((_, j) => j !== i),
+                          )
+                        }
+                        className="u-mono min-h-11 justify-self-start rounded-full border-[1.5px] border-ink/20 px-3.5 text-ink/45 transition-colors hover:border-mango-deep hover:text-mango-deep"
+                      >
+                        Eliminar tamaño
+                      </button>
+                    ) : null}
+                  </div>
+                );
+              })}
+              <AddButton
+                label="Añadir tamaño"
+                onClick={() =>
+                  set("sizes", [
+                    ...draft.sizes,
+                    {
+                      id: `tam-${Date.now().toString(36)}`,
+                      label: "Tamaño nuevo",
+                      volume: "700 ml",
+                      delta: 6000,
+                    },
+                  ])
+                }
+              />
+              <p className="u-mono normal-case tracking-[0.01em] text-ink/35">
+                El primero de la lista es el que viene marcado por defecto.
+              </p>
+            </Panel>
+
+            <Panel
+              title="Domicilio"
+              meta={`${money(draft.pricing.delivery.fee)} · gratis desde ${money(draft.pricing.delivery.freeFrom)}`}
+              defaultOpen
+            >
+              <Row>
+                <Num
+                  label="Costo del domicilio"
+                  value={draft.pricing.delivery.fee}
+                  step={100}
+                  onChange={(v) =>
+                    set("pricing", {
+                      ...draft.pricing,
+                      delivery: { ...draft.pricing.delivery, fee: v },
+                    })
+                  }
+                />
+                <Num
+                  label="Gratis a partir de"
+                  value={draft.pricing.delivery.freeFrom}
+                  step={1000}
+                  onChange={(v) =>
+                    set("pricing", {
+                      ...draft.pricing,
+                      delivery: { ...draft.pricing.delivery, freeFrom: Math.max(1, v) },
+                    })
+                  }
+                />
+              </Row>
+            </Panel>
+
+            <Panel title="Arma tu blend" meta={`Desde ${money(draft.pricing.builder.base)}`}>
+              <Row>
+                <Num
+                  label="Precio con dos ingredientes"
+                  value={draft.pricing.builder.base}
+                  step={100}
+                  onChange={(v) =>
+                    set("pricing", {
+                      ...draft.pricing,
+                      builder: { ...draft.pricing.builder, base: v },
+                    })
+                  }
+                />
+                <Num
+                  label="Recargo por el tercero"
+                  value={draft.pricing.builder.perExtra}
+                  step={100}
+                  onChange={(v) =>
+                    set("pricing", {
+                      ...draft.pricing,
+                      builder: { ...draft.pricing.builder, perExtra: v },
+                    })
+                  }
+                />
+              </Row>
+            </Panel>
           </>
         ) : null}
 

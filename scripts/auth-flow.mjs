@@ -19,6 +19,7 @@ ctx.on("page", (p) => {
 });
 const page = await ctx.newPage();
 
+
 try {
   // --- Sin sesión no se llega al tablero ---
   await page.goto(`${URL}/equipo`, { waitUntil: "networkidle" });

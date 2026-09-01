@@ -1,6 +1,8 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { mediaUploadsAvailable, requestUploadTicket } from "@/actions/media";
+import { isVideoUrl, mediaUrl } from "@/lib/media";
 
 /** Piezas de formulario del editor. Sin adornos: esto lo usa el equipo a diario. */
 
@@ -93,6 +95,49 @@ export function Num({
         onChange={(e) => onChange(Math.max(min, Number(e.target.value) || 0))}
         className="input rounded-2xl"
       />
+    </label>
+  );
+}
+
+/** Deslizador con el valor a la vista. Para cosas que se ajustan mirando. */
+export function Range({
+  label,
+  value,
+  onChange,
+  min = 0,
+  max = 100,
+  step = 5,
+  suffix = "%",
+  hint,
+}: {
+  label: string;
+  value: number;
+  onChange: (v: number) => void;
+  min?: number;
+  max?: number;
+  step?: number;
+  suffix?: string;
+  hint?: string;
+}) {
+  return (
+    <label className="block">
+      <span className="u-mono mb-1.5 flex items-center justify-between text-ink/45">
+        <span>{label}</span>
+        <span className="text-ink/70">
+          {value}
+          {suffix}
+        </span>
+      </span>
+      <input
+        type="range"
+        value={value}
+        min={min}
+        max={max}
+        step={step}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="h-11 w-full cursor-pointer accent-[var(--color-ube)]"
+      />
+      {hint ? <span className="u-mono block text-ink/35">{hint}</span> : null}
     </label>
   );
 }
@@ -244,13 +289,22 @@ export function StringList({
   );
 }
 
-const MAX_IMAGE_KB = 400;
-const MAX_SIDE = 1400;
+/** Límites de Cloudinary. Avisar antes es mejor que un error a mitad de subida. */
+const MAX_IMAGE_MB = 10;
+const MAX_VIDEO_MB = 100;
 
 /**
  * Media de un producto, slide o sección.
- * Las fotos se reescalan y se guardan dentro del contenido; los videos van por
- * URL, porque un video en localStorage llena la cuota en el primer archivo.
+ *
+ * El archivo va del navegador a Cloudinary sin pasar por nuestro servidor: se
+ * pide una firma, se sube directo y en la base queda sólo la URL. Antes las
+ * fotos se recomprimían aquí y se guardaban enteras dentro del contenido, lo
+ * que limitaba la calidad y engordaba la fila de la base con cada foto.
+ *
+ * No se reescala ni se recomprime nada antes de subir: se guarda el original y
+ * el tamaño se decide al pintar (ver `src/lib/media.ts`). Así una foto con
+ * fondo transparente lo conserva, que es justo lo que hace falta cuando
+ * reemplaza a la ilustración del vaso.
  */
 export function Media({
   label,
@@ -264,22 +318,52 @@ export function Media({
   allowVideo?: boolean;
 }) {
   const input = useRef<HTMLInputElement>(null);
-  const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [canUpload, setCanUpload] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    mediaUploadsAvailable()
+      .then(setCanUpload)
+      .catch(() => setCanUpload(false));
+  }, []);
+
+  const busy = progress !== null;
 
   const pick = async (file: File) => {
     setError(null);
-    setBusy(true);
+
+    const video = file.type.startsWith("video/");
+    if (!video && !file.type.startsWith("image/")) {
+      setError("Eso no es ni una foto ni un video.");
+      return;
+    }
+    if (video && !allowVideo) {
+      setError("Aquí sólo van fotos. El video se pone en el fondo del carrusel.");
+      return;
+    }
+
+    const limit = video ? MAX_VIDEO_MB : MAX_IMAGE_MB;
+    if (file.size > limit * 1024 * 1024) {
+      setError(
+        `Pesa ${Math.round(file.size / 1024 / 1024)} MB y el máximo son ${limit} MB. ` +
+          (video ? "Recórtalo o bájale la resolución." : "Prueba con una más pequeña."),
+      );
+      return;
+    }
+
+    setProgress(0);
     try {
-      onChange(await downscale(file));
+      onChange(await uploadToCloudinary(file, setProgress));
     } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo leer la imagen.");
+      setError(e instanceof Error ? e.message : "No se pudo subir.");
     } finally {
-      setBusy(false);
+      setProgress(null);
       if (input.current) input.current.value = "";
     }
   };
 
+  // Las fotos viejas siguen guardadas dentro del contenido; se ven igual.
   const isData = value?.startsWith("data:");
 
   return (
@@ -290,7 +374,7 @@ export function Media({
         <div className="mb-2 flex items-center gap-3 rounded-2xl border-[1.5px] border-ink/15 bg-white p-2">
           <Preview src={value} />
           <p className="u-mono min-w-0 flex-1 truncate normal-case tracking-[0.01em] text-ink/50">
-            {isData ? "Foto subida" : value}
+            {isData ? "Foto antigua (guardada en la base)" : value}
           </p>
           <button
             type="button"
@@ -309,18 +393,20 @@ export function Media({
           onChange={(e) => onChange(e.target.value.trim() || undefined)}
           className="input min-w-0 flex-1 rounded-2xl"
         />
-        <button
-          type="button"
-          onClick={() => input.current?.click()}
-          disabled={busy}
-          className="u-mono min-h-11 shrink-0 rounded-full border-[1.5px] border-ink/25 px-3.5 text-ink/60 transition-colors hover:border-ink hover:text-ink disabled:opacity-50"
-        >
-          {busy ? "Procesando…" : "Subir foto"}
-        </button>
+        {canUpload === false ? null : (
+          <button
+            type="button"
+            onClick={() => input.current?.click()}
+            disabled={busy}
+            className="u-mono min-h-11 shrink-0 rounded-full border-[1.5px] border-ink/25 px-3.5 text-ink/60 transition-colors hover:border-ink hover:text-ink disabled:opacity-50"
+          >
+            {busy ? `Subiendo ${progress}%` : allowVideo ? "Subir archivo" : "Subir foto"}
+          </button>
+        )}
         <input
           ref={input}
           type="file"
-          accept="image/*"
+          accept={allowVideo ? "image/*,video/*" : "image/*"}
           className="hidden"
           onChange={(e) => {
             const f = e.target.files?.[0];
@@ -329,9 +415,25 @@ export function Media({
         />
       </div>
 
+      {busy ? (
+        <div
+          className="mt-2 h-1.5 overflow-hidden rounded-full border-[1.5px] border-ink/15"
+          role="progressbar"
+          aria-valuenow={progress ?? 0}
+          aria-valuemin={0}
+          aria-valuemax={100}
+        >
+          <div
+            className="h-full bg-ube transition-[width] duration-200"
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+      ) : null}
+
       <p className="u-mono mt-1.5 normal-case tracking-[0.01em] text-ink/35">
-        Las fotos se reescalan a {MAX_SIDE} px y se guardan aquí mismo.
-        {allowVideo ? " Los videos van por URL: pega el enlace del archivo .mp4." : ""}
+        {canUpload === false
+          ? "Sin Cloudinary configurado: por ahora sólo se puede pegar una URL."
+          : `Se guardan en Cloudinary a tamaño completo; la tienda las entrega al tamaño que necesite cada sitio. Máximo ${MAX_IMAGE_MB} MB por foto${allowVideo ? ` y ${MAX_VIDEO_MB} MB por video` : ""}.`}
       </p>
       {error ? <p className="u-mono mt-1 text-mango-deep">{error}</p> : null}
     </div>
@@ -339,8 +441,7 @@ export function Media({
 }
 
 function Preview({ src }: { src: string }) {
-  const isVideo = /\.(mp4|webm|ogv|mov)(\?|#|$)/i.test(src) || src.startsWith("data:video");
-  if (isVideo) {
+  if (isVideoUrl(src)) {
     return (
       <span className="u-mono grid h-14 w-14 shrink-0 place-items-center rounded-xl border-[1.5px] border-ink/15 bg-paper-2 text-ink/40">
         video
@@ -350,53 +451,61 @@ function Preview({ src }: { src: string }) {
   // eslint-disable-next-line @next/next/no-img-element
   return (
     <img
-      src={src}
+      src={mediaUrl(src, { width: 112 })}
       alt=""
       className="h-14 w-14 shrink-0 rounded-xl border-[1.5px] border-ink/15 object-cover"
     />
   );
 }
 
-/** Reescala y recomprime en el navegador; devuelve un data URL. */
-function downscale(file: File): Promise<string> {
+/**
+ * Sube el archivo a Cloudinary con la firma que da el servidor.
+ *
+ * XMLHttpRequest y no `fetch`, porque es lo único que informa del avance de la
+ * subida: sin eso, un video de 80 MB sería un botón congelado cinco minutos.
+ */
+function uploadToCloudinary(file: File, onProgress: (pct: number) => void): Promise<string> {
   return new Promise((resolve, reject) => {
-    if (!file.type.startsWith("image/")) {
-      reject(new Error("Eso no es una imagen. Los videos se pegan por URL."));
-      return;
-    }
-    const url = URL.createObjectURL(file);
-    const img = new Image();
-    img.onload = () => {
-      URL.revokeObjectURL(url);
-      const scale = Math.min(1, MAX_SIDE / Math.max(img.width, img.height));
-      const canvas = document.createElement("canvas");
-      canvas.width = Math.round(img.width * scale);
-      canvas.height = Math.round(img.height * scale);
-      const ctx = canvas.getContext("2d");
-      if (!ctx) {
-        reject(new Error("El navegador no pudo procesar la imagen."));
-        return;
-      }
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    requestUploadTicket()
+      .then((ticket) => {
+        if ("error" in ticket) {
+          reject(new Error(ticket.error));
+          return;
+        }
 
-      // Baja la calidad hasta que quepa; sin esto una foto de móvil no entra.
-      let quality = 0.82;
-      let out = canvas.toDataURL("image/jpeg", quality);
-      while (out.length / 1024 > MAX_IMAGE_KB && quality > 0.4) {
-        quality -= 0.12;
-        out = canvas.toDataURL("image/jpeg", quality);
-      }
-      if (out.length / 1024 > MAX_IMAGE_KB) {
-        reject(new Error("La foto pesa demasiado. Prueba con una más pequeña."));
-        return;
-      }
-      resolve(out);
-    };
-    img.onerror = () => {
-      URL.revokeObjectURL(url);
-      reject(new Error("No se pudo abrir la imagen."));
-    };
-    img.src = url;
+        const form = new FormData();
+        form.append("file", file);
+        form.append("api_key", ticket.apiKey);
+        form.append("timestamp", String(ticket.timestamp));
+        form.append("signature", ticket.signature);
+        form.append("folder", ticket.folder);
+
+        const xhr = new XMLHttpRequest();
+        // `auto` deja que Cloudinary decida si es imagen o video.
+        xhr.open("POST", `https://api.cloudinary.com/v1_1/${ticket.cloudName}/auto/upload`);
+
+        xhr.upload.onprogress = (e) => {
+          if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
+        };
+
+        xhr.onload = () => {
+          let body: { secure_url?: string; error?: { message?: string } } = {};
+          try {
+            body = JSON.parse(xhr.responseText);
+          } catch {
+            /* respuesta ilegible */
+          }
+          if (xhr.status >= 200 && xhr.status < 300 && body.secure_url) {
+            resolve(body.secure_url);
+          } else {
+            reject(new Error(body.error?.message ?? `Cloudinary respondió ${xhr.status}.`));
+          }
+        };
+
+        xhr.onerror = () => reject(new Error("Se cortó la conexión con Cloudinary."));
+        xhr.send(form);
+      })
+      .catch(reject);
   });
 }
 
