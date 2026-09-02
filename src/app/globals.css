@@ -90,6 +90,17 @@
     font-style: italic;
   }
 
+  /* Precio grande: la letra de ticket, pero a cuerpo de titular. Sin la caja
+     alta ni el tracking abierto de `.u-mono`, que a este tamaño separarían las
+     cifras hasta hacerlas ilegibles de un vistazo. Monoespaciada a propósito:
+     los precios se leen en columna y las cifras tienen que alinearse. */
+  .u-price {
+    font-family: var(--font-mono);
+    font-weight: 600;
+    letter-spacing: -0.03em;
+    line-height: 1;
+  }
+
   .u-mono {
     font-family: var(--font-mono);
     font-size: 0.68rem;

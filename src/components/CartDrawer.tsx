@@ -322,7 +322,7 @@ export default function CartDrawer() {
               </dl>
               <div className="mt-3 flex items-end justify-between border-t-[1.5px] border-ink/10 pt-3">
                 <span className="u-mono text-ink/50">Total</span>
-                <span className="u-display text-4xl">{money(total)}</span>
+                <span className="u-price text-2xl">{money(total)}</span>
               </div>
 
               <a href="/checkout" tabIndex={open ? 0 : -1} className="btn btn-mango mt-4 w-full">

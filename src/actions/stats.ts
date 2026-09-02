@@ -58,9 +58,18 @@ const claveDia = (d: Date) =>
     day: "2-digit",
   }).format(d);
 
+/**
+ * `hourCycle: "h23"` explícito, no `hour12: false`: con ese, según la versión
+ * de ICU, la medianoche puede salir como «24» en vez de «00», y eso indexaría
+ * fuera del arreglo de horas.
+ */
 const horaLocal = (d: Date) =>
   Number(
-    new Intl.DateTimeFormat("en-GB", { timeZone: ZONE, hour: "2-digit", hour12: false }).format(d),
+    new Intl.DateTimeFormat("en-GB", {
+      timeZone: ZONE,
+      hour: "2-digit",
+      hourCycle: "h23",
+    }).format(d),
   );
 
 const etiquetaDia = (clave: string) => {

@@ -294,6 +294,17 @@ const MAX_IMAGE_MB = 10;
 const MAX_VIDEO_MB = 100;
 
 /**
+ * Si Cloudinary está configurado o no es lo mismo para todos los campos de la
+ * página, así que se pregunta una sola vez y todos comparten la respuesta.
+ *
+ * Sin esto cada `<Media>` lanzaba su propia petición al montarse: abrir la
+ * pestaña del menú, con dieciséis productos, disparaba dieciséis viajes al
+ * servidor para recibir dieciséis veces el mismo `true`.
+ */
+let disponible: Promise<boolean> | null = null;
+const hayCloudinary = () => (disponible ??= mediaUploadsAvailable());
+
+/**
  * Media de un producto, slide o sección.
  *
  * El archivo va del navegador a Cloudinary sin pasar por nuestro servidor: se
@@ -323,9 +334,13 @@ export function Media({
   const [canUpload, setCanUpload] = useState<boolean | null>(null);
 
   useEffect(() => {
-    mediaUploadsAvailable()
-      .then(setCanUpload)
-      .catch(() => setCanUpload(false));
+    let vivo = true;
+    hayCloudinary()
+      .then((v) => vivo && setCanUpload(v))
+      .catch(() => vivo && setCanUpload(false));
+    return () => {
+      vivo = false;
+    };
   }, []);
 
   const busy = progress !== null;

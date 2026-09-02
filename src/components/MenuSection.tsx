@@ -109,7 +109,7 @@ export default function MenuSection() {
               </div>
 
               <div className="mt-auto flex items-center justify-between gap-2 pt-4 sm:pt-5">
-                <span className="u-display text-2xl sm:text-3xl">{money(p.price)}</span>
+                <span className="u-price text-lg sm:text-xl">{money(p.price)}</span>
                 <div className="flex items-center gap-1.5">
                   <button
                     type="button"

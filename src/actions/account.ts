@@ -98,6 +98,21 @@ export async function signIn(_prev: AccountState, formData: FormData): Promise<A
   // Se verifica aunque no exista: si respondiéramos antes, el tiempo de
   // respuesta delataría qué correos tienen cuenta.
   const ok = await verifyPassword(password, customer?.passwordHash ?? "scrypt:00:00");
+
+  /*
+   * Una cuenta creada con Google no tiene contraseña: `password_hash` es nulo.
+   * Ahí «correo o contraseña incorrectos» es literalmente falso y deja a la
+   * persona probando contraseñas que nunca van a funcionar.
+   *
+   * Decirlo revela que ese correo tiene cuenta, que es justo lo que el mensaje
+   * genérico evita. Se acepta el intercambio sólo en este caso: quien entró con
+   * Google ya expuso lo mismo al pulsar el botón, y el coste de callarlo es que
+   * no pueda entrar nunca.
+   */
+  if (customer && !customer.passwordHash && customer.googleId) {
+    return { error: "Esta cuenta entra con Google. Usa el botón de arriba." };
+  }
+
   if (!customer || !ok) return { error: "Correo o contraseña incorrectos." };
 
   await db.update(customers).set({ lastLoginAt: new Date() }).where(eq(customers.id, customer.id));

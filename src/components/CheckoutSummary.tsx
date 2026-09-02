@@ -301,7 +301,7 @@ export default function CheckoutSummary({
 
             <div className="mt-4 flex items-end justify-between border-t-[1.5px] border-ink pt-4">
               <span className="u-mono text-ink/50">Total</span>
-              <span className="u-display text-5xl">{money(total)}</span>
+              <span className="u-price text-3xl sm:text-4xl">{money(total)}</span>
             </div>
 
             {/* Datos que la barra necesita para preparar y entregar */}

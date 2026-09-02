@@ -108,7 +108,7 @@ export default function DailyBlends() {
                 {offer.why ? <p className="u-mono mt-3 text-ink/40">{offer.why}</p> : null}
 
                 <div className="mt-5 flex items-end gap-2.5">
-                  <span className="u-display text-5xl" style={{ color: p.color }}>
+                  <span className="u-price text-3xl" style={{ color: p.color }}>
                     {money(offer.price)}
                   </span>
                   <span className="u-mono mb-2 text-ink/35 line-through">{money(p.price)}</span>

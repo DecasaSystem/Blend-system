@@ -32,12 +32,9 @@ await page.evaluate(() => localStorage.clear());
 await page.reload({ waitUntil: "networkidle" });
 
 // 1. Formato de moneda
-const firstPrice = await page
-  .locator("#menu article")
-  .first()
-  .locator(".u-display")
-  .last()
-  .innerText();
+// `.u-price` y no `.u-display`: los precios pasaron a la monoespaciada, y en
+// la tarjeta la clase de titular ahora es el nombre de la bebida.
+const firstPrice = await page.locator("#menu article").first().locator(".u-price").innerText();
 check("precio en formato COP", /\$\s?\d{1,3}\.\d{3}/.test(firstPrice), firstPrice);
 
 // 2. Agregar rápido desde el menú

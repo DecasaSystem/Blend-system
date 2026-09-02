@@ -29,6 +29,68 @@ function delta(ahora: number, antes: number) {
   return Math.round(((ahora - antes) / antes) * 100);
 }
 
+/**
+ * Una celda de CSV.
+ *
+ * Se entrecomilla siempre y se doblan las comillas de dentro. Y si el texto
+ * empieza por =, +, - o @, se le antepone un apóstrofo: Excel trata eso como
+ * una fórmula, y un nombre de producto no debería ejecutar nada al abrirlo.
+ */
+function celda(v: string | number) {
+  const s = String(v);
+  const seguro = /^[=+\-@\t\r]/.test(s) ? `'${s}` : s;
+  return `"${seguro.replace(/"/g, '""')}"`;
+}
+
+function construirCsv(stats: Stats) {
+  const bloques: string[][][] = [
+    [["Resumen"], ["Concepto", "Valor"]],
+    [
+      ["Ventas", String(stats.resumen.ventas)],
+      ["Pedidos", String(stats.resumen.pedidos)],
+      ["Ticket promedio", String(stats.resumen.ticket)],
+      ["Bebidas servidas", String(stats.resumen.unidades)],
+    ],
+    [[""], ["Ventas por día"], ["Día", "Ventas", "Pedidos"]],
+    [...stats.porDia.map((d) => [d.fecha, String(d.ventas), String(d.pedidos)])],
+    [[""], ["Lo que más se vende"], ["Bebida", "Unidades", "Ventas"]],
+    [...stats.topProductos.map((d) => [d.nombre, String(d.valor), String(d.extra ?? 0)])],
+    [[""], ["Adicionales más pedidos"], ["Adicional", "Veces"]],
+    [...stats.topAdicionales.map((d) => [d.nombre, String(d.valor)])],
+    [[""], ["Pedidos por hora"], ["Hora", "Pedidos"]],
+    [...stats.porHora.map((h) => [String(h.hora), String(h.pedidos)])],
+    [[""], ["Cómo lo reciben"], ["Modo", "Pedidos"]],
+    [...stats.modo.map((d) => [d.nombre, String(d.valor)])],
+    [[""], ["Cómo pagan"], ["Pago", "Pedidos"]],
+    [...stats.pago.map((d) => [d.nombre, String(d.valor)])],
+    [[""], ["Tamaños"], ["Tamaño", "Veces"]],
+    [...stats.tamanos.map((d) => [d.nombre, String(d.valor)])],
+    [[""], ["Bases"], ["Base", "Veces"]],
+    [...stats.bases.map((d) => [d.nombre, String(d.valor)])],
+    [[""], ["Por tienda"], ["Tienda", "Pedidos", "Ventas"]],
+    [...stats.tiendas.map((d) => [d.nombre, String(d.valor), String(d.extra ?? 0)])],
+  ];
+
+  return bloques
+    .flat()
+    .map((fila) => fila.map(celda).join(","))
+    .join("\r\n");
+}
+
+function descargarCsv(stats: Stats) {
+  // BOM al principio: sin él, Excel en Windows abre el archivo en ANSI y los
+  // acentos de «Açaí» o «Tamaños» salen rotos.
+  const blob = new Blob(["﻿" + construirCsv(stats)], {
+    type: "text/csv;charset=utf-8",
+  });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `blend-metricas-${stats.dias}dias-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export default function StatsPanel() {
   const [dias, setDias] = useState<number>(7);
   const [stats, setStats] = useState<Stats | null>(null);
@@ -90,6 +152,15 @@ export default function StatsPanel() {
           }`}
         >
           {tabla ? "Ver gráficos" : "Ver tablas"}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => stats && descargarCsv(stats)}
+          disabled={stats.vacio}
+          className="u-mono min-h-11 rounded-full border-[1.5px] border-ink/25 px-3.5 text-ink/60 transition-colors hover:border-ink hover:text-ink disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          Descargar CSV
         </button>
 
         <p className="u-mono ml-auto normal-case tracking-[0.01em] text-ink/40">

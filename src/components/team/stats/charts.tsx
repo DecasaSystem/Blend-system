@@ -249,8 +249,18 @@ export function LineaVentas({ datos }: { datos: Punto[] }) {
         ) : null}
       </svg>
 
-      {punto ? (
-        <div className="pointer-events-none absolute left-0 top-0 rounded-xl border-[1.5px] border-ink/15 bg-white px-3 py-2 shadow-[2px_3px_0_0_rgba(27,11,46,0.10)]">
+      {/* Sigue al día señalado. Se ancla por la izquierda o por la derecha
+          según de qué mitad venga, para no salirse de la tarjeta. */}
+      {punto && activo !== null ? (
+        <div
+          className="pointer-events-none absolute top-0 rounded-xl border-[1.5px] border-ink/15 bg-white px-3 py-2 shadow-[2px_3px_0_0_rgba(27,11,46,0.10)]"
+          style={
+            x(activo) > W / 2
+              ? { right: `${100 - (x(activo) / W) * 100}%`, marginRight: "10px" }
+              : { left: `${(x(activo) / W) * 100}%`, marginLeft: "10px" }
+          }
+        >
+          {/* El valor manda; el día lo acompaña. */}
           <p className="text-[0.95rem] font-semibold leading-none">{money(punto.ventas)}</p>
           <p className="u-mono mt-1 normal-case tracking-[0.01em] text-ink/45">
             {punto.etiqueta} · {punto.pedidos} {punto.pedidos === 1 ? "pedido" : "pedidos"}
@@ -366,7 +376,14 @@ export function Columnas({ datos }: { datos: { hora: number; pedidos: number }[]
 /* ------------------------------------------------------------------ */
 
 export function Reparto({ datos }: { datos: Fila[] }) {
-  const filas = datos.filter((d) => d.valor > 0);
+  // El color se ata a la posición original, no a la de la lista ya filtrada:
+  // si un día no hay pagos en efectivo, «Sin pagar» no puede heredar su color.
+  // Quien aprendió que el morado es «Recoger» seguiría viendo morado y leería
+  // otra cosa.
+  const filas = datos
+    .map((d, orden) => ({ ...d, tono: SERIE[orden % SERIE.length] }))
+    .filter((d) => d.valor > 0);
+
   const total = filas.reduce((n, d) => n + d.valor, 0);
   if (total === 0) return <Empty>Todavía no hay pedidos que repartir.</Empty>;
 
@@ -374,23 +391,23 @@ export function Reparto({ datos }: { datos: Fila[] }) {
     <div>
       {/* El hueco de 2 px es lo que separa los segmentos; no llevan borde. */}
       <div className="flex h-6 w-full gap-[2px] overflow-hidden rounded-full">
-        {filas.map((d, i) => (
+        {filas.map((d) => (
           <span
             key={d.nombre}
             className="h-full first:rounded-l-full last:rounded-r-full"
-            style={{ width: `${(d.valor / total) * 100}%`, background: SERIE[i % SERIE.length] }}
+            style={{ width: `${(d.valor / total) * 100}%`, background: d.tono }}
           />
         ))}
       </div>
 
       {/* Leyenda siempre presente: la identidad nunca depende sólo del color. */}
       <ul className="mt-3 grid gap-1.5">
-        {filas.map((d, i) => (
+        {filas.map((d) => (
           <li key={d.nombre} className="flex items-center gap-2">
             <span
               aria-hidden="true"
               className="h-2.5 w-2.5 shrink-0 rounded-sm"
-              style={{ background: SERIE[i % SERIE.length] }}
+              style={{ background: d.tono }}
             />
             <span className="min-w-0 flex-1 truncate text-[0.9rem]">{d.nombre}</span>
             <span

@@ -6,6 +6,7 @@ import Logo from "../Logo";
 import OrderCard from "./OrderCard";
 import ContentEditor from "./editor/ContentEditor";
 import StatsPanel from "./stats/StatsPanel";
+import TeamPanel from "./TeamPanel";
 import {
   askForNotifications,
   chime,
@@ -42,7 +43,7 @@ export default function OrderBoard({
   const now = useNow();
   const [sound, setSound] = useState(false);
   const [tab, setTab] = useState<BoardStatus>("nuevo");
-  const [view, setView] = useState<"pedidos" | "metricas" | "contenido">("pedidos");
+  const [view, setView] = useState<"pedidos" | "metricas" | "contenido" | "cuentas">("pedidos");
   const arrived = useNewOrderAlert(orders, sound);
   const wide = useMediaQuery("(min-width: 1024px)");
 
@@ -127,6 +128,9 @@ export default function OrderBoard({
                 { id: "pedidos", label: "Pedidos" },
                 { id: "metricas", label: "Métricas" },
                 { id: "contenido", label: "Contenido" },
+                // Las cuentas sólo las gestiona un administrador; a la barra ni
+                // se le enseña la pestaña.
+                ...(user.role === "admin" ? [{ id: "cuentas", label: "Cuentas" } as const] : []),
               ] as const
             ).map((v) => (
               <button
@@ -194,6 +198,10 @@ export default function OrderBoard({
       {view === "metricas" ? (
         <div className="mx-auto max-w-[1400px] px-4 py-6 sm:px-6">
           <StatsPanel />
+        </div>
+      ) : view === "cuentas" ? (
+        <div className="mx-auto max-w-4xl px-4 py-6 sm:px-6">
+          <TeamPanel user={user} />
         </div>
       ) : view === "contenido" ? (
         // Más angosto que el tablero: un formulario de 1600 px no se lee.
