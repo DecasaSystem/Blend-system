@@ -9,6 +9,7 @@
  *   node --env-file=.env.local scripts/stats-flow.mjs [url]
  */
 import { randomUUID } from "node:crypto";
+import { mkdirSync } from "node:fs";
 import { chromium } from "playwright-core";
 import { CHROME, createTempUser, deleteUser, login, reporter, sqlClient } from "./lib/team.mjs";
 
@@ -81,6 +82,10 @@ function sembrar(dias, porDia) {
   return filas;
 }
 
+// Las capturas van a una carpeta que .gitignore ya cubre (`/shots*/`), para
+// que ejecutar la prueba no ensucie el repositorio.
+mkdirSync("shots-metricas", { recursive: true });
+
 const DIAS = 12;
 const POR_DIA = 3;
 const filas = sembrar(DIAS, POR_DIA);
@@ -133,7 +138,7 @@ try {
   check("y de cómo pagan", cuerpo.includes("Tarjeta"));
   check("y desglose por tienda", /Blend Norte/.test(cuerpo));
 
-  await page.screenshot({ path: "metricas-7.png", fullPage: true });
+  await page.screenshot({ path: "shots-metricas/7-dias.png", fullPage: true });
 
   // El filtro de arriba tiene que mover todo lo de abajo.
   await page.getByRole("tab", { name: "30 días" }).click();
@@ -154,7 +159,7 @@ try {
     "la tabla trae las mismas cifras",
     (await page.locator("main").innerText()).includes("Mango Terco"),
   );
-  await page.screenshot({ path: "metricas-tablas.png", fullPage: true });
+  await page.screenshot({ path: "shots-metricas/tablas.png", fullPage: true });
 } catch (err) {
   crashed(err);
 } finally {

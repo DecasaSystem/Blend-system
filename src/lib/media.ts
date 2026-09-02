@@ -12,6 +12,13 @@
  *   q_auto  — Cloudinary mira la imagen y baja la calidad justo hasta donde el
  *             ojo no lo distingue. Por eso "buena calidad" no cuesta lentitud.
  *   c_limit — Reduce si es más grande, pero nunca amplía ni recorta.
+ *   fl_preserve_transparency
+ *           — Si la imagen trae canal alfa, no se entrega en un formato que lo
+ *             pierda. Medido: hoy `f_auto` ya devuelve WebP o PNG a los tres
+ *             navegadores probados, así que la bandera no cambia ni el formato
+ *             ni el peso. Va igual porque `q_auto` puede decidir que un JPEG
+ *             pesa menos, y un JPEG no tiene transparencia: lo que era
+ *             transparente saldría negro.
  *
  * Las URLs que no son de Cloudinary (una pegada a mano, o las fotos antiguas
  * guardadas como data URL) pasan de largo sin tocarse.
@@ -45,7 +52,7 @@ export function mediaUrl(src: string | undefined, { width }: Options = {}): stri
   // no somos quiénes para pisarlas.
   if (!/^v\d+\//.test(rest)) return src;
 
-  const t = ["f_auto", "q_auto"];
+  const t = ["f_auto", "q_auto", "fl_preserve_transparency"];
   if (width) t.push(`w_${width}`, "c_limit");
 
   return `${head}${t.join(",")}/${rest}`;

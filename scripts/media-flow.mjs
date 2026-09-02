@@ -21,9 +21,13 @@ const { check, crashed, finish } = reporter();
 const errors = [];
 const subidas = [];
 
-/** Un PNG de 2×2 de verdad, para que Cloudinary tenga algo que procesar. */
+/**
+ * Un PNG de 64×64 con canal alfa: círculo naranja opaco sobre fondo
+ * transparente. Con transparencia a propósito, porque es donde estaba el fallo
+ * del «fondo negro»: si la entrega pierde el alfa, lo transparente sale negro.
+ */
 const PNG = Buffer.from(
-  "iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFklEQVR4nGP8z8Dwn4GBgYGJAQ0AABYCAQEXvRJoAAAAAElFTkSuQmCC",
+  "iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAABAElEQVR4nO3QwQHDIAwEQdeREtP/3ykgxggQHBL70Fu3c93fz3XyyQeoTz5AffIB6pMPUN+qR/fAhQUYiV6GESV8GkS0cHeIyPEuCJHDXSCyxHcjZIrvQsgW34yQMb4JIWu8GQGAxPEmhOzxVQQADoh/RQDgkPgiAgAAnBP/iAAAAAAAAAAAAAAAAAAAAAAAAPkR/joBAKAMkA3hsRGACkAWhGIfAAaA6AivbVaAqAjVLgAaAKIhmJpaAaIgmHt6AHZHaGrpBdgVobljBGA3hK6GUYAdIIa2ewGoEIZ3ewKshHDbOwNgJoT7zpkAXhhTt60C2PbkA9QnH6A++QD1/QDTkLlf0kg+TgAAAABJRU5ErkJggg==",
   "base64",
 );
 const dir = mkdtempSync(join(tmpdir(), "blend-media-"));
@@ -130,6 +134,37 @@ try {
     entregada.ok,
     `HTTP ${entregada.status} · ${entregada.headers.get("content-type")}`,
   );
+
+  /*
+   * La transparencia, que es de donde salía el «fondo negro».
+   *
+   * Se pide con el Accept de cada navegador real: si en alguno la respuesta
+   * llegara en JPEG —que no tiene canal alfa— lo transparente se rellenaría de
+   * negro al pintarlo.
+   */
+  const NAVEGADORES = {
+    Chrome: "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+    Safari: "image/webp,image/png,image/*;q=0.8,*/*;q=0.5",
+    "sin webp": "image/png,image/*;q=0.8,*/*;q=0.5",
+  };
+  for (const [nav, accept] of Object.entries(NAVEGADORES)) {
+    const r = await fetch(src, { headers: { Accept: accept } });
+    const tipo = r.headers.get("content-type") ?? "";
+    check(`conserva la transparencia en ${nav}`, /webp|png|avif/.test(tipo), tipo);
+  }
+
+  /*
+   * Y que la foto del carrusel no lleve marco ni recorte: con `object-cover` y
+   * un borde, un PNG recortado encerraba el fondo oscuro del hero y parecía un
+   * rectángulo negro. Se comprueba el estilo calculado, no la clase, para que
+   * la prueba siga valiendo si cambian los nombres.
+   */
+  const estilo = await img.evaluate((el) => {
+    const s = getComputedStyle(el);
+    return { fit: s.objectFit, borde: s.borderTopWidth };
+  });
+  check("la foto del carrusel no se recorta", estilo.fit === "contain", estilo.fit);
+  check("y no lleva marco alrededor", estilo.borde === "0px", estilo.borde);
 } catch (err) {
   crashed(err);
 } finally {

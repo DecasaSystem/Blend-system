@@ -166,13 +166,19 @@ export default function Hero() {
           <div className="bob w-[42%] max-w-[190px] sm:w-[38%] sm:max-w-[260px] lg:w-full lg:max-w-[400px]">
             {slide.art ? (
               // eslint-disable-next-line @next/next/no-img-element
+              /* Sin marco ni recorte: la foto flota igual que la ilustración
+                 que sustituye. Con `aspect-square`, `object-cover` y un borde,
+                 un PNG recortado enseñaba el fondo oscuro del carrusel dentro
+                 de la caja y parecía un rectángulo negro. Las esquinas
+                 redondeadas se quedan: en un recorte no se ven —no hay nada
+                 que redondear— y en una foto rectangular sientan bien. */
               <img
                 key={`art-${slide.id}`}
                 src={mediaUrl(slide.art, { width: 800 })}
                 srcSet={mediaSrcSet(slide.art, 800)}
                 alt=""
                 fetchPriority="high"
-                className="aspect-square h-auto w-full rounded-[32px] border-[1.5px] border-paper/25 object-cover drop-shadow-[0_24px_40px_rgba(0,0,0,0.45)]"
+                className="h-auto max-h-[60vh] w-full rounded-[32px] object-contain drop-shadow-[0_24px_40px_rgba(0,0,0,0.45)]"
               />
             ) : (
               <VesselArt

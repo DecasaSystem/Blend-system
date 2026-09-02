@@ -85,11 +85,13 @@ export default function VesselArt({
   if (media) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
+      /* `object-contain`, no `cover`: la foto de un producto es el producto
+         entero. Recortarla para llenar la caja le corta la tapa o el popote. */
       <img
         src={mediaUrl(media, { width })}
         srcSet={mediaSrcSet(media, width)}
         alt={alt ?? ""}
-        className={`h-full w-full object-cover ${className}`}
+        className={`h-full w-full object-contain ${className}`}
         loading="lazy"
         decoding="async"
       />
