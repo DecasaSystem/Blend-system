@@ -74,8 +74,9 @@ try {
   check("el fondo respeta la opacidad elegida", opacidad === "0.25", `opacity=${opacidad}`);
 
   // ── Las bebidas del día también se personalizan ──────────────────────────
-  // Contenido de fábrica: Mango Terco a $14.900 del día (lista $17.900),
-  // Grande +$4.500 y Granola de la casa +$4.500.
+  // Contenido de fábrica: Mango Terco a 17.900 el chico y 22.400 el grande,
+  // con precio del día de 14.900 sobre el chico. La rebaja es la misma en los
+  // dos vasos, así que el grande del día sale a 19.400. Granola +4.500.
   // Acotado a la sección: la misma bebida sale también en el menú de abajo.
   await tienda
     .locator("#del-dia")
@@ -126,11 +127,18 @@ try {
   await bloque("Adicionales").getByLabel("Nombre").last().fill("Miel de café");
   await bloque("Adicionales").getByLabel("Precio", { exact: true }).last().fill("9100");
 
-  // El tamaño grande pasa a costar otra cosa.
-  await bloque("Tamaños").getByLabel("Suma al precio").last().fill("7300");
-
-  // Y el domicilio también.
+  // Y el domicilio.
   await admin.getByLabel("Costo del domicilio").fill("12400");
+  await publish(admin);
+
+  // El precio del vaso grande de Mango Terco, que ahora vive en la bebida y no
+  // en un recargo global: 22.400 -> 25.200.
+  await admin.getByRole("button", { name: "Menú" }).click();
+  await admin.waitForTimeout(400);
+  const bebida = admin.locator('details:has(summary:has-text("Mango Terco"))');
+  await bebida.locator("summary").click();
+  await admin.waitForTimeout(300);
+  await bebida.getByLabel("Grande · 500 ml").fill("25200");
   await publish(admin);
 
   await tienda.goto(URL, { waitUntil: "networkidle" });
@@ -148,17 +156,25 @@ try {
       .first()
       .isVisible(),
   );
+  // Cada vaso enseña su precio, no un recargo.
   check(
-    "el tamaño cobra lo nuevo",
+    "cada vaso enseña su propio precio",
     await hoja
-      .getByText(/\+\s*\$\s*7\.300/)
+      .getByText(/\$\s*25\.200/)
+      .first()
+      .isVisible(),
+  );
+  check(
+    "y el chico sigue en el suyo",
+    await hoja
+      .getByText(/\$\s*17\.900/)
       .first()
       .isVisible(),
   );
 
   await hoja.getByRole("button", { name: /Grande/ }).click();
   await hoja.getByRole("button", { name: /Miel de café/ }).click();
-  // 17.900 de la bebida + 7.300 del tamaño + 9.100 del adicional
+  // 25.200 del vaso grande + 9.100 del adicional
   const boton = await hoja.getByRole("button", { name: /Agregar ·/ }).innerText();
   check("suma bien en la hoja", boton.includes("34.300"), boton.replace(/\s+/g, " "));
   await hoja.getByRole("button", { name: /Agregar ·/ }).click();

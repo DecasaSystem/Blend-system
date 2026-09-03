@@ -6,8 +6,15 @@ import { isVideoUrl, mediaUrl } from "@/lib/media";
 
 /** Piezas de formulario del editor. Sin adornos: esto lo usa el equipo a diario. */
 
+/**
+ * Fila de campos.
+ *
+ * Tres columnas sólo a partir de `lg`. Antes se partían en tres desde 640 px,
+ * donde cada una se quedaba en unos 200: las etiquetas se rompían en tres
+ * líneas y los números no cabían.
+ */
 export function Row({ children, cols = 2 }: { children: React.ReactNode; cols?: 1 | 2 | 3 }) {
-  const map = { 1: "", 2: "sm:grid-cols-2", 3: "sm:grid-cols-3" } as const;
+  const map = { 1: "", 2: "sm:grid-cols-2", 3: "sm:grid-cols-2 lg:grid-cols-3" } as const;
   return <div className={`grid gap-3 ${map[cols]}`}>{children}</div>;
 }
 

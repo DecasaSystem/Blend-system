@@ -11,6 +11,14 @@ import {
   type TeamMember,
   type TeamResult,
 } from "@/actions/team";
+import {
+  disableKiosk,
+  kioskStatus,
+  revokeKiosk,
+  saveKioskPassword,
+  type KioskAdminResult,
+  type KioskRow,
+} from "@/actions/kiosk";
 import type { SessionUser } from "@/lib/session";
 
 /**
@@ -132,7 +140,157 @@ export default function TeamPanel({ user }: { user: SessionUser }) {
         Las contraseñas no se pueden consultar: en la base sólo queda su hash. Si alguien la olvida,
         escríbele una nueva aquí.
       </p>
+
+      <Quiosco />
     </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+
+/**
+ * Autopedido del mostrador.
+ *
+ * Vive aquí porque es lo mismo que gestionar cuentas: dar y quitar acceso.
+ */
+function Quiosco() {
+  const [estado, setEstado] = useState<{ activo: boolean; pantallas: KioskRow[] } | null>(null);
+  const [clave, setClave] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [flash, setFlash] = useState<string | null>(null);
+  const [pendiente, empezar] = useTransition();
+
+  const recargar = useCallback(async () => {
+    try {
+      setEstado(await kioskStatus());
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo consultar el quiosco.");
+    }
+  }, []);
+
+  useEffect(() => {
+    recargar();
+  }, [recargar]);
+
+  const correr = (accion: () => Promise<KioskAdminResult>) => {
+    setError(null);
+    setFlash(null);
+    empezar(async () => {
+      try {
+        const res = await accion();
+        if ("error" in res) return setError(res.error);
+        setFlash(res.mensaje);
+        setTimeout(() => setFlash(null), 4000);
+        setClave("");
+        await recargar();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "No se pudo completar.");
+      }
+    });
+  };
+
+  return (
+    <section className="mt-10 border-t-[1.5px] border-ink/15 pt-8">
+      <div className="flex flex-wrap items-center gap-3">
+        <h2 className="u-display text-3xl">Autopedido del mostrador</h2>
+        {estado ? (
+          <span
+            className="u-mono rounded-full px-3 py-1"
+            style={{
+              background: estado.activo ? "#8FD14F" : "#EFE4FF",
+              color: "#1B0B2E",
+            }}
+          >
+            {estado.activo ? "Activo" : "Apagado"}
+          </span>
+        ) : null}
+        <p className="u-mono ml-auto min-w-0 normal-case tracking-[0.01em]">
+          {error ? (
+            <span className="text-mango-deep">{error}</span>
+          ) : flash ? (
+            <span className="text-matcha-deep">{flash}</span>
+          ) : null}
+        </p>
+      </div>
+
+      <p className="mt-3 leading-relaxed text-ink/62">
+        La pantalla para que el cliente pida solo, de pie en la tienda. Está en{" "}
+        <span className="u-mono">/quiosco</span> y no hay ningún enlace hacia ella: se llega
+        escribiendo la dirección y la clave que pongas aquí. Los pedidos entran al tablero marcados
+        como mostrador, para recoger y sin cobrar.
+      </p>
+
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          correr(() => saveKioskPassword(clave));
+        }}
+        className="mt-5 flex flex-wrap items-end gap-2"
+      >
+        <div className="min-w-0 flex-1">
+          <Campo
+            label={estado?.activo ? "Cambiar la clave del quiosco" : "Clave para activarlo"}
+            hint="Diez caracteres o más. Es la que se escribe una vez en cada tablet."
+          >
+            <input
+              type="text"
+              value={clave}
+              onChange={(e) => setClave(e.target.value)}
+              required
+              minLength={10}
+              autoComplete="off"
+              className="input rounded-2xl font-mono"
+            />
+          </Campo>
+        </div>
+        <button type="submit" disabled={pendiente} className="btn btn-sm btn-mango">
+          {estado?.activo ? "Cambiar" : "Activar"}
+        </button>
+        {estado?.activo ? (
+          <button
+            type="button"
+            onClick={() => {
+              if (confirm("¿Apagar el autopedido? Se desconectan todas las pantallas.")) {
+                correr(disableKiosk);
+              }
+            }}
+            className="u-mono min-h-11 rounded-full border-[1.5px] border-ink/20 px-3.5 text-ink/45 transition-colors hover:border-mango-deep hover:text-mango-deep"
+          >
+            Apagar
+          </button>
+        ) : null}
+      </form>
+
+      {estado && estado.pantallas.length > 0 ? (
+        <ul className="mt-5 grid gap-2">
+          {estado.pantallas.map((p) => (
+            <li
+              key={p.id}
+              className="flex flex-wrap items-center gap-3 rounded-2xl border-[1.5px] border-ink/15 bg-white p-4"
+            >
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-medium">{p.label}</p>
+                <p className="u-mono text-ink/40">
+                  Conectada el {fecha(p.createdAt)} · último pedido:{" "}
+                  {p.lastSeenAt ? fecha(p.lastSeenAt) : "ninguno todavía"}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => correr(() => revokeKiosk(p.id))}
+                className="u-mono min-h-11 rounded-full border-[1.5px] border-ink/20 px-3.5 text-ink/45 transition-colors hover:border-mango-deep hover:text-mango-deep"
+              >
+                Desconectar
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : estado?.activo ? (
+        <p className="u-mono mt-5 normal-case tracking-[0.01em] text-ink/35">
+          Ninguna pantalla conectada todavía. Abre /quiosco en la tablet y escribe la clave.
+        </p>
+      ) : null}
+    </section>
   );
 }
 

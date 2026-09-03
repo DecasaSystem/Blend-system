@@ -4,7 +4,8 @@ import { desc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { counters, orders, ORDER_COUNTER } from "@/db/schema";
 import { repriceLines, totals, type CartLine, type DeliveryMode } from "@/lib/cart";
-import { requireUser } from "@/lib/session";
+import { getSessionUser, requireUser } from "@/lib/session";
+import { getKioskSession } from "@/lib/kiosk";
 import { getCustomer } from "@/lib/customer-session";
 import { STATUSES, type BoardStatus, type Customer, type Order } from "@/lib/orders";
 import { loadSiteContent } from "./content";
@@ -71,7 +72,20 @@ export async function placeOrder(
   if (!Array.isArray(input.lines) || input.lines.length === 0) {
     return { error: "El pedido está vacío." };
   }
-  if (!input.customer?.name?.trim() || !input.customer?.phone?.trim()) {
+
+  /*
+   * Un pedido de mostrador no lleva teléfono: se pide de pie en la barra y se
+   * recoge ahí mismo. Pero el canal no puede decidirlo quien envía el pedido,
+   * o cualquiera desde la web se declararía «mostrador» para saltarse el
+   * teléfono y la barra se quedaría sin forma de avisar. Así que se comprueba
+   * que venga de una pantalla de quiosco autorizada, o de alguien del equipo
+   * tomando el pedido a mano.
+   */
+  const mostrador =
+    input.channel === "mostrador" && Boolean((await getKioskSession()) ?? (await getSessionUser()));
+
+  if (!input.customer?.name?.trim()) return { error: "Falta el nombre." };
+  if (!mostrador && !input.customer?.phone?.trim()) {
     return { error: "Falta el nombre o el teléfono." };
   }
   if (input.mode === "envio" && !input.customer.address?.trim()) {
@@ -93,9 +107,16 @@ export async function placeOrder(
 
   const id = await nextOrderId();
 
-  // El cliente sale de la sesión, no de lo que mande el navegador: si no,
-  // cualquiera podría colgar un pedido de la cuenta de otra persona.
-  const customer = await getCustomer();
+  /*
+   * El cliente sale de la sesión, no de lo que mande el navegador: si no,
+   * cualquiera podría colgar un pedido de la cuenta de otra persona.
+   *
+   * En mostrador no se cuelga de nadie. La tablet del quiosco es un navegador
+   * compartido: si alguien entró a su cuenta en esa pantalla, todos los
+   * pedidos que vinieran después se le habrían atribuido —y le habrían salido
+   * en su historial pedidos de desconocidos.
+   */
+  const customer = mostrador ? null : await getCustomer();
 
   await db.insert(orders).values({
     id,

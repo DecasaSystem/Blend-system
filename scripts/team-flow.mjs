@@ -19,6 +19,17 @@ const errors = [];
 const NUEVO = `barra-${Date.now().toString(36)}@blend.test`;
 const CLAVE = "ClaveDePrueba2026";
 
+/** Espera a que una consulta devuelva algo, en vez de dormir un rato fijo. */
+async function esperar(consulta, ms = 20000) {
+  const hasta = Date.now() + ms;
+  for (;;) {
+    const r = await consulta();
+    if (r) return r;
+    if (Date.now() > hasta) return null;
+    await new Promise((r) => setTimeout(r, 500));
+  }
+}
+
 const admin = await createTempUser(sql, { role: "admin" });
 const barra = await createTempUser(sql, { role: "barra" });
 const browser = await chromium.launch({ executablePath: CHROME });
@@ -70,9 +81,9 @@ try {
     await page.getByRole("tab", { name: "Cuentas" }).isVisible(),
   );
   await page.getByRole("tab", { name: "Cuentas" }).click();
-  await page.waitForTimeout(1200);
-
-  check("lista las cuentas existentes", (await page.getByText(admin.email).count()) > 0);
+  // Esperar a que aparezca, no un rato fijo: la base es remota y a veces tarda.
+  await page.getByText(admin.email).first().waitFor({ timeout: 25000 });
+  check("lista las cuentas existentes", true);
   check(
     "no muestra ninguna contraseña",
     !(await page.locator("main").innerText()).includes("scrypt"),
@@ -83,9 +94,11 @@ try {
   await page.getByLabel("Nombre").fill("Cuenta De Prueba");
   await page.getByLabel("Contraseña", { exact: false }).first().fill(CLAVE);
   await page.getByRole("button", { name: "Crear cuenta" }).click();
-  await page.waitForTimeout(2000);
 
-  const [creada] = await sql`select role, password_hash from users where email = ${NUEVO}`;
+  const creada = await esperar(
+    async () =>
+      (await sql`select role, password_hash from users where email = ${NUEVO}`)[0] ?? null,
+  );
   check("la cuenta queda en la base", Boolean(creada), creada?.role);
   check(
     "con la contraseña hasheada, no en claro",
@@ -149,15 +162,22 @@ try {
   await page.getByRole("button", { name: "Contraseña" }).last().click();
   await page.getByLabel("Contraseña nueva").fill("OtraClaveLarga2026");
   await page.getByRole("button", { name: "Cambiar" }).click();
-  await page.waitForTimeout(2000);
 
+  await esperar(
+    async () =>
+      (await sql`select count(*)::int as n from sessions where user_id = ${fila.id}`)[0].n === 0 ||
+      null,
+  );
   const sesionesDespues = (
     await sql`select count(*)::int as n from sessions where user_id = ${fila.id}`
   )[0].n;
   check("cambiar la contraseña cierra sus sesiones", sesionesDespues === 0, `${sesionesDespues}`);
 
-  const [rehecha] = await sql`select password_hash from users where email = ${NUEVO}`;
-  check("y guarda un hash distinto", rehecha.password_hash !== creada.password_hash);
+  const rehecha = await esperar(async () => {
+    const [r] = await sql`select password_hash from users where email = ${NUEVO}`;
+    return r && r.password_hash !== creada?.password_hash ? r : null;
+  });
+  check("y guarda un hash distinto", Boolean(rehecha));
 
   // ── El CSV de métricas ───────────────────────────────────────────────────
   await page.getByRole("tab", { name: /Métricas/ }).click();

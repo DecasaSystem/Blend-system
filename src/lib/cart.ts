@@ -76,16 +76,65 @@ export function sizeDelta(id: string | undefined, sizes: Size[]) {
   return sizes.find((s) => s.id === id)?.delta ?? 0;
 }
 
-/** Precio unitario a partir del precio base del producto y sus opciones. */
+/**
+ * Lo que cuesta una bebida en un vaso concreto.
+ *
+ * El precio vive en la bebida, por tamaño. El recargo global de `sizes` sólo
+ * entra como respaldo: cuando el equipo crea un tamaño nuevo, ninguna bebida
+ * tiene precio para él todavía, y sin este respaldo el menú entero se quedaría
+ * a cero hasta rellenarlas una a una.
+ */
+export function priceOf(
+  product: { prices?: Record<string, number>; price?: number },
+  sizeId: string | undefined,
+  sizes: Size[],
+) {
+  const propio = sizeId ? product.prices?.[sizeId] : undefined;
+  if (typeof propio === "number") return propio;
+
+  // Sin precio para ese vaso: se parte del primero que tenga y se le aplica la
+  // diferencia de recargos entre los dos tamaños.
+  const base = product.prices?.[sizes[0]?.id ?? ""] ?? product.price ?? 0;
+  return base + sizeDelta(sizeId, sizes) - sizeDelta(sizes[0]?.id, sizes);
+}
+
+/** El precio con el que se anuncia en el menú: el del vaso más barato. */
+export function fromPrice(product: { prices?: Record<string, number>; price?: number }) {
+  const valores = Object.values(product.prices ?? {});
+  if (valores.length > 0) return Math.min(...valores);
+  return product.price ?? 0;
+}
+
+/**
+ * Precio unitario.
+ *
+ * `basePrice` ya viene resuelto para el vaso elegido —lo hace `priceOf`—, así
+ * que aquí sólo se suman los adicionales. Antes se sumaba también el recargo
+ * del tamaño; ahora eso lo cobraría dos veces.
+ */
 export function unitPrice(
   basePrice: number,
   options: LineOptions | undefined,
   toppings: Topping[],
-  sizes: Size[],
 ) {
   if (!options) return basePrice;
-  const extras = options.extras.reduce((n, name) => n + toppingPrice(name, toppings), 0);
-  return basePrice + sizeDelta(options.size, sizes) + extras;
+  return basePrice + options.extras.reduce((n, name) => n + toppingPrice(name, toppings), 0);
+}
+
+/**
+ * El precio del día en un vaso concreto.
+ *
+ * La oferta se fija sobre el vaso más pequeño; los demás mantienen la misma
+ * diferencia que tienen a precio de lista. Así rebajar el chico no regala el
+ * grande ni al revés.
+ */
+export function offerPriceOf(
+  product: { prices?: Record<string, number>; price?: number },
+  offerBase: number,
+  sizeId: string | undefined,
+  sizes: Size[],
+) {
+  return offerBase + priceOf(product, sizeId, sizes) - priceOf(product, sizes[0]?.id, sizes);
 }
 
 /** Precio de un blend armado a mano: base más el recargo por cada extra. */
@@ -183,7 +232,6 @@ export function repriceLines(
     const offerValid = onOffer && site.dailyIds.includes(product.id) && offer && offer.left > 0;
     if (onOffer && !offerValid) return { error: `La oferta de «${product.name}» ya terminó.` };
 
-    const basePrice = offerValid ? offer.price : product.price;
     const cap = Math.min(offerValid ? offer.left : MAX_QTY, MAX_QTY);
 
     // Un topping o un tamaño que el equipo borró no puede seguir cobrándose.
@@ -195,16 +243,22 @@ export function repriceLines(
         }
       : undefined;
 
+    // El precio sale del vaso pedido, no de un precio único del producto.
+    const lista = priceOf(product, options?.size, site.sizes);
+    const basePrice = offerValid
+      ? offerPriceOf(product, offer.price, options?.size, site.sizes)
+      : lista;
+
     out.push({
       ...line,
       name: product.name,
       color: product.color,
       options,
       basePrice,
-      listPrice: offerValid ? product.price : undefined,
+      listPrice: offerValid ? lista : undefined,
       offerLabel: offerValid ? "Precio del día" : undefined,
       maxQty: offerValid ? offer.left : undefined,
-      unitPrice: unitPrice(basePrice, options, site.toppings, site.sizes),
+      unitPrice: unitPrice(basePrice, options, site.toppings),
       qty: Math.min(qty, cap),
     });
   }

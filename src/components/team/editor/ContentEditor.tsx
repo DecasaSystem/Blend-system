@@ -15,7 +15,7 @@ import {
   Text,
   Toggle,
 } from "./fields";
-import { money } from "@/lib/cart";
+import { fromPrice, money, priceOf } from "@/lib/cart";
 import {
   blankCategory,
   blankProduct,
@@ -133,8 +133,11 @@ export default function ContentEditor() {
 
   return (
     <div className="pb-28">
-      {/* Pestañas del editor */}
-      <div className="rail -mx-4 px-4 pb-2 sm:-mx-6 sm:px-6">
+      {/* Pestañas del editor.
+          En móvil van en riel horizontal; a partir de sm envuelven en varias
+          líneas. Con siete pestañas —una de ellas larga— el riel dejaba las
+          últimas fuera de pantalla y había que arrastrar para encontrarlas. */}
+      <div className="rail -mx-4 px-4 pb-2 sm:-mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
         {TABS.map((t) => (
           <button
             key={t.id}
@@ -328,7 +331,7 @@ export default function ContentEditor() {
                           value={offer.price}
                           step={100}
                           onChange={(v) => setOffer({ price: v })}
-                          suffix={`normal ${money(product.price)}`}
+                          suffix={`normal ${money(fromPrice(product))}`}
                         />
                         <Num
                           label="Unidades que quedan"
@@ -422,7 +425,7 @@ export default function ContentEditor() {
                         <Panel
                           key={p.id}
                           title={p.name}
-                          meta={`${money(p.price)}${p.soldOut ? " · agotado" : ""}`}
+                          meta={`desde ${money(fromPrice(p))}${p.soldOut ? " · agotado" : ""}`}
                           onRemove={() => {
                             set(
                               "products",
@@ -434,26 +437,42 @@ export default function ContentEditor() {
                             );
                           }}
                         >
-                          <Row>
-                            <Text
-                              label="Nombre"
-                              value={p.name}
-                              onChange={(v) => upd({ name: v })}
-                            />
-                            <Num
-                              label="Precio"
-                              value={p.price}
-                              step={100}
-                              onChange={(v) => upd({ price: v })}
-                            />
-                          </Row>
+                          <Text label="Nombre" value={p.name} onChange={(v) => upd({ name: v })} />
+
+                          {/* Un precio por vaso. Una bebida no cuesta lo mismo
+                              chica que grande, y la diferencia no tiene por qué
+                              ser la misma en un batido que en un bowl. */}
+                          <div>
+                            <span className="u-mono mb-1.5 block text-ink/45">
+                              Precio de cada vaso
+                            </span>
+                            <Row cols={draft.sizes.length > 2 ? 3 : 2}>
+                              {draft.sizes.map((t) => (
+                                <Num
+                                  key={t.id}
+                                  label={`${t.label} · ${t.volume}`}
+                                  value={p.prices?.[t.id] ?? priceOf(p, t.id, draft.sizes)}
+                                  step={100}
+                                  onChange={(v) =>
+                                    upd({ prices: { ...(p.prices ?? {}), [t.id]: v } })
+                                  }
+                                />
+                              ))}
+                            </Row>
+                            {draft.sizes.length === 0 ? (
+                              <p className="u-mono mt-1 normal-case tracking-[0.01em] text-ink/35">
+                                No hay tamaños. Créalos en «Precios y adicionales».
+                              </p>
+                            ) : null}
+                          </div>
+
                           <Area
                             label="Descripción"
                             value={p.tagline}
                             rows={2}
                             onChange={(v) => upd({ tagline: v })}
                           />
-                          <Row cols={3}>
+                          <Row>
                             <Select
                               label="Categoría"
                               value={p.category}
@@ -463,7 +482,6 @@ export default function ContentEditor() {
                                 label: x.name,
                               }))}
                             />
-                            <Num label="Kcal" value={p.kcal} onChange={(v) => upd({ kcal: v })} />
                             <Select
                               label="Recipiente"
                               value={p.vessel}
@@ -612,10 +630,11 @@ export default function ContentEditor() {
                         hint="350 ml, 16 oz…"
                       />
                       <Num
-                        label="Suma al precio"
+                        label="Recargo de respaldo"
                         value={s.delta}
                         step={100}
                         onChange={(v) => upd({ delta: v })}
+                        suffix="sólo si falta el precio"
                       />
                     </Row>
                     {draft.sizes.length > 1 ? (
@@ -637,20 +656,34 @@ export default function ContentEditor() {
               })}
               <AddButton
                 label="Añadir tamaño"
-                onClick={() =>
-                  set("sizes", [
-                    ...draft.sizes,
-                    {
-                      id: `tam-${Date.now().toString(36)}`,
-                      label: "Tamaño nuevo",
-                      volume: "700 ml",
-                      delta: 6000,
-                    },
-                  ])
-                }
+                onClick={() => {
+                  const nuevo = {
+                    id: `tam-${Date.now().toString(36)}`,
+                    label: "Tamaño nuevo",
+                    volume: "700 ml",
+                    delta: 6000,
+                  };
+                  // Se le pone precio a todas las bebidas de una vez, partiendo
+                  // del vaso base. Sin esto habría que entrar bebida por bebida
+                  // antes de que el tamaño nuevo sirviera de algo.
+                  const base = draft.sizes[0]?.id;
+                  setDraft((d) => ({
+                    ...d,
+                    sizes: [...d.sizes, nuevo],
+                    products: d.products.map((p) => ({
+                      ...p,
+                      prices: {
+                        ...(p.prices ?? {}),
+                        [nuevo.id]: (p.prices?.[base ?? ""] ?? p.price ?? 0) + nuevo.delta,
+                      },
+                    })),
+                  }));
+                }}
               />
               <p className="u-mono normal-case tracking-[0.01em] text-ink/35">
-                El primero de la lista es el que viene marcado por defecto.
+                El primero de la lista es el que viene marcado por defecto y el que se anuncia en el
+                menú. El precio de cada vaso se pone en cada bebida, dentro de «Menú»; al crear un
+                tamaño aquí se rellenan todas de golpe y luego las ajustas una a una.
               </p>
             </Panel>
 
@@ -1057,7 +1090,7 @@ export default function ContentEditor() {
 
       {/* Barra de guardado, siempre a la vista */}
       <div className="fixed inset-x-0 bottom-0 z-50 border-t-[1.5px] border-ink bg-paper/95 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur sm:px-6">
-        <div className="mx-auto flex max-w-4xl flex-wrap items-center gap-x-4 gap-y-2">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-4 gap-y-2">
           <p className="u-mono min-w-0 flex-1 normal-case tracking-[0.01em] text-ink/50">
             {error ? (
               <span className="text-mango-deep">{error}</span>

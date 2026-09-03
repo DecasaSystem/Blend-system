@@ -45,7 +45,8 @@ try {
   const product = admin.locator("details").filter({ hasText: "Mango Terco" }).first();
   await product.locator("summary").click();
   await admin.waitForTimeout(300);
-  await product.getByLabel("Precio", { exact: true }).fill("21500");
+  // El precio vive por vaso: se cambia el del chico, que es el que anuncia el menú.
+  await product.getByLabel("Chico · 350 ml", { exact: true }).fill("21500");
   await product.getByLabel("Nombre", { exact: true }).fill("Mango Insistente");
 
   const second = admin.locator("details").filter({ hasText: "Verde Que Te Quiero" }).first();
@@ -62,7 +63,12 @@ try {
   check("el contenido queda en Postgres", Boolean(row));
   check("registra quién publicó", row?.updated_by === user.email, row?.updated_by);
   const saved = row.data.products.find((p) => p.id === "mango-terco");
-  check("guarda el precio nuevo", saved?.price === 21500, String(saved?.price));
+  check(
+    "guarda el precio nuevo del vaso chico",
+    saved?.prices?.chico === 21500,
+    JSON.stringify(saved?.prices),
+  );
+  check("y no toca el del grande", saved?.prices?.grande === 22400, String(saved?.prices?.grande));
 
   // --- La tienda lo sirve desde el servidor, no desde el navegador ---
   const shop = await ctx.newPage();

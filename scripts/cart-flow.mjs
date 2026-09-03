@@ -37,6 +37,24 @@ await page.reload({ waitUntil: "networkidle" });
 const firstPrice = await page.locator("#menu article").first().locator(".u-price").innerText();
 check("precio en formato COP", /\$\s?\d{1,3}\.\d{3}/.test(firstPrice), firstPrice);
 
+// El botón de agregar tiene que caber DENTRO de su tarjeta. En la rejilla de
+// móvil las tarjetas miden 171 px: cualquier cosa que crezca en esa fila lo
+// empuja fuera, encima de la tarjeta vecina, y deja de poder pulsarse.
+//
+// Se mide la geometría y no `elementFromPoint`, que depende de dónde esté el
+// scroll: con la barra fija de móvil por medio daría falsas alarmas. Que el
+// clic funcione lo comprueba el paso siguiente.
+const sobra = await page
+  .locator("#menu article")
+  .first()
+  .getByRole("button", { name: /Agregar .* al pedido/ })
+  .evaluate((el) => {
+    const b = el.getBoundingClientRect();
+    const a = el.closest("article").getBoundingClientRect();
+    return Math.round(b.right - a.right);
+  });
+check("el botón de agregar cabe en su tarjeta", sobra <= 0, `se sale ${sobra}px`);
+
 // 2. Agregar rápido desde el menú
 await page
   .locator("#menu article")

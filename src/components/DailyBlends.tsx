@@ -5,7 +5,7 @@ import VesselArt from "./VesselArt";
 import InkField from "./InkField";
 import { useCart } from "./CartProvider";
 import { useSite } from "./SiteProvider";
-import { defaultOptions, money } from "@/lib/cart";
+import { defaultOptions, money, offerPriceOf, priceOf } from "@/lib/cart";
 
 export default function DailyBlends() {
   const { add, openSheet } = useCart();
@@ -55,9 +55,13 @@ export default function DailyBlends() {
 
             /* Lo que hay que arrastrar para que personalizarla no le quite el
                precio del día. */
+            // La oferta se fija sobre el vaso base; los demás guardan su
+            // diferencia. `chico` es el que se anuncia en la tarjeta.
+            const vasoBase = sizes[0]?.id;
+            const lista = priceOf(p, vasoBase, sizes);
             const oferta = {
-              basePrice: offer.price,
-              listPrice: p.price,
+              basePrice: offerPriceOf(p, offer.price, vasoBase, sizes),
+              listPrice: lista,
               offerLabel: "Precio del día",
               maxQty: offer.left,
               keySuffix: "dia",
@@ -73,7 +77,6 @@ export default function DailyBlends() {
                   <span className="u-mono rounded-full bg-ink px-2.5 py-1 text-[0.58rem] text-paper">
                     0{idx + 1} / del día
                   </span>
-                  <span className="u-mono text-ink/40">{p.kcal} kcal</span>
                 </div>
 
                 {/* Igual que en el menú: la ilustración y el nombre abren la hoja. */}
@@ -109,9 +112,9 @@ export default function DailyBlends() {
 
                 <div className="mt-5 flex items-end gap-2.5">
                   <span className="u-price text-3xl" style={{ color: p.color }}>
-                    {money(offer.price)}
+                    {money(oferta.basePrice)}
                   </span>
-                  <span className="u-mono mb-2 text-ink/35 line-through">{money(p.price)}</span>
+                  <span className="u-mono mb-2 text-ink/35 line-through">{money(lista)}</span>
                 </div>
 
                 <div className="mt-4">
@@ -146,8 +149,8 @@ export default function DailyBlends() {
                         keySuffix: "dia",
                         name: p.name,
                         color: p.color,
-                        basePrice: offer.price,
-                        listPrice: p.price,
+                        basePrice: oferta.basePrice,
+                        listPrice: lista,
                         offerLabel: "Precio del día",
                         maxQty: offer.left,
                         options: defaultOptions(builderBases[0]?.name ?? "", sizes[0]?.id ?? ""),
@@ -155,7 +158,7 @@ export default function DailyBlends() {
                     }
                     className="btn btn-ube min-w-0 flex-1 disabled:cursor-not-allowed disabled:opacity-40"
                   >
-                    {agotado ? "Agotado" : `Agregar ${money(offer.price)}`}
+                    {agotado ? "Agotado" : `Agregar ${money(oferta.basePrice)}`}
                   </button>
                 </div>
               </article>

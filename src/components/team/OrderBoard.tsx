@@ -169,7 +169,9 @@ export default function OrderBoard({
                   type="button"
                   onClick={async () => {
                     try {
-                      const res = await placeOrder(demoOrder(site.products, site.stores));
+                      const res = await placeOrder(
+                        demoOrder(site.products, site.stores, site.sizes),
+                      );
                       if ("error" in res) alert(res.error);
                       await refresh();
                     } catch (e) {
@@ -200,12 +202,13 @@ export default function OrderBoard({
           <StatsPanel />
         </div>
       ) : view === "cuentas" ? (
-        <div className="mx-auto max-w-4xl px-4 py-6 sm:px-6">
+        <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6">
           <TeamPanel user={user} />
         </div>
       ) : view === "contenido" ? (
-        // Más angosto que el tablero: un formulario de 1600 px no se lee.
-        <div className="mx-auto max-w-4xl px-4 py-6 sm:px-6">
+        // Más angosto que el tablero —un formulario de 1600 px no se lee— pero
+        // no tanto como para que los campos de tres columnas se estrangulen.
+        <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
           <ContentEditor />
         </div>
       ) : (

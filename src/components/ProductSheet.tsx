@@ -8,6 +8,8 @@ import {
   SWEETNESS,
   defaultOptions,
   money,
+  offerPriceOf,
+  priceOf,
   toppingPrice,
   unitPrice,
   type LineOptions,
@@ -45,15 +47,24 @@ export default function ProductSheet() {
     return () => document.removeEventListener("keydown", onKey);
   }, [closeSheet]);
 
-  // Al editar manda lo que ya tiene la línea; al abrir de nuevo, la oferta del
-  // día si viene de ahí; si no, el precio de lista.
+  /*
+   * El precio depende del vaso, así que se recalcula cada vez que se cambia el
+   * tamaño; no se puede fijar al abrir la hoja.
+   *
+   * Con oferta del día se aplica la misma rebaja en todos los vasos: se fija
+   * sobre el más pequeño y los demás guardan su diferencia de siempre.
+   */
   const offer = sheet?.offer;
-  const basePrice = editing?.basePrice ?? offer?.basePrice ?? product?.price ?? 0;
+  const basePrice = product
+    ? offer
+      ? offerPriceOf(product, offer.basePrice, options.size, sizes)
+      : priceOf(product, options.size, sizes)
+    : 0;
   const offerLabel = editing?.offerLabel ?? offer?.offerLabel;
-  const listPrice = editing?.listPrice ?? offer?.listPrice;
+  const listPrice = product && offerLabel ? priceOf(product, options.size, sizes) : undefined;
   const unit = useMemo(
-    () => unitPrice(basePrice, options, toppings, sizes),
-    [basePrice, options, toppings, sizes],
+    () => unitPrice(basePrice, options, toppings),
+    [basePrice, options, toppings],
   );
 
   if (!product) return null;
@@ -174,7 +185,15 @@ export default function ProductSheet() {
                       onClick={() => set("size", s.id)}
                     >
                       {s.label} · {s.volume}
-                      {s.delta ? <span className="text-mango"> +{money(s.delta)}</span> : null}
+                      {/* Cada vaso enseña lo que cuesta, no un recargo: es el
+                          precio lo que cambia, no un extra que se suma. */}
+                      <span className="u-mono mt-0.5 block opacity-70">
+                        {money(
+                          offer
+                            ? offerPriceOf(product, offer.basePrice, s.id, sizes)
+                            : priceOf(product, s.id, sizes),
+                        )}
+                      </span>
                     </Choice>
                   ))}
                 </div>

@@ -109,11 +109,27 @@ try {
     `;
   }
 
-  // Lo que tendrían que decir los gráficos, calculado aparte de la app.
-  const enRango = filas.filter(
-    (f) => f.createdAt >= new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
-  );
-  const ventas7 = enRango.reduce((n, f) => n + f.total, 0);
+  /*
+   * Lo que tendrían que decir los gráficos, calculado aparte de la app.
+   *
+   * Se suma lo que ya hubiera en la base dentro del rango, no sólo lo sembrado:
+   * si queda un pedido de otra prueba, el panel lo cuenta y la comprobación
+   * fallaría sin que nada estuviera roto.
+   */
+  const previos = async (dias) =>
+    (
+      await sql`
+        select coalesce(sum(total), 0)::int as n from orders
+        where status <> 'pago'
+          and created_at >= now() - (${dias} || ' days')::interval
+          and customer->>'name' <> ${MARCA}
+      `
+    )[0].n;
+
+  const desde7 = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const ventas7 =
+    filas.filter((f) => f.createdAt >= desde7).reduce((n, f) => n + f.total, 0) +
+    (await previos(7));
 
   const page = await ctx.newPage();
   await login(page, URL, user);
@@ -143,7 +159,7 @@ try {
   // El filtro de arriba tiene que mover todo lo de abajo.
   await page.getByRole("tab", { name: "30 días" }).click();
   await page.waitForTimeout(2000);
-  const ventas30 = filas.reduce((n, f) => n + f.total, 0);
+  const ventas30 = filas.reduce((n, f) => n + f.total, 0) + (await previos(30));
   const cuerpo30 = await page.locator("main").innerText();
   check(
     "cambiar el rango recalcula todo",

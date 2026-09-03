@@ -144,5 +144,45 @@ export const siteContent = pgTable("site_content", {
   updatedBy: text("updated_by"),
 });
 
+/**
+ * Ajustes que sólo conoce el servidor.
+ *
+ * Tabla aparte de `site_content` a propósito: el contenido del sitio viaja
+ * entero al navegador, así que ahí no puede vivir nada secreto. Aquí está el
+ * hash de la clave del quiosco, y nada de esto se sirve al cliente.
+ */
+export const settings = pgTable("settings", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedBy: text("updated_by"),
+});
+
+/**
+ * Pantallas de autopedido.
+ *
+ * Igual que las sesiones de equipo: en la base sólo el hash del token, y el
+ * token en claro únicamente en la cookie de la tablet. Con estado, para que
+ * desconectar una pantalla perdida sea borrar una fila.
+ *
+ * No tiene nada que ver con `sessions`: una tablet en el mostrador no debe
+ * poder abrir el tablero de pedidos ni el editor.
+ */
+export const kioskSessions = pgTable(
+  "kiosk_sessions",
+  {
+    id: text("id").primaryKey(),
+    /** La sede en la que está la pantalla; se cobra y se prepara ahí. */
+    storeId: text("store_id").notNull(),
+    /** Para reconocerla en la lista: «Tablet de la entrada». */
+    label: text("label").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
+  },
+  (t) => [index("kiosk_sessions_store_idx").on(t.storeId)],
+);
+
 export const SITE_ROW_ID = "sitio";
 export const ORDER_COUNTER = "pedidos";
+export const KIOSK_PASSWORD = "kiosk.password";

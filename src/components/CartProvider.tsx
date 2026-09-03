@@ -160,7 +160,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         productId: input.productId,
         name: input.name,
         color: input.color,
-        unitPrice: unitPrice(input.basePrice, input.options, toppings, sizes),
+        unitPrice: unitPrice(input.basePrice, input.options, toppings),
         basePrice: input.basePrice,
         listPrice: input.listPrice,
         qty: input.qty ?? 1,
@@ -171,7 +171,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         keySuffix: input.keySuffix,
       };
     },
-    [toppings, sizes],
+    [toppings],
   );
 
   const add = useCallback<CartState["add"]>(

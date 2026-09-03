@@ -1,5 +1,6 @@
 import type { CartLine, DeliveryMode } from "./cart";
-import type { Product, Store } from "./content";
+import { priceOf } from "./cart";
+import type { Product, Size, Store } from "./content";
 
 /**
  * Pedidos: tipos y ayudas que comparten el servidor y el navegador.
@@ -121,7 +122,7 @@ export type NewOrder = {
 };
 
 /** Un pedido de ejemplo para probar el tablero sin pasar por la tienda. */
-export function demoOrder(products: Product[], stores: Store[]): NewOrder {
+export function demoOrder(products: Product[], stores: Store[], sizes: Size[] = []): NewOrder {
   const pool = products.filter((p) => p.category !== "extras" && !p.soldOut);
   if (pool.length === 0 || stores.length === 0) {
     throw new Error("Hace falta al menos una bebida y una sede para crear un pedido de prueba.");
@@ -140,13 +141,15 @@ export function demoOrder(products: Product[], stores: Store[]): NewOrder {
   const lines: CartLine[] = Array.from({ length: 1 + Math.floor(Math.random() * 2) }, () => {
     const p = pick();
     const grande = Math.random() > 0.5;
+    // El precio depende del vaso; el servidor lo recalcula igual al guardar.
+    const precio = priceOf(p, grande ? "grande" : "chico", sizes);
     return {
       key: `${p.id}-${Math.random().toString(36).slice(2, 7)}`,
       productId: p.id,
       name: p.name,
       color: p.color,
-      basePrice: p.price,
-      unitPrice: p.price + (grande ? 4500 : 0),
+      basePrice: precio,
+      unitPrice: precio,
       qty: 1 + Math.floor(Math.random() * 2),
       options: {
         size: grande ? "grande" : "chico",

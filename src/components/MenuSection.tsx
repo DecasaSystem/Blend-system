@@ -5,7 +5,7 @@ import SectionHead from "./SectionHead";
 import VesselArt from "./VesselArt";
 import { useCart } from "./CartProvider";
 import { useSite } from "./SiteProvider";
-import { defaultOptions, money } from "@/lib/cart";
+import { defaultOptions, fromPrice, money, priceOf } from "@/lib/cart";
 
 export default function MenuSection() {
   const [cat, setCat] = useState("todo");
@@ -58,9 +58,7 @@ export default function MenuSection() {
                   >
                     {p.badge}
                   </span>
-                ) : (
-                  <span className="u-mono text-ink/30">{p.kcal} kcal</span>
-                )}
+                ) : null}
               </div>
 
               <button
@@ -109,7 +107,18 @@ export default function MenuSection() {
               </div>
 
               <div className="mt-auto flex items-center justify-between gap-2 pt-4 sm:pt-5">
-                <span className="u-price text-lg sm:text-xl">{money(p.price)}</span>
+                {/* El menú anuncia el vaso más barato; el resto se ve al elegir.
+                    «desde» va encima, en su propia línea: en la rejilla de móvil
+                    la tarjeta mide 171 px y, puesto al lado, empujaba el botón de
+                    agregar fuera de la tarjeta, encima de la de al lado. */}
+                <span className="u-price min-w-0 text-lg sm:text-xl">
+                  {sizes.length > 1 ? (
+                    <span className="u-mono block text-[0.55rem] leading-none text-ink/40">
+                      desde
+                    </span>
+                  ) : null}
+                  {money(fromPrice(p))}
+                </span>
                 <div className="flex items-center gap-1.5">
                   <button
                     type="button"
@@ -127,7 +136,7 @@ export default function MenuSection() {
                         productId: p.id,
                         name: p.name,
                         color: p.color,
-                        basePrice: p.price,
+                        basePrice: priceOf(p, sizes[0]?.id, sizes),
                         options: defaultOptions(builderBases[0]?.name ?? "", sizes[0]?.id ?? ""),
                       })
                     }

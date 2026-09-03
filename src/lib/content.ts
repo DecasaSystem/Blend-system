@@ -21,9 +21,21 @@ export type Product = {
   id: string;
   name: string;
   tagline: string;
-  price: number;
+  /**
+   * Precio por tamaño: `{ chico: 17900, grande: 22400 }`.
+   *
+   * Una bebida no tiene un precio, tiene uno por vaso. Antes había un precio
+   * único más un recargo global por tamaño, y eso obligaba a que la diferencia
+   * entre chico y grande fuera la misma en un batido que en un bowl.
+   *
+   * Si falta el tamaño que se pide, se cae al recargo global (ver
+   * `priceOf` en `src/lib/cart.ts`): así añadir un tamaño nuevo no deja el
+   * menú entero sin precio hasta que se rellene bebida por bebida.
+   */
+  prices: Record<string, number>;
+  /** Lo que costaba antes de tener precio por vaso. Sólo es red de seguridad. */
+  price?: number;
   category: string;
-  kcal: number;
   color: string;
   vessel: Vessel;
   ingredients: Ingredient[];
@@ -134,9 +146,8 @@ export const products: Product[] = [
     id: "mango-terco",
     name: "Mango Terco",
     tagline: "Mango de Tolima, maracuyá y un golpe de jengibre.",
-    price: 17900,
+    prices: { chico: 17900, grande: 22400 },
     category: "batidos",
-    kcal: 210,
     color: "#FF8A2B",
     vessel: "cup",
     badge: "Más pedido",
@@ -150,9 +161,8 @@ export const products: Product[] = [
     id: "verde-que-te-quiero",
     name: "Verde Que Te Quiero",
     tagline: "Espinaca, piña, menta y limón. Sabe a piña, no a espinaca.",
-    price: 18500,
+    prices: { chico: 18500, grande: 23000 },
     category: "batidos",
-    kcal: 175,
     color: "#8FD14F",
     vessel: "cup",
     ingredients: [
@@ -165,9 +175,8 @@ export const products: Product[] = [
     id: "ube-nocturno",
     name: "Ube Nocturno",
     tagline: "Ube, leche de coco y dátil. Morado de verdad, no de colorante.",
-    price: 21900,
+    prices: { chico: 21900, grande: 26400 },
     category: "batidos",
-    kcal: 265,
     color: "#7B3FF2",
     vessel: "cup",
     badge: "Nuevo",
@@ -181,9 +190,8 @@ export const products: Product[] = [
     id: "fresa-descalza",
     name: "Fresa Descalza",
     tagline: "Fresa, banano y avena. El que piden los niños y repiten los papás.",
-    price: 16900,
+    prices: { chico: 16900, grande: 21400 },
     category: "batidos",
-    kcal: 240,
     color: "#F2557A",
     vessel: "cup",
     ingredients: [
@@ -196,9 +204,8 @@ export const products: Product[] = [
     id: "sandia-electrica",
     name: "Sandía Eléctrica",
     tagline: "Sandía, limón y sal rosada. Para después de trotar.",
-    price: 15900,
+    prices: { chico: 15900, grande: 20400 },
     category: "batidos",
-    kcal: 130,
     color: "#FF4D6D",
     vessel: "glass",
     ingredients: [
@@ -211,9 +218,8 @@ export const products: Product[] = [
     id: "matcha-ceremonial",
     name: "Matcha Ceremonial",
     tagline: "Solo matcha y agua a 80°. Batido a mano en chasen.",
-    price: 19500,
+    prices: { chico: 19500, grande: 24000 },
     category: "matcha",
-    kcal: 12,
     color: "#6FA82E",
     vessel: "chawan",
     badge: "Sin azúcar",
@@ -226,9 +232,8 @@ export const products: Product[] = [
     id: "matcha-yuzu",
     name: "Matcha Yuzu",
     tagline: "Matcha, yuzu y tónica. Burbujea y despierta.",
-    price: 22900,
+    prices: { chico: 22900, grande: 27400 },
     category: "matcha",
-    kcal: 95,
     color: "#A9CF3F",
     vessel: "glass",
     badge: "De temporada",
@@ -242,9 +247,8 @@ export const products: Product[] = [
     id: "matcha-ube-latte",
     name: "Matcha Ube Latte",
     tagline: "Dos capas que no se mezclan hasta que tú lo decides.",
-    price: 23900,
+    prices: { chico: 23900, grande: 28400 },
     category: "matcha",
-    kcal: 220,
     color: "#8B6FE0",
     vessel: "glass",
     ingredients: [
@@ -257,9 +261,8 @@ export const products: Product[] = [
     id: "hojicha-miel",
     name: "Hojicha Miel",
     tagline: "Té tostado con miel de azahar. Tibio, para las tardes largas.",
-    price: 18900,
+    prices: { chico: 18900, grande: 23400 },
     category: "matcha",
-    kcal: 150,
     color: "#B4762E",
     vessel: "chawan",
     ingredients: [
@@ -271,9 +274,8 @@ export const products: Product[] = [
     id: "acai-clasico",
     name: "Açaí Clásico",
     tagline: "Açaí puro, banano, granola de la casa y fresa.",
-    price: 28900,
+    prices: { chico: 28900, grande: 33400 },
     category: "bowls",
-    kcal: 380,
     color: "#6B2FA8",
     vessel: "bowl",
     badge: "Más pedido",
@@ -287,9 +289,8 @@ export const products: Product[] = [
     id: "acai-mango-chile",
     name: "Açaí Mango Chile",
     tagline: "Açaí con mango, ají y limón. Dulce y luego pica.",
-    price: 30900,
+    prices: { chico: 30900, grande: 35400 },
     category: "bowls",
-    kcal: 390,
     color: "#C74A2B",
     vessel: "bowl",
     ingredients: [
@@ -302,9 +303,8 @@ export const products: Product[] = [
     id: "pitaya-rosa",
     name: "Pitaya Rosa",
     tagline: "Pitaya, coco y semilla de chía. El bowl más ligero.",
-    price: 27900,
+    prices: { chico: 27900, grande: 32400 },
     category: "bowls",
-    kcal: 300,
     color: "#E0457B",
     vessel: "bowl",
     ingredients: [
@@ -317,9 +317,8 @@ export const products: Product[] = [
     id: "cold-brew-naranja",
     name: "Cold Brew Naranja",
     tagline: "Cold brew de 18 horas con jugo de naranja y hielo.",
-    price: 15900,
+    prices: { chico: 15900, grande: 20400 },
     category: "coldbrew",
-    kcal: 45,
     color: "#C05A16",
     vessel: "glass",
     ingredients: [
@@ -331,9 +330,8 @@ export const products: Product[] = [
     id: "tonica-de-cafe",
     name: "Tónica de Café",
     tagline: "Espresso frío sobre tónica y cáscara de limón.",
-    price: 16900,
+    prices: { chico: 16900, grande: 21400 },
     category: "coldbrew",
-    kcal: 60,
     color: "#4A2C1A",
     vessel: "glass",
     ingredients: [
@@ -346,9 +344,8 @@ export const products: Product[] = [
     id: "shot-jengibre",
     name: "Shot de Jengibre",
     tagline: "Jengibre, cúrcuma, limón y pimienta. 60 ml que duelen bonito.",
-    price: 8900,
+    prices: { chico: 8900, grande: 13400 },
     category: "extras",
-    kcal: 25,
     color: "#FFB020",
     vessel: "bottle",
     ingredients: [
@@ -361,9 +358,8 @@ export const products: Product[] = [
     id: "granola-casa",
     name: "Granola de la Casa",
     tagline: "Avena, nuez, coco y miel. Bolsa de 300 g para llevar.",
-    price: 29900,
+    prices: { chico: 29900, grande: 34400 },
     category: "extras",
-    kcal: 420,
     color: "#C89A5B",
     vessel: "bottle",
     ingredients: [
