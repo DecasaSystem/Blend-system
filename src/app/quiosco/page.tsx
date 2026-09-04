@@ -41,5 +41,7 @@ export default async function QuioscoPage() {
   }
 
   const tienda = site.stores.find((s) => s.id === sesion.storeId);
-  return <KioskOrder tienda={tienda?.name ?? "Mostrador"} etiqueta={sesion.label} />;
+  return (
+    <KioskOrder tienda={tienda?.name ?? "Mostrador"} etiqueta={sesion.label} kiosk={site.kiosk} />
+  );
 }

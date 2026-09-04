@@ -113,6 +113,7 @@ export const orders = pgTable(
     delivery: integer("delivery").notNull(),
     total: integer("total").notNull(),
     payment: text("payment").$type<"tarjeta" | "efectivo" | "pendiente">().notNull(),
+    paymentMethod: text("payment_method").$type<"tarjeta" | "efectivo" | "transferencia">(),
     channel: text("channel").$type<"web" | "mostrador">().notNull().default("web"),
     /** Nulo si se pidió sin cuenta: comprar como invitado sigue siendo posible. */
     customerId: text("customer_id").references(() => customers.id, { onDelete: "set null" }),

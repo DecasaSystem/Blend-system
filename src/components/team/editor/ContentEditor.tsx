@@ -32,6 +32,7 @@ const TABS = [
   { id: "carrusel", label: "Carrusel" },
   { id: "dia", label: "Del día" },
   { id: "menu", label: "Menú" },
+  { id: "quiosco", label: "Quiosco" },
   { id: "precios", label: "Precios y adicionales" },
   { id: "textos", label: "Textos" },
   { id: "tiendas", label: "Tiendas" },
@@ -536,6 +537,171 @@ export default function ContentEditor() {
                 />
               </div>
             ))}
+          </>
+        ) : null}
+
+        {tab === "quiosco" ? (
+          <>
+            <Note>
+              Lo que ve la pantalla del mostrador. El menú sale del mismo catálogo de «Menú», pero
+              el quiosco lo agrupa en sus propias cajas. Las Crispetas viven sólo aquí, no salen en
+              la web.
+            </Note>
+
+            <Panel title="Pantalla de espera" meta={draft.kiosk.enabled ? "Activa" : "Apagada"} defaultOpen>
+              <Toggle
+                label="Quiosco activo"
+                value={draft.kiosk.enabled}
+                onChange={(v) => set("kiosk", { ...draft.kiosk, enabled: v })}
+                hint="Apagado, la pantalla muestra que no está disponible"
+              />
+              <Media
+                label="Video de espera (se repite solo)"
+                value={draft.kiosk.idleVideo}
+                onChange={(v) => set("kiosk", { ...draft.kiosk, idleVideo: v ?? undefined })}
+                allowVideo
+              />
+              <Row>
+                <Text
+                  label="Título"
+                  value={draft.kiosk.idleTitle}
+                  onChange={(v) => set("kiosk", { ...draft.kiosk, idleTitle: v })}
+                />
+                <Text
+                  label="Subtítulo"
+                  value={draft.kiosk.idleSubtitle}
+                  onChange={(v) => set("kiosk", { ...draft.kiosk, idleSubtitle: v })}
+                />
+              </Row>
+            </Panel>
+
+            {draft.kiosk.categories.map((box, bi) => {
+              const updBox = (patch: Partial<typeof box>) =>
+                set(
+                  "kiosk",
+                  {
+                    ...draft.kiosk,
+                    categories: draft.kiosk.categories.map((x, j) =>
+                      j === bi ? { ...x, ...patch } : x,
+                    ),
+                  },
+                );
+              return (
+                <Panel key={box.id} title={box.name} meta={box.icon} defaultOpen={bi === 0}>
+                  <Row cols={3}>
+                    <Text label="Nombre" value={box.name} onChange={(v) => updBox({ name: v })} />
+                    <Text
+                      label="Icono"
+                      value={box.icon}
+                      onChange={(v) => updBox({ icon: v })}
+                      hint="Un emoji"
+                    />
+                    <Color label="Color" value={box.color} onChange={(v) => updBox({ color: v })} />
+                  </Row>
+                  {box.useDaily ? (
+                    <p className="u-mono normal-case tracking-[0.01em] text-ink/45">
+                      Usa los tres del día de la pestaña «Del día». No hay nada más que configurar
+                      aquí.
+                    </p>
+                  ) : box.id === "crispetas" ? (
+                    <>
+                      <p className="u-mono normal-case tracking-[0.01em] text-ink/45">
+                        Productos que sólo existen en el quiosco.
+                      </p>
+                      {(box.extraProducts ?? []).map((p, pi) => {
+                        const updP = (patch: Partial<typeof p>) =>
+                          updBox({
+                            extraProducts: (box.extraProducts ?? []).map((x, j) =>
+                              j === pi ? { ...x, ...patch } : x,
+                            ),
+                          });
+                        return (
+                          <div
+                            key={p.id}
+                            className="grid gap-3 rounded-2xl border-[1.5px] border-ink/10 bg-white p-3"
+                          >
+                            <Row>
+                              <Text
+                                label="Nombre"
+                                value={p.name}
+                                onChange={(v) => updP({ name: v })}
+                              />
+                              <Num
+                                label="Precio"
+                                value={p.prices?.unica ?? p.price ?? 0}
+                                step={100}
+                                onChange={(v) => updP({ prices: { unica: v } })}
+                              />
+                            </Row>
+                            <Area
+                              label="Descripción"
+                              value={p.tagline}
+                              rows={2}
+                              onChange={(v) => updP({ tagline: v })}
+                            />
+                            <Row>
+                              <Color
+                                label="Color"
+                                value={p.color}
+                                onChange={(v) => updP({ color: v })}
+                              />
+                              <Toggle
+                                label="Agotado"
+                                value={Boolean(p.soldOut)}
+                                onChange={(v) => updP({ soldOut: v || undefined })}
+                              />
+                            </Row>
+                            <Media
+                              label="Foto"
+                              value={p.media}
+                              onChange={(v) => updP({ media: v ?? undefined })}
+                            />
+                            <button
+                              type="button"
+                              onClick={() =>
+                                updBox({
+                                  extraProducts: (box.extraProducts ?? []).filter((_, j) => j !== pi),
+                                })
+                              }
+                              className="u-mono min-h-11 justify-self-start rounded-full border-[1.5px] border-ink/20 px-3.5 text-ink/45 transition-colors hover:border-mango-deep hover:text-mango-deep"
+                            >
+                              Quitar
+                            </button>
+                          </div>
+                        );
+                      })}
+                      <AddButton
+                        label="Añadir crispeta"
+                        onClick={() =>
+                          updBox({
+                            extraProducts: [
+                              ...(box.extraProducts ?? []),
+                              {
+                                id: `crispeta-${Date.now().toString(36)}`,
+                                name: "Crispeta nueva",
+                                tagline: "Describe qué lleva.",
+                                prices: { unica: 8000 },
+                                category: "crispetas",
+                                color: "#FFD166",
+                                vessel: "bowl",
+                                ingredients: [{ name: "Maíz", color: "#FFD166" }],
+                              },
+                            ],
+                          })
+                        }
+                      />
+                    </>
+                  ) : (
+                    <StringList
+                      label="Categorías del menú que incluye"
+                      values={box.categoryIds}
+                      addLabel="Añadir categoría"
+                      onChange={(v) => updBox({ categoryIds: v })}
+                    />
+                  )}
+                </Panel>
+              );
+            })}
           </>
         ) : null}
 

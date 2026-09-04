@@ -75,6 +75,7 @@ export type Order = {
   delivery: number;
   total: number;
   payment: "tarjeta" | "efectivo" | "pendiente";
+  paymentMethod?: "tarjeta" | "efectivo" | "transferencia";
   channel: "web" | "mostrador";
 };
 

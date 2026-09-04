@@ -507,6 +507,86 @@ export const sections: Record<SectionKey, SectionCopy> = {
 
 export type Step = { title: string; body: string; color: string };
 
+export type KioskCategory = {
+  id: string;
+  name: string;
+  icon: string;
+  color: string;
+  categoryIds: string[];
+  useDaily?: boolean;
+  extraProducts?: Product[];
+};
+
+export type KioskConfig = {
+  enabled: boolean;
+  idleVideo?: string;
+  idleTitle: string;
+  idleSubtitle: string;
+  categories: KioskCategory[];
+};
+
+export const kiosk: KioskConfig = {
+  enabled: true,
+  idleTitle: "Pide aquí",
+  idleSubtitle: "Toca para empezar",
+  categories: [
+    {
+      id: "batidos",
+      name: "Batidos",
+      icon: "🥤",
+      color: "#FF6A1A",
+      categoryIds: ["batidos", "matcha", "bowls", "coldbrew", "extras"],
+    },
+    {
+      id: "crispetas",
+      name: "Crispetas",
+      icon: "🍿",
+      color: "#FFD166",
+      categoryIds: [],
+      extraProducts: [
+        {
+          id: "crispetas-clasicas",
+          name: "Clásicas",
+          tagline: "Maíz, sal y mantequilla. Recién hechas.",
+          prices: { unica: 8000 },
+          category: "crispetas",
+          color: "#FFD166",
+          vessel: "bowl",
+          ingredients: [{ name: "Maíz", color: "#FFD166" }],
+        },
+        {
+          id: "crispetas-queso",
+          name: "Con queso",
+          tagline: "Cheddar fundido por encima.",
+          prices: { unica: 10000 },
+          category: "crispetas",
+          color: "#FFB020",
+          vessel: "bowl",
+          ingredients: [{ name: "Queso", color: "#FFB020" }],
+        },
+        {
+          id: "crispetas-dulces",
+          name: "Dulces",
+          tagline: "Caramelo de la casa.",
+          prices: { unica: 9000 },
+          category: "crispetas",
+          color: "#E8A0B0",
+          vessel: "bowl",
+          ingredients: [{ name: "Caramelo", color: "#C89A5B" }],
+        },
+      ],
+    },
+    {
+      id: "dia",
+      name: "Batidos del día",
+      icon: "✨",
+      color: "#8FD14F",
+      categoryIds: [],
+      useDaily: true,
+    },
+  ],
+};
+
 export const processSteps: Step[] = [
   {
     title: "Pides",

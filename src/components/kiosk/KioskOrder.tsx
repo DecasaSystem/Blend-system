@@ -5,10 +5,13 @@ import { useRouter } from "next/navigation";
 import Logo from "../Logo";
 import VesselArt from "../VesselArt";
 import ProductSheet from "../ProductSheet";
+import KioskIdle from "./KioskIdle";
+import KioskHome from "./KioskHome";
 import { useCart } from "../CartProvider";
 import { useSite } from "../SiteProvider";
 import { describe, defaultOptions, fromPrice, money, priceOf } from "@/lib/cart";
 import { lockKiosk, placeKioskOrder } from "@/actions/kiosk";
+import type { KioskConfig } from "@/lib/content";
 
 /**
  * Autopedido del mostrador.
@@ -25,24 +28,81 @@ import { lockKiosk, placeKioskOrder } from "@/actions/kiosk";
 /** Tras entregar el pedido, la pantalla vuelve sola a estar libre. */
 const VOLVER_EN = 12;
 
-export default function KioskOrder({ tienda, etiqueta }: { tienda: string; etiqueta: string }) {
+type Pago = "tarjeta" | "efectivo" | "transferencia";
+
+const PAGOS: { id: Pago; icono: string; nombre: string; nota: string }[] = [
+  {
+    id: "tarjeta",
+    icono: "💳",
+    nombre: "Tarjeta",
+    nota: "En la barra te pasan el datáfono.",
+  },
+  {
+    id: "efectivo",
+    icono: "💵",
+    nombre: "Efectivo",
+    nota: "Pagas en la barra, en pesos.",
+  },
+  {
+    id: "transferencia",
+    icono: "📱",
+    nombre: "Transferencia",
+    nota: "Los datos de transferencia están en la barra.",
+  },
+];
+
+export default function KioskOrder({
+  tienda,
+  etiqueta,
+  kiosk,
+}: {
+  tienda: string;
+  etiqueta: string;
+  kiosk: KioskConfig;
+}) {
   const router = useRouter();
   const site = useSite();
   const { lines, count, subtotal, add, setQty, remove, clear, openSheet } = useCart();
 
+  const [caja, setCaja] = useState<string | null>(null);
   const [cat, setCat] = useState("todo");
-  const [paso, setPaso] = useState<"menu" | "confirmar">("menu");
+  const [paso, setPaso] = useState<"idle" | "home" | "menu" | "confirmar">("idle");
   const [nombre, setNombre] = useState("");
   const [notas, setNotas] = useState("");
+  const [pago, setPago] = useState<Pago>("tarjeta");
   const [listo, setListo] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [cuenta, setCuenta] = useState(VOLVER_EN);
   const [pendiente, empezar] = useTransition();
 
-  const productos = useMemo(
-    () => (cat === "todo" ? site.products : site.products.filter((p) => p.category === cat)),
-    [cat, site.products],
-  );
+  const activa = kiosk.categories.find((c) => c.id === caja);
+
+  const productos = useMemo(() => {
+    if (!activa) return [];
+    // Batidos del día: los tres publicados, con su precio de oferta.
+    if (activa.useDaily) {
+      return site.dailyIds
+        .map((id) => site.products.find((p) => p.id === id))
+        .filter((p) => p !== undefined);
+    }
+    // Crispetas y combos: productos que sólo existen en el quiosco.
+    if (activa.extraProducts && activa.extraProducts.length > 0) {
+      return activa.extraProducts;
+    }
+    // Batidos: el catálogo de la web filtrado por las categorías de la caja.
+    const base =
+      activa.categoryIds.length > 0
+        ? site.products.filter((p) => activa.categoryIds.includes(p.category))
+        : site.products;
+    return cat === "todo" ? base : base.filter((p) => p.category === cat);
+  }, [activa, cat, site.products, site.dailyIds]);
+
+  // Sub-categorías dentro de la caja (sólo si la caja agrupa varias).
+  const subcats = useMemo(() => {
+    if (!activa || activa.useDaily || (activa.extraProducts?.length ?? 0) > 0) return [];
+    if (activa.categoryIds.length < 2) return [];
+    return site.categories.filter((c) => activa.categoryIds.includes(c.id));
+  }, [activa, site.categories]);
 
   // El carrito de la tienda vive en el mismo navegador; una pantalla de
   // mostrador tiene que empezar vacía o el primer cliente hereda lo de antes.
@@ -57,7 +117,9 @@ export default function KioskOrder({ tienda, etiqueta }: { tienda: string; etiqu
     if (!listo) return;
     if (cuenta <= 0) {
       setListo(null);
-      setPaso("menu");
+      setPaso("idle");
+      setCaja(null);
+      setCat("todo");
       setNombre("");
       setNotas("");
       setCuenta(VOLVER_EN);
@@ -71,7 +133,7 @@ export default function KioskOrder({ tienda, etiqueta }: { tienda: string; etiqu
     setError(null);
     empezar(async () => {
       // Recoger no lleva domicilio, así que el total es el subtotal.
-      const res = await placeKioskOrder(lines, nombre, notas, subtotal);
+      const res = await placeKioskOrder(lines, nombre, notas, subtotal, pago);
       if ("error" in res) {
         setError(res.error);
         return;
@@ -81,6 +143,28 @@ export default function KioskOrder({ tienda, etiqueta }: { tienda: string; etiqu
       setListo(res.id);
     });
   };
+
+  /* ---------------- Espera ---------------- */
+  if (paso === "idle" && !listo) {
+    return <KioskIdle kiosk={kiosk} tienda={tienda} onTocar={() => setPaso("home")} />;
+  }
+
+  /* ---------------- Cajas ---------------- */
+  if (paso === "home" && !listo) {
+    return (
+      <KioskHome
+        cajas={kiosk.categories}
+        tienda={tienda}
+        etiqueta={etiqueta}
+        onVolver={() => setPaso("idle")}
+        onElegir={(id) => {
+          setCaja(id);
+          setCat("todo");
+          setPaso("menu");
+        }}
+      />
+    );
+  }
 
   /* ---------------- Pedido entregado ---------------- */
   if (listo) {
@@ -114,7 +198,9 @@ export default function KioskOrder({ tienda, etiqueta }: { tienda: string; etiqu
             type="button"
             onClick={() => {
               setListo(null);
-              setPaso("menu");
+              setPaso("idle");
+              setCaja(null);
+              setCat("todo");
               setNombre("");
               setNotas("");
               setCuenta(VOLVER_EN);
@@ -123,7 +209,7 @@ export default function KioskOrder({ tienda, etiqueta }: { tienda: string; etiqu
           >
             Pedir otra cosa
           </button>
-          <p className="u-mono mt-6 text-paper/35">Vuelve al menú en {cuenta}</p>
+          <p className="u-mono mt-6 text-paper/35">Vuelve al inicio en {cuenta}</p>
         </div>
       </main>
     );
@@ -190,6 +276,33 @@ export default function KioskOrder({ tienda, etiqueta }: { tienda: string; etiqu
             <span className="u-price text-3xl">{money(subtotal)}</span>
           </div>
 
+          {/* Cómo vas a pagar. No hay pasarela: la barra cobra. Esto sólo le
+              avisa a la barra (tarjeta → alistar el datáfono) y queda en el
+              pedido del tablero. */}
+          <h2 className="u-display mt-10 text-3xl">¿Cómo pagas?</h2>
+          <div className="mt-4 grid grid-cols-3 gap-3" role="radiogroup" aria-label="Método de pago">
+            {PAGOS.map((m) => (
+              <button
+                key={m.id}
+                type="button"
+                role="radio"
+                aria-checked={pago === m.id}
+                onClick={() => setPago(m.id)}
+                className={`flex min-h-[120px] flex-col items-center justify-center gap-1 rounded-2xl border-[1.5px] p-3 transition-colors ${
+                  pago === m.id
+                    ? "border-ink bg-ink text-paper"
+                    : "border-ink/20 bg-white text-ink"
+                }`}
+              >
+                <span className="text-3xl" aria-hidden="true">
+                  {m.icono}
+                </span>
+                <span className="text-base font-medium">{m.nombre}</span>
+              </button>
+            ))}
+          </div>
+          <p className="mt-3 text-ink/60">{PAGOS.find((m) => m.id === pago)?.nota}</p>
+
           {error ? (
             <p className="u-mono mt-4 text-mango-deep" role="alert">
               {error}
@@ -224,21 +337,42 @@ export default function KioskOrder({ tienda, etiqueta }: { tienda: string; etiqu
       <Barra tienda={tienda} etiqueta={etiqueta} onSalir={() => router.refresh()} />
 
       <div className="mx-auto max-w-6xl px-5 py-6">
-        <h1 className="u-display text-[clamp(2.2rem,6vw,3.4rem)]">
-          Toca lo que <span className="u-italic text-mango">quieras</span>
+        <button
+          type="button"
+          onClick={() => {
+            setPaso("home");
+            setCaja(null);
+            setCat("todo");
+          }}
+          className="u-mono min-h-11 rounded-full border-[1.5px] border-ink/20 px-5 text-ink/50"
+        >
+          ← Todas las opciones
+        </button>
+        <h1 className="u-display mt-4 text-[clamp(2.2rem,6vw,3.4rem)]">
+          {activa ? (
+            <>
+              {activa.icon} {activa.name}
+            </>
+          ) : (
+            <>
+              Toca lo que <span className="u-italic text-mango">quieras</span>
+            </>
+          )}
         </h1>
 
-        {/* Categorías: lo primero que se elige, y lo más grande. */}
-        <div className="rail -mx-5 mt-5 px-5 pb-2" role="tablist" aria-label="Categorías">
-          <Pastilla activa={cat === "todo"} onClick={() => setCat("todo")}>
-            Todo
-          </Pastilla>
-          {site.categories.map((c) => (
-            <Pastilla key={c.id} activa={cat === c.id} onClick={() => setCat(c.id)}>
-              {c.name}
+        {/* Sub-categorías: sólo si la caja agrupa varias. */}
+        {subcats.length > 0 ? (
+          <div className="rail -mx-5 mt-5 px-5 pb-2" role="tablist" aria-label="Categorías">
+            <Pastilla activa={cat === "todo"} onClick={() => setCat("todo")}>
+              Todo
             </Pastilla>
-          ))}
-        </div>
+            {subcats.map((c) => (
+              <Pastilla key={c.id} activa={cat === c.id} onClick={() => setCat(c.id)}>
+                {c.name}
+              </Pastilla>
+            ))}
+          </div>
+        ) : null}
 
         <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
           {productos.map((p) => (
@@ -281,18 +415,21 @@ export default function KioskOrder({ tienda, etiqueta }: { tienda: string; etiqu
               <button
                 type="button"
                 disabled={p.soldOut}
-                onClick={() =>
+                onClick={() => {
+                  // Las crispetas tienen precio único ("unica"); priceOf no lo
+                  // encuentra entre los vasos de la tienda y daría cero.
+                  const base = priceOf(p, site.sizes[0]?.id, site.sizes) || fromPrice(p);
                   add({
                     productId: p.id,
                     name: p.name,
                     color: p.color,
-                    basePrice: priceOf(p, site.sizes[0]?.id, site.sizes),
+                    basePrice: base,
                     options: defaultOptions(
                       site.builderBases[0]?.name ?? "",
-                      site.sizes[0]?.id ?? "",
+                      site.sizes[0]?.id ?? "unica",
                     ),
-                  })
-                }
+                  });
+                }}
                 className="btn btn-mango mt-4 w-full py-4 disabled:bg-ink/20 disabled:text-ink/40"
               >
                 {p.soldOut ? "Agotado" : "Agregar"}

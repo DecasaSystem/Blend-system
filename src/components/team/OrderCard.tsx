@@ -23,6 +23,12 @@ const PAYMENT_LABEL: Record<Order["payment"], string> = {
   pendiente: "Sin pagar",
 };
 
+const METHOD_LABEL: Record<NonNullable<Order["paymentMethod"]>, string> = {
+  tarjeta: "💳 Tarjeta",
+  efectivo: "💵 Efectivo",
+  transferencia: "📱 Transferencia",
+};
+
 export default function OrderCard({
   order,
   now,
@@ -141,7 +147,11 @@ export default function OrderCard({
       <div className="mt-3 flex items-center justify-between gap-3 border-t-[1.5px] border-ink/10 pt-3">
         <p className="u-mono min-w-0 text-ink/45">
           {items} {items === 1 ? "bebida" : "bebidas"} ·{" "}
-          {order.payment === "pendiente" ? "Sin pagar" : PAYMENT_LABEL[order.payment]}
+          {order.paymentMethod
+            ? METHOD_LABEL[order.paymentMethod]
+            : order.payment === "pendiente"
+              ? "Sin pagar"
+              : PAYMENT_LABEL[order.payment]}
         </p>
         <p className="u-mono shrink-0 text-base text-ink">{money(order.total)}</p>
       </div>

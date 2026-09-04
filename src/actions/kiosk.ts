@@ -120,6 +120,7 @@ export async function placeKioskOrder(
   notes?: string,
   /** El total que la pantalla le enseñó a la persona. */
   expectedTotal?: number,
+  paymentMethod?: "tarjeta" | "efectivo" | "transferencia",
 ): Promise<{ id: string } | { error: string }> {
   const kiosko = await getKioskSession();
   if (!kiosko) return { error: "Esta pantalla ya no está autorizada. Avisa a la barra." };
@@ -133,6 +134,7 @@ export async function placeKioskOrder(
     storeId: kiosko.storeId,
     customer: { name: nombre.slice(0, 60), phone: "", notes: notes?.trim() || undefined },
     payment: "pendiente",
+    paymentMethod,
     channel: "mostrador",
     // Si el equipo cambia un precio mientras alguien está pidiendo, mejor
     // rechazar y que lo rehaga que enseñarle un total en pantalla y cobrarle

@@ -222,7 +222,9 @@ export function repriceLines(
       continue;
     }
 
-    const product = site.products.find((p) => p.id === line.productId);
+    const product =
+      site.products.find((p) => p.id === line.productId) ??
+      site.kiosk?.categories.flatMap((c) => c.extraProducts ?? []).find((p) => p.id === line.productId);
     if (!product) return { error: `«${line.name}» ya no está en el menú.` };
     if (product.soldOut) return { error: `«${product.name}» se agotó.` };
 

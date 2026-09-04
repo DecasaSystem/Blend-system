@@ -6,6 +6,7 @@ import {
   dailyIds,
   dailyOffer,
   faqs,
+  kiosk,
   marquee,
   pricing,
   processSteps,
@@ -18,6 +19,7 @@ import {
   toppings,
   type Category,
   type Ingredient,
+  type KioskConfig,
   type Pricing,
   type Product,
   type SectionCopy,
@@ -59,6 +61,7 @@ export type SiteContent = {
   processSteps: Step[];
   rewards: typeof rewards;
   faqs: Faq[];
+  kiosk: KioskConfig;
 };
 
 /** Copia profunda de los valores de fábrica: nadie debe mutarlos. */
@@ -81,6 +84,7 @@ export function defaultSite(): SiteContent {
     processSteps,
     rewards,
     faqs,
+    kiosk,
   });
 }
 

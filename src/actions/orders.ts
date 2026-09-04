@@ -32,6 +32,7 @@ function toOrder(row: typeof orders.$inferSelect): Order {
     delivery: row.delivery,
     total: row.total,
     payment: row.payment,
+    paymentMethod: row.paymentMethod ?? undefined,
     channel: row.channel,
   };
 }
@@ -55,6 +56,7 @@ export type PlaceOrderInput = {
   storeId: string;
   customer: Customer;
   payment?: Order["payment"];
+  paymentMethod?: Order["paymentMethod"];
   channel?: Order["channel"];
   /** Con tarjeta el pedido nace en `pago` y no sale al tablero hasta cobrarse. */
   awaitingPayment?: boolean;
@@ -134,6 +136,7 @@ export async function placeOrder(
     delivery: t.delivery,
     total: t.total,
     payment: input.payment ?? "pendiente",
+    paymentMethod: input.paymentMethod ?? null,
     channel: input.channel ?? "web",
     status: input.awaitingPayment ? "pago" : "nuevo",
   });
