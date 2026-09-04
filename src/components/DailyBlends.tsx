@@ -71,7 +71,10 @@ export default function DailyBlends() {
             return (
               <article
                 key={p.id}
-                className="card-ink flex w-[80vw] max-w-[340px] flex-col p-5 sm:w-auto sm:max-w-none"
+                // Más compacta en móvil: iba a 730px de alto (86% de un iPhone
+                // estándar) por la ilustración grande y los márgenes sueltos.
+                // A partir de sm conserva el tamaño «destacado» de antes.
+                className="card-ink flex w-[80vw] max-w-[340px] flex-col p-4 sm:w-auto sm:max-w-none sm:p-5"
               >
                 <div className="flex items-start justify-between gap-3">
                   <span className="u-mono rounded-full bg-ink px-2.5 py-1 text-[0.58rem] text-paper">
@@ -84,7 +87,7 @@ export default function DailyBlends() {
                   type="button"
                   onClick={personalizar}
                   disabled={agotado}
-                  className="relative mx-auto my-2 w-[62%] max-w-[190px] transition-transform duration-500 hover:-rotate-2 hover:scale-105 disabled:cursor-not-allowed"
+                  className="relative mx-auto my-1.5 w-[42%] max-w-[130px] transition-transform duration-500 hover:-rotate-2 hover:scale-105 disabled:cursor-not-allowed sm:my-2 sm:w-[62%] sm:max-w-[190px]"
                   style={{ filter: "drop-shadow(3px 5px 0 rgba(27,11,46,0.10))" }}
                   aria-label={`Personalizar ${p.name}`}
                 >
@@ -105,19 +108,25 @@ export default function DailyBlends() {
                   disabled={agotado}
                   className="text-left disabled:cursor-not-allowed"
                 >
-                  <h3 className="u-display text-4xl">{p.name}</h3>
-                  <p className="mt-2 text-[0.95rem] leading-relaxed text-ink/62">{p.tagline}</p>
+                  <h3 className="u-display text-2xl leading-none sm:text-4xl">{p.name}</h3>
+                  <p className="mt-2 line-clamp-2 text-[0.85rem] leading-snug text-ink/62 sm:text-[0.95rem] sm:leading-relaxed">
+                    {p.tagline}
+                  </p>
                 </button>
-                {offer.why ? <p className="u-mono mt-3 text-ink/40">{offer.why}</p> : null}
+                {offer.why ? (
+                  <p className="u-mono mt-2 line-clamp-1 text-ink/40 sm:mt-3">{offer.why}</p>
+                ) : null}
 
-                <div className="mt-5 flex items-end gap-2.5">
-                  <span className="u-price text-3xl" style={{ color: p.color }}>
+                <div className="mt-3 flex items-end gap-2 sm:mt-5 sm:gap-2.5">
+                  <span className="u-price text-2xl sm:text-3xl" style={{ color: p.color }}>
                     {money(oferta.basePrice)}
                   </span>
-                  <span className="u-mono mb-2 text-ink/35 line-through">{money(lista)}</span>
+                  <span className="u-mono mb-1 text-ink/35 line-through sm:mb-2">
+                    {money(lista)}
+                  </span>
                 </div>
 
-                <div className="mt-4">
+                <div className="mt-3 sm:mt-4">
                   <div className="u-mono mb-1.5 flex justify-between text-ink/45">
                     <span>Quedan {offer.left}</span>
                     <span>de 30</span>
@@ -130,7 +139,7 @@ export default function DailyBlends() {
                   </div>
                 </div>
 
-                <div className="mt-5 flex items-center gap-2">
+                <div className="mt-3 flex items-center gap-2 sm:mt-5">
                   <button
                     type="button"
                     onClick={personalizar}
