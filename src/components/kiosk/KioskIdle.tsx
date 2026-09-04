@@ -67,7 +67,7 @@ export default function KioskIdle({
       )}
       <div className="absolute inset-0 bg-ink/45" aria-hidden="true" />
 
-      <div className="pointer-events-none relative z-[5] flex min-h-svh flex-col items-center justify-end px-6 pb-16 text-center">
+      <div className="pointer-events-none relative z-[5] flex min-h-svh flex-col items-center justify-center px-6 py-16 text-center">
         <div className="flex items-center gap-3">
           <Logo size={30} />
           <span className="u-display text-2xl">BLEND</span>

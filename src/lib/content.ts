@@ -584,6 +584,35 @@ export const kiosk: KioskConfig = {
       categoryIds: [],
       useDaily: true,
     },
+    {
+      id: "combos",
+      name: "Combos",
+      icon: "🎁",
+      color: "#7B3FF2",
+      categoryIds: [],
+      extraProducts: [
+        {
+          id: "combo-duo",
+          name: "Combo Dúo",
+          tagline: "Dos batidos chicos + crispetas clásicas para compartir.",
+          prices: { unica: 30000 },
+          category: "combos",
+          color: "#7B3FF2",
+          vessel: "cup",
+          ingredients: [{ name: "2 batidos", color: "#FF8A2B" }],
+        },
+        {
+          id: "combo-parche",
+          name: "Combo Parche",
+          tagline: "Cuatro batidos chicos + dos crispetas grandes.",
+          prices: { unica: 55000 },
+          category: "combos",
+          color: "#FF6A1A",
+          vessel: "cup",
+          ingredients: [{ name: "4 batidos", color: "#FF6A1A" }],
+        },
+      ],
+    },
   ],
 };
 

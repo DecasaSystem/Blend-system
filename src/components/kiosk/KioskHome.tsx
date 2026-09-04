@@ -40,7 +40,7 @@ export default function KioskHome({
         </h1>
         <p className="mt-3 text-lg text-ink/62">Toca una opción para ver el menú.</p>
 
-        <div className="mt-8 grid gap-4 sm:grid-cols-3">
+        <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {cajas.map((c) => (
             <button
               key={c.id}

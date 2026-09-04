@@ -603,7 +603,7 @@ export default function ContentEditor() {
                       Usa los tres del día de la pestaña «Del día». No hay nada más que configurar
                       aquí.
                     </p>
-                  ) : box.id === "crispetas" ? (
+                  ) : box.id === "crispetas" || box.id === "combos" ? (
                     <>
                       <p className="u-mono normal-case tracking-[0.01em] text-ink/45">
                         Productos que sólo existen en el quiosco.
@@ -671,20 +671,20 @@ export default function ContentEditor() {
                         );
                       })}
                       <AddButton
-                        label="Añadir crispeta"
+                        label={`Añadir en ${box.name}`}
                         onClick={() =>
                           updBox({
                             extraProducts: [
                               ...(box.extraProducts ?? []),
                               {
-                                id: `crispeta-${Date.now().toString(36)}`,
-                                name: "Crispeta nueva",
+                                id: `${box.id}-${Date.now().toString(36)}`,
+                                name: `${box.name.slice(0, -1)} nueva`,
                                 tagline: "Describe qué lleva.",
                                 prices: { unica: 8000 },
-                                category: "crispetas",
-                                color: "#FFD166",
+                                category: box.id,
+                                color: box.color,
                                 vessel: "bowl",
-                                ingredients: [{ name: "Maíz", color: "#FFD166" }],
+                                ingredients: [{ name: "Ingrediente", color: box.color }],
                               },
                             ],
                           })
