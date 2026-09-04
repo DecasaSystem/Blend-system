@@ -1317,15 +1317,84 @@ function KioskBoxEditor({
           </div>
         );
       })}
-      <StringList
-        label="Sub-categorías que muestra"
-        values={box.categoryIds}
-        addLabel="Añadir sub-categoría"
+      <SubcategoryPicker
+        categories={categories}
+        selected={box.categoryIds}
         onChange={(v) => onChange({ categoryIds: v })}
       />
       <p className="u-mono normal-case tracking-[0.01em] text-ink/40">
         La pestaña «Todo» del quiosco une sola lo de cada sub-categoría.
       </p>
+    </div>
+  );
+}
+
+/**
+ * Qué sub-categorías del menú muestra una caja, con nombres de verdad.
+ *
+ * Cada una sale como ficha con su nombre (no el id crudo) y botón para
+ * quitar; abajo un desplegable suma las categorías del menú que falten. Las
+ * nuevas se meten solas al crearlas en «Menú», aquí sólo se quitan o se
+ * reponen.
+ */
+function SubcategoryPicker({
+  categories,
+  selected,
+  onChange,
+}: {
+  categories: SiteContent["categories"];
+  selected: string[];
+  onChange: (v: string[]) => void;
+}) {
+  const rest = categories.filter((c) => !selected.includes(c.id));
+  return (
+    <div>
+      <span className="u-mono mb-1.5 block text-ink/45">
+        Sub-categorías que muestra · {selected.length}
+      </span>
+      <div className="grid gap-2">
+        {selected.map((id) => {
+          const cat = categories.find((c) => c.id === id);
+          return (
+            <div
+              key={id}
+              className="flex items-center gap-3 rounded-2xl border-[1.5px] border-ink/15 bg-white px-3 py-2"
+            >
+              <span className="min-w-0 flex-1">
+                <span className="block truncate font-medium">
+                  {cat?.name ?? "Categoría eliminada"}
+                </span>
+                <span className="u-mono block text-ink/45">
+                  {cat?.note ?? `id ${id} · ya no existe en Menú`}
+                </span>
+              </span>
+              <button
+                type="button"
+                onClick={() => onChange(selected.filter((x) => x !== id))}
+                className="grid h-11 w-11 shrink-0 place-items-center rounded-full border-[1.5px] border-ink/20 text-ink/50 transition-colors hover:border-mango-deep hover:text-mango-deep"
+                aria-label={`Quitar ${cat?.name ?? id}`}
+              >
+                ×
+              </button>
+            </div>
+          );
+        })}
+      </div>
+      {rest.length > 0 ? (
+        <div className="mt-2">
+          <Select
+            label="Añadir sub-categoría"
+            value=""
+            onChange={(v) => {
+              if (v) onChange([...selected, v]);
+            }}
+            options={[
+              { value: "", label: "— Elige una —" },
+              ...rest.map((c) => ({ value: c.id, label: c.name })),
+            ]}
+          />
+        </div>
+      ) : null}
     </div>
   );
 }
