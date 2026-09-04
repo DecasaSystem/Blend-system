@@ -7,6 +7,7 @@ import {
   dailyOffer,
   faqs,
   kiosk,
+  KIOSK_FLAT,
   marquee,
   pricing,
   processSteps,
@@ -101,13 +102,19 @@ export function normalizeSite(site: SiteContent): SiteContent {
   const kiosk = site.kiosk ?? base.kiosk;
   const boxes = (kiosk.categories ?? []).map((box) => {
     const fabrica = base.kiosk.categories.find((c) => c.id === box.id);
+    // Migra lo que se guardó con el modelo corto de `productIds`: cae en la
+    // caja plana para que nada elegido se pierda.
+    const legacy = (box as { productIds?: string[] }).productIds;
+    const productsByCategory =
+      box.productsByCategory ??
+      (legacy ? { [KIOSK_FLAT]: legacy } : (fabrica?.productsByCategory ?? {}));
     return {
       id: box.id,
       name: box.name ?? fabrica?.name ?? box.id,
       icon: box.icon ?? fabrica?.icon ?? "🥤",
       color: box.color ?? fabrica?.color ?? "#FF6A1A",
       categoryIds: box.categoryIds ?? fabrica?.categoryIds ?? [],
-      productIds: box.productIds ?? [],
+      productsByCategory,
       useDaily: box.useDaily ?? fabrica?.useDaily ?? false,
     };
   });

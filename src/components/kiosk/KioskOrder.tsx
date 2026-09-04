@@ -12,6 +12,7 @@ import { useSite } from "../SiteProvider";
 import { describe, defaultOptions, fromPrice, money, priceOf } from "@/lib/cart";
 import { lockKiosk, placeKioskOrder } from "@/actions/kiosk";
 import type { KioskConfig } from "@/lib/content";
+import { KIOSK_FLAT } from "@/lib/content";
 
 /**
  * Autopedido del mostrador.
@@ -85,24 +86,34 @@ export default function KioskOrder({
         .map((id) => site.products.find((p) => p.id === id))
         .filter((p) => p !== undefined);
     }
-    // Crispetas y Combos: productos concretos del menú, elegidos en el editor.
-    // Salen con su precio, su foto y sus ingredientes reales, sin duplicar nada.
-    if (activa.productIds.length > 0) {
-      return activa.productIds
+    // Lo elegido en el editor gana: si la sub-categoría tiene selección,
+    // salen esos; si no, todo lo de esa categoría del menú.
+    const elegidos = (key: string) => {
+      const ids = activa.productsByCategory[key] ?? [];
+      if (ids.length === 0) {
+        return site.products.filter((p) => p.category === key);
+      }
+      return ids
+        .map((id) => site.products.find((p) => p.id === id))
+        .filter((p) => p !== undefined);
+    };
+    // Caja plana (Crispetas, Batidos del día): una sola lista elegida.
+    if (activa.categoryIds.length === 0) {
+      const ids = activa.productsByCategory[KIOSK_FLAT] ?? [];
+      return ids
         .map((id) => site.products.find((p) => p.id === id))
         .filter((p) => p !== undefined);
     }
-    // Batidos: el catálogo de la web filtrado por las categorías de la caja.
-    const base =
-      activa.categoryIds.length > 0
-        ? site.products.filter((p) => activa.categoryIds.includes(p.category))
-        : site.products;
-    return cat === "todo" ? base : base.filter((p) => p.category === cat);
+    // Caja con sub-categorías (Batidos, Combos).
+    if (cat === "todo") {
+      return activa.categoryIds.flatMap((key) => elegidos(key));
+    }
+    return elegidos(cat);
   }, [activa, cat, site.products, site.dailyIds]);
 
   // Sub-categorías dentro de la caja (sólo si la caja agrupa varias).
   const subcats = useMemo(() => {
-    if (!activa || activa.useDaily || activa.productIds.length > 0) return [];
+    if (!activa || activa.useDaily) return [];
     if (activa.categoryIds.length < 2) return [];
     return site.categories.filter((c) => activa.categoryIds.includes(c.id));
   }, [activa, site.categories]);

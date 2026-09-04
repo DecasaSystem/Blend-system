@@ -27,6 +27,7 @@ import {
 import { resetSiteContent, saveSiteContent } from "@/actions/content";
 import { useSite } from "@/components/SiteProvider";
 import type { SectionKey, Vessel } from "@/lib/content";
+import { KIOSK_FLAT } from "@/lib/content";
 
 const TABS = [
   { id: "carrusel", label: "Carrusel" },
@@ -603,18 +604,12 @@ export default function ContentEditor() {
                       Usa los tres del día de la pestaña «Del día». No hay nada más que configurar
                       aquí.
                     </p>
-                  ) : box.id === "crispetas" || box.id === "combos" ? (
-                    <ProductPicker
-                      products={draft.products}
-                      selected={box.productIds}
-                      onChange={(v) => updBox({ productIds: v })}
-                    />
                   ) : (
-                    <StringList
-                      label="Categorías del menú que incluye"
-                      values={box.categoryIds}
-                      addLabel="Añadir categoría"
-                      onChange={(v) => updBox({ categoryIds: v })}
+                    <KioskBoxEditor
+                      box={box}
+                      categories={draft.categories}
+                      products={draft.products}
+                      onChange={updBox}
                     />
                   )}
                 </Panel>
@@ -1240,28 +1235,111 @@ function Note({ children }: { children: React.ReactNode }) {
  * desplegable suma los que faltan. Si el producto no existe en «Menú», no sale
  * aquí: primero se crea allá, con su foto y su precio, y luego se elige aquí.
  */
+/**
+ * Qué productos del menú lleva una caja del quiosco.
+ *
+ * Caja plana (Crispetas, Batidos del día): un solo picker con todo el menú.
+ * Caja con sub-categorías (Batidos, Combos): un picker dentro de cada
+ * sub-categoría, sólo con los productos de esa categoría. La pestaña «Todo»
+ * del quiosco une sola lo elegido en cada una, así que no se configura.
+ */
+function KioskBoxEditor({
+  box,
+  categories,
+  products,
+  onChange,
+}: {
+  box: SiteContent["kiosk"]["categories"][number];
+  categories: SiteContent["categories"];
+  products: SiteContent["products"];
+  onChange: (patch: Partial<typeof box>) => void;
+}) {
+  const setFor = (key: string, v: string[]) =>
+    onChange({ productsByCategory: { ...box.productsByCategory, [key]: v } });
+
+  if (box.categoryIds.length === 0) {
+    return (
+      <ProductPicker
+        products={products}
+        pool={products}
+        label="Productos de esta caja"
+        emptyHint="Vacía. Elige abajo los productos del menú que van aquí."
+        selected={box.productsByCategory[KIOSK_FLAT] ?? []}
+        onChange={(v) => setFor(KIOSK_FLAT, v)}
+      />
+    );
+  }
+
+  return (
+    <div className="grid gap-3">
+      {box.categoryIds.map((catId) => {
+        const cat = categories.find((c) => c.id === catId);
+        const pool = products.filter((p) => p.category === catId);
+        return (
+          <div
+            key={catId}
+            className="grid gap-2 rounded-2xl border-[1.5px] border-ink/12 bg-paper p-3"
+          >
+            <span className="font-medium">{cat?.name ?? catId}</span>
+            {pool.length === 0 ? (
+              <p className="u-mono normal-case tracking-[0.01em] text-ink/40">
+                No hay productos en esta categoría del menú todavía.
+              </p>
+            ) : (
+              <ProductPicker
+                products={products}
+                pool={pool}
+                label={`Productos de ${cat?.name ?? catId}`}
+                emptyHint="Sin elegir: salen todos los de esta categoría."
+                selected={box.productsByCategory[catId] ?? []}
+                onChange={(v) => setFor(catId, v)}
+              />
+            )}
+          </div>
+        );
+      })}
+      <StringList
+        label="Sub-categorías que muestra"
+        values={box.categoryIds}
+        addLabel="Añadir sub-categoría"
+        onChange={(v) => onChange({ categoryIds: v })}
+      />
+      <p className="u-mono normal-case tracking-[0.01em] text-ink/40">
+        La pestaña «Todo» del quiosco une sola lo de cada sub-categoría.
+      </p>
+    </div>
+  );
+}
+
 function ProductPicker({
   products,
+  pool,
+  label,
+  emptyHint,
   selected,
   onChange,
 }: {
   products: SiteContent["products"];
+  /** De dónde se puede elegir (toda la carta o una sola categoría). */
+  pool: SiteContent["products"];
+  label: string;
+  emptyHint: string;
   selected: string[];
   onChange: (v: string[]) => void;
 }) {
   const chosen = selected
     .map((id) => products.find((p) => p.id === id))
     .filter((p) => p !== undefined);
-  const rest = products.filter((p) => !selected.includes(p.id));
+  const rest = pool.filter((p) => !selected.includes(p.id));
 
   return (
     <div>
       <span className="u-mono mb-1.5 block text-ink/45">
-        Productos de esta caja · {chosen.length}
+        {label} · {chosen.length}
       </span>
       {chosen.length === 0 ? (
         <p className="u-mono rounded-2xl border-[1.5px] border-dashed border-ink/20 px-4 py-3 normal-case tracking-[0.01em] text-ink/40">
-          Vacía. Elige abajo los productos del menú que van aquí.
+          {emptyHint}
         </p>
       ) : (
         <div className="grid gap-2">

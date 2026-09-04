@@ -512,16 +512,24 @@ export type KioskCategory = {
   name: string;
   icon: string;
   color: string;
-  /** Categorías del menú que incluye (se usa cuando no hay productIds). */
+  /**
+   * Sub-categorías del menú que la caja muestra (pestañas Todo, Batidos,
+   * Matcha… en el quiosco). Caja sin esto es una lista plana.
+   */
   categoryIds: string[];
   /**
-   * Productos concretos del menú que incluye. Gana sobre `categoryIds`: así
-   * Crispetas y Combos no duplican nada, sólo apuntan a lo que ya existe en
-   * «Menú» con su precio, su foto y sus ingredientes.
+   * Qué productos del menú salen en cada sub-categoría: la clave es el id de
+   * la categoría (`batidos`, `matcha`…) y el valor los ids elegidos. Las cajas
+   * planas usan la clave `_default`. Sub-categoría sin selección muestra todo
+   * lo de esa categoría. Nada se crea dos veces: todo apunta a «Menú» con su
+   * precio, su foto y sus ingredientes.
    */
-  productIds: string[];
+  productsByCategory: Record<string, string[]>;
   useDaily?: boolean;
 };
+
+/** Clave interna de `productsByCategory` para las cajas sin sub-categorías. */
+export const KIOSK_FLAT = "_default";
 
 export type KioskConfig = {
   enabled: boolean;
@@ -542,7 +550,9 @@ export const kiosk: KioskConfig = {
       icon: "🥤",
       color: "#FF6A1A",
       categoryIds: ["batidos", "matcha", "bowls", "coldbrew", "extras"],
-      productIds: [],
+      // Vacío = cada sub-categoría muestra todo lo suyo. El editor llena por
+      // sub-categoría lo que el equipo elija.
+      productsByCategory: {},
     },
     {
       id: "crispetas",
@@ -550,9 +560,8 @@ export const kiosk: KioskConfig = {
       icon: "🍿",
       color: "#FFD166",
       categoryIds: [],
-      // Se llena desde el editor eligiendo productos del menú: nada se crea
-      // dos veces, todo sale con su precio, su foto y sus ingredientes.
-      productIds: [],
+      // Caja plana: el editor elige los productos del menú que van aquí.
+      productsByCategory: { [KIOSK_FLAT]: [] },
     },
     {
       id: "dia",
@@ -560,7 +569,7 @@ export const kiosk: KioskConfig = {
       icon: "✨",
       color: "#8FD14F",
       categoryIds: [],
-      productIds: [],
+      productsByCategory: { [KIOSK_FLAT]: [] },
       useDaily: true,
     },
     {
@@ -568,9 +577,8 @@ export const kiosk: KioskConfig = {
       name: "Combos",
       icon: "🎁",
       color: "#7B3FF2",
-      categoryIds: [],
-      // Igual que Crispetas: se llena desde el editor con productos del menú.
-      productIds: [],
+      categoryIds: ["batidos", "matcha", "bowls", "coldbrew", "extras"],
+      productsByCategory: {},
     },
   ],
 };
