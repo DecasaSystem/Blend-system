@@ -63,6 +63,11 @@ export default function OrderCard({
           <p className="u-mono mt-0.5 text-ink/40">
             {formatClock(order.createdAt)} · {order.channel === "web" ? "En línea" : "Mostrador"}
           </p>
+          {order.channel === "mostrador" ? (
+            <p className="u-mono mt-1.5 inline-block rounded-full border-[1.5px] border-ink bg-mango px-3 py-1 text-ink">
+              🖥️ Pedido de quiosco
+            </p>
+          ) : null}
         </div>
         <div className="text-right">
           <p
