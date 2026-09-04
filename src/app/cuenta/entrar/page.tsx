@@ -3,7 +3,10 @@ import { redirect } from "next/navigation";
 import AuthForm from "@/components/account/AuthForm";
 import { getCustomer } from "@/lib/customer-session";
 
-export const metadata: Metadata = { title: "BLEND · Entrar" };
+export const metadata: Metadata = {
+  title: "BLEND · Entrar",
+  robots: { index: false, follow: false },
+};
 
 export default async function EntrarPage() {
   if (await getCustomer()) redirect("/cuenta");

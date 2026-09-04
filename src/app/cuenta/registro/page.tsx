@@ -3,7 +3,10 @@ import { redirect } from "next/navigation";
 import AuthForm from "@/components/account/AuthForm";
 import { getCustomer } from "@/lib/customer-session";
 
-export const metadata: Metadata = { title: "BLEND · Crear cuenta" };
+export const metadata: Metadata = {
+  title: "BLEND · Crear cuenta",
+  robots: { index: false, follow: false },
+};
 
 export default async function RegistroPage() {
   if (await getCustomer()) redirect("/cuenta");

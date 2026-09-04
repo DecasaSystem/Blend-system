@@ -4,7 +4,10 @@ import AccountPanel from "@/components/account/AccountPanel";
 import { myAddresses, myOrders, myStamps } from "@/actions/account";
 import { getCustomer } from "@/lib/customer-session";
 
-export const metadata: Metadata = { title: "BLEND · Tu cuenta" };
+export const metadata: Metadata = {
+  title: "BLEND · Tu cuenta",
+  robots: { index: false, follow: false },
+};
 
 export const dynamic = "force-dynamic";
 

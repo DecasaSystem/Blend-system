@@ -4,7 +4,10 @@ import { myAddresses } from "@/actions/account";
 import { cardPaymentsAvailable } from "@/actions/checkout";
 import { getCustomer } from "@/lib/customer-session";
 
-export const metadata: Metadata = { title: "BLEND · Tu pedido" };
+export const metadata: Metadata = {
+  title: "BLEND · Tu pedido",
+  robots: { index: false, follow: false },
+};
 
 export const dynamic = "force-dynamic";
 

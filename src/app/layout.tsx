@@ -2,7 +2,9 @@ import type { Metadata, Viewport } from "next";
 import { Poppins, Martian_Mono } from "next/font/google";
 import { CartProvider } from "@/components/CartProvider";
 import { SiteProvider } from "@/components/SiteProvider";
+import SeoJsonLd from "@/components/SeoJsonLd";
 import { loadSiteContent } from "@/actions/content";
+import { localBusinessJsonLd, metadataBase, siteOrigin } from "@/lib/seo";
 import "./globals.css";
 
 /**
@@ -26,9 +28,38 @@ const martian = Martian_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "BLEND — Casa de batidos, matcha y açaí",
+  metadataBase,
+  title: {
+    default: "BLEND — Casa de batidos, matcha y açaí en Armenia",
+    template: "BLEND · %s",
+  },
   description:
-    "Batidos de fruta congelada, matcha ceremonial de Uji y açaí bowls. Pide en línea y recoge en 25 minutos.",
+    "Batidos de fruta congelada, matcha ceremonial de Uji y açaí bowls en Armenia, Quindío. Pide en línea y recoge en 25 minutos.",
+  keywords: [
+    "batidos armenia",
+    "batidos naturales quindío",
+    "matcha ceremonial",
+    "açaí bowls armenia",
+    "cold brew armenia",
+    "jugos naturales armenia",
+    "domicilios saludables armenia",
+  ],
+  alternates: { canonical: siteOrigin() },
+  openGraph: {
+    title: "BLEND — Casa de batidos, matcha y açaí en Armenia",
+    description:
+      "Batidos de fruta congelada, matcha ceremonial de Uji y açaí bowls. Pide en línea y recoge en 25 minutos.",
+    url: siteOrigin(),
+    siteName: "BLEND",
+    locale: "es_CO",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "BLEND — Casa de batidos, matcha y açaí en Armenia",
+    description:
+      "Batidos de fruta congelada, matcha ceremonial de Uji y açaí bowls. Pide en línea y recoge en 25 minutos.",
+  },
 };
 
 export const viewport: Viewport = {
@@ -50,6 +81,9 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
       data-scroll-behavior="smooth"
       className={`${poppins.variable} ${martian.variable}`}
     >
+      <head>
+        <SeoJsonLd data={localBusinessJsonLd(site)} />
+      </head>
       <body>
         {/* El carrito vive aquí para que /checkout lea el mismo pedido que la tienda.
             El contenido va por fuera: el carrito necesita los precios de los toppings. */}
