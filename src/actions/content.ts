@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { siteContent, SITE_ROW_ID } from "@/db/schema";
-import { defaultSite, type SiteContent } from "@/lib/site";
+import { defaultSite, normalizeSite, type SiteContent } from "@/lib/site";
 import { requireUser } from "@/lib/session";
 
 /**
@@ -34,9 +34,10 @@ export async function loadSiteContent(): Promise<SiteContent> {
       await new Promise((r) => setTimeout(r, 2000));
       row = await tryLoadRow();
     }
-    // Mezcla superficial: si el código añade una sección nueva, aparece aunque
-    // el equipo tenga contenido guardado de antes.
-    return row ? { ...base, ...row.data } : base;
+    // Mezcla superficial + normalización: si el código añade una sección o un
+    // campo nuevo (como `productIds`), aparece aunque el equipo tenga contenido
+    // guardado de antes.
+    return row ? normalizeSite({ ...base, ...row.data }) : base;
   } catch (e) {
     // Si la base no responde, la tienda sigue en pie con los valores de
     // fábrica. El error queda en los Function Logs de Vercel para diagnosticar;

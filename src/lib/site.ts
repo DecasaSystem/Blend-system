@@ -88,6 +88,47 @@ export function defaultSite(): SiteContent {
   });
 }
 
+/**
+ * Completa lo que falte del contenido guardado con los valores de fábrica.
+ *
+ * El merge de `loadSiteContent` es superficial: si la fila guardada trae un
+ * `kiosk` de antes (sin `productIds`, o sin alguna caja nueva), ese objeto
+ * pisa al de fábrica entero y el quiosco revienta con `undefined.map`.
+ * Aquí cada caja vieja se rellena campo por campo.
+ */
+export function normalizeSite(site: SiteContent): SiteContent {
+  const base = defaultSite();
+  const kiosk = site.kiosk ?? base.kiosk;
+  const boxes = (kiosk.categories ?? []).map((box) => {
+    const fabrica = base.kiosk.categories.find((c) => c.id === box.id);
+    return {
+      id: box.id,
+      name: box.name ?? fabrica?.name ?? box.id,
+      icon: box.icon ?? fabrica?.icon ?? "🥤",
+      color: box.color ?? fabrica?.color ?? "#FF6A1A",
+      categoryIds: box.categoryIds ?? fabrica?.categoryIds ?? [],
+      productIds: box.productIds ?? [],
+      useDaily: box.useDaily ?? fabrica?.useDaily ?? false,
+    };
+  });
+  // Cajas nuevas del código que el contenido guardado aún no trae.
+  for (const f of base.kiosk.categories) {
+    if (!boxes.some((b) => b.id === f.id)) {
+      boxes.push({ ...f, useDaily: f.useDaily ?? false });
+    }
+  }
+  return {
+    ...site,
+    kiosk: {
+      enabled: kiosk.enabled ?? true,
+      idleVideo: kiosk.idleVideo,
+      idleTitle: kiosk.idleTitle ?? base.kiosk.idleTitle,
+      idleSubtitle: kiosk.idleSubtitle ?? base.kiosk.idleSubtitle,
+      categories: boxes,
+    },
+  };
+}
+
 /** Un producto nuevo, listo para editar. */
 export function blankProduct(categoryId: string): Product {
   return {
