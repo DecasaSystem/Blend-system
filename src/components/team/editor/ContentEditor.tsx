@@ -543,9 +543,9 @@ export default function ContentEditor() {
         {tab === "quiosco" ? (
           <>
             <Note>
-              Lo que ve la pantalla del mostrador. El menú sale del mismo catálogo de «Menú», pero
-              el quiosco lo agrupa en sus propias cajas. Las Crispetas viven sólo aquí, no salen en
-              la web.
+              Lo que ve la pantalla del mostrador. Todo sale del catálogo de «Menú»: en cada caja
+              eliges qué productos aparecen, con su precio, su foto y sus ingredientes. Nada se
+              crea dos veces.
             </Note>
 
             <Panel title="Pantalla de espera" meta={draft.kiosk.enabled ? "Activa" : "Apagada"} defaultOpen>
@@ -604,93 +604,11 @@ export default function ContentEditor() {
                       aquí.
                     </p>
                   ) : box.id === "crispetas" || box.id === "combos" ? (
-                    <>
-                      <p className="u-mono normal-case tracking-[0.01em] text-ink/45">
-                        Productos que sólo existen en el quiosco.
-                      </p>
-                      {(box.extraProducts ?? []).map((p, pi) => {
-                        const updP = (patch: Partial<typeof p>) =>
-                          updBox({
-                            extraProducts: (box.extraProducts ?? []).map((x, j) =>
-                              j === pi ? { ...x, ...patch } : x,
-                            ),
-                          });
-                        return (
-                          <div
-                            key={p.id}
-                            className="grid gap-3 rounded-2xl border-[1.5px] border-ink/10 bg-white p-3"
-                          >
-                            <Row>
-                              <Text
-                                label="Nombre"
-                                value={p.name}
-                                onChange={(v) => updP({ name: v })}
-                              />
-                              <Num
-                                label="Precio"
-                                value={p.prices?.unica ?? p.price ?? 0}
-                                step={100}
-                                onChange={(v) => updP({ prices: { unica: v } })}
-                              />
-                            </Row>
-                            <Area
-                              label="Descripción"
-                              value={p.tagline}
-                              rows={2}
-                              onChange={(v) => updP({ tagline: v })}
-                            />
-                            <Row>
-                              <Color
-                                label="Color"
-                                value={p.color}
-                                onChange={(v) => updP({ color: v })}
-                              />
-                              <Toggle
-                                label="Agotado"
-                                value={Boolean(p.soldOut)}
-                                onChange={(v) => updP({ soldOut: v || undefined })}
-                              />
-                            </Row>
-                            <Media
-                              label="Foto"
-                              value={p.media}
-                              onChange={(v) => updP({ media: v ?? undefined })}
-                            />
-                            <button
-                              type="button"
-                              onClick={() =>
-                                updBox({
-                                  extraProducts: (box.extraProducts ?? []).filter((_, j) => j !== pi),
-                                })
-                              }
-                              className="u-mono min-h-11 justify-self-start rounded-full border-[1.5px] border-ink/20 px-3.5 text-ink/45 transition-colors hover:border-mango-deep hover:text-mango-deep"
-                            >
-                              Quitar
-                            </button>
-                          </div>
-                        );
-                      })}
-                      <AddButton
-                        label={`Añadir en ${box.name}`}
-                        onClick={() =>
-                          updBox({
-                            extraProducts: [
-                              ...(box.extraProducts ?? []),
-                              {
-                                id: `${box.id}-${Date.now().toString(36)}`,
-                                name: `${box.name.slice(0, -1)} nueva`,
-                                tagline: "Describe qué lleva.",
-                                prices: { unica: 8000 },
-                                category: box.id,
-                                color: box.color,
-                                vessel: "bowl",
-                                ingredients: [{ name: "Ingrediente", color: box.color }],
-                              },
-                            ],
-                          })
-                        }
-                      />
-                    </>
+                    <ProductPicker
+                      products={draft.products}
+                      selected={box.productIds}
+                      onChange={(v) => updBox({ productIds: v })}
+                    />
                   ) : (
                     <StringList
                       label="Categorías del menú que incluye"
@@ -1312,6 +1230,95 @@ function Note({ children }: { children: React.ReactNode }) {
     <p className="u-mono rounded-2xl border-[1.5px] border-ink/12 bg-white px-4 py-3 normal-case tracking-[0.01em] text-ink/50">
       {children}
     </p>
+  );
+}
+
+/**
+ * Elige qué productos del menú aparecen en una caja del quiosco.
+ *
+ * Los elegidos van arriba con su precio real y botón para quitar; abajo un
+ * desplegable suma los que faltan. Si el producto no existe en «Menú», no sale
+ * aquí: primero se crea allá, con su foto y su precio, y luego se elige aquí.
+ */
+function ProductPicker({
+  products,
+  selected,
+  onChange,
+}: {
+  products: SiteContent["products"];
+  selected: string[];
+  onChange: (v: string[]) => void;
+}) {
+  const chosen = selected
+    .map((id) => products.find((p) => p.id === id))
+    .filter((p) => p !== undefined);
+  const rest = products.filter((p) => !selected.includes(p.id));
+
+  return (
+    <div>
+      <span className="u-mono mb-1.5 block text-ink/45">
+        Productos de esta caja · {chosen.length}
+      </span>
+      {chosen.length === 0 ? (
+        <p className="u-mono rounded-2xl border-[1.5px] border-dashed border-ink/20 px-4 py-3 normal-case tracking-[0.01em] text-ink/40">
+          Vacía. Elige abajo los productos del menú que van aquí.
+        </p>
+      ) : (
+        <div className="grid gap-2">
+          {chosen.map((p) => (
+            <div
+              key={p.id}
+              className="flex items-center gap-3 rounded-2xl border-[1.5px] border-ink/15 bg-white px-3 py-2"
+            >
+              <span
+                className="h-8 w-8 shrink-0 rounded-full border-[1.5px] border-ink"
+                style={{ background: p.color }}
+                aria-hidden="true"
+              />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate font-medium">{p.name}</span>
+                <span className="u-mono block text-ink/45">
+                  desde {money(fromPrice(p))}
+                  {p.soldOut ? " · agotado" : ""}
+                </span>
+              </span>
+              <button
+                type="button"
+                onClick={() => onChange(selected.filter((id) => id !== p.id))}
+                className="grid h-11 w-11 shrink-0 place-items-center rounded-full border-[1.5px] border-ink/20 text-ink/50 transition-colors hover:border-mango-deep hover:text-mango-deep"
+                aria-label={`Quitar ${p.name}`}
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+      {rest.length > 0 ? (
+        <div className="mt-2 flex gap-2">
+          <div className="min-w-0 flex-1">
+            <Select
+              label="Añadir producto del menú"
+              value=""
+              onChange={(v) => {
+                if (v) onChange([...selected, v]);
+              }}
+              options={[
+                { value: "", label: "— Elige uno —" },
+                ...rest.map((p) => ({
+                  value: p.id,
+                  label: `${p.name} · desde ${money(fromPrice(p))}`,
+                })),
+              ]}
+            />
+          </div>
+        </div>
+      ) : (
+        <p className="u-mono mt-2 normal-case tracking-[0.01em] text-ink/35">
+          Ya están todos los productos del menú en esta caja.
+        </p>
+      )}
+    </div>
   );
 }
 

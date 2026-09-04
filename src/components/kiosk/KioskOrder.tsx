@@ -85,9 +85,12 @@ export default function KioskOrder({
         .map((id) => site.products.find((p) => p.id === id))
         .filter((p) => p !== undefined);
     }
-    // Crispetas y combos: productos que sólo existen en el quiosco.
-    if (activa.extraProducts && activa.extraProducts.length > 0) {
-      return activa.extraProducts;
+    // Crispetas y Combos: productos concretos del menú, elegidos en el editor.
+    // Salen con su precio, su foto y sus ingredientes reales, sin duplicar nada.
+    if (activa.productIds.length > 0) {
+      return activa.productIds
+        .map((id) => site.products.find((p) => p.id === id))
+        .filter((p) => p !== undefined);
     }
     // Batidos: el catálogo de la web filtrado por las categorías de la caja.
     const base =
@@ -99,7 +102,7 @@ export default function KioskOrder({
 
   // Sub-categorías dentro de la caja (sólo si la caja agrupa varias).
   const subcats = useMemo(() => {
-    if (!activa || activa.useDaily || (activa.extraProducts?.length ?? 0) > 0) return [];
+    if (!activa || activa.useDaily || activa.productIds.length > 0) return [];
     if (activa.categoryIds.length < 2) return [];
     return site.categories.filter((c) => activa.categoryIds.includes(c.id));
   }, [activa, site.categories]);

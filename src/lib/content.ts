@@ -512,9 +512,15 @@ export type KioskCategory = {
   name: string;
   icon: string;
   color: string;
+  /** Categorías del menú que incluye (se usa cuando no hay productIds). */
   categoryIds: string[];
+  /**
+   * Productos concretos del menú que incluye. Gana sobre `categoryIds`: así
+   * Crispetas y Combos no duplican nada, sólo apuntan a lo que ya existe en
+   * «Menú» con su precio, su foto y sus ingredientes.
+   */
+  productIds: string[];
   useDaily?: boolean;
-  extraProducts?: Product[];
 };
 
 export type KioskConfig = {
@@ -536,6 +542,7 @@ export const kiosk: KioskConfig = {
       icon: "🥤",
       color: "#FF6A1A",
       categoryIds: ["batidos", "matcha", "bowls", "coldbrew", "extras"],
+      productIds: [],
     },
     {
       id: "crispetas",
@@ -543,38 +550,9 @@ export const kiosk: KioskConfig = {
       icon: "🍿",
       color: "#FFD166",
       categoryIds: [],
-      extraProducts: [
-        {
-          id: "crispetas-clasicas",
-          name: "Clásicas",
-          tagline: "Maíz, sal y mantequilla. Recién hechas.",
-          prices: { unica: 8000 },
-          category: "crispetas",
-          color: "#FFD166",
-          vessel: "bowl",
-          ingredients: [{ name: "Maíz", color: "#FFD166" }],
-        },
-        {
-          id: "crispetas-queso",
-          name: "Con queso",
-          tagline: "Cheddar fundido por encima.",
-          prices: { unica: 10000 },
-          category: "crispetas",
-          color: "#FFB020",
-          vessel: "bowl",
-          ingredients: [{ name: "Queso", color: "#FFB020" }],
-        },
-        {
-          id: "crispetas-dulces",
-          name: "Dulces",
-          tagline: "Caramelo de la casa.",
-          prices: { unica: 9000 },
-          category: "crispetas",
-          color: "#E8A0B0",
-          vessel: "bowl",
-          ingredients: [{ name: "Caramelo", color: "#C89A5B" }],
-        },
-      ],
+      // Se llena desde el editor eligiendo productos del menú: nada se crea
+      // dos veces, todo sale con su precio, su foto y sus ingredientes.
+      productIds: [],
     },
     {
       id: "dia",
@@ -582,6 +560,7 @@ export const kiosk: KioskConfig = {
       icon: "✨",
       color: "#8FD14F",
       categoryIds: [],
+      productIds: [],
       useDaily: true,
     },
     {
@@ -590,28 +569,8 @@ export const kiosk: KioskConfig = {
       icon: "🎁",
       color: "#7B3FF2",
       categoryIds: [],
-      extraProducts: [
-        {
-          id: "combo-duo",
-          name: "Combo Dúo",
-          tagline: "Dos batidos chicos + crispetas clásicas para compartir.",
-          prices: { unica: 30000 },
-          category: "combos",
-          color: "#7B3FF2",
-          vessel: "cup",
-          ingredients: [{ name: "2 batidos", color: "#FF8A2B" }],
-        },
-        {
-          id: "combo-parche",
-          name: "Combo Parche",
-          tagline: "Cuatro batidos chicos + dos crispetas grandes.",
-          prices: { unica: 55000 },
-          category: "combos",
-          color: "#FF6A1A",
-          vessel: "cup",
-          ingredients: [{ name: "4 batidos", color: "#FF6A1A" }],
-        },
-      ],
+      // Igual que Crispetas: se llena desde el editor con productos del menú.
+      productIds: [],
     },
   ],
 };
