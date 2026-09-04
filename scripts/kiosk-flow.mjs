@@ -71,8 +71,8 @@ try {
   await tablet.getByLabel("Nombre de la pantalla").fill("Tablet de prueba");
   await tablet.getByLabel("Clave del quiosco").fill("clave-equivocada");
   await tablet.getByRole("button", { name: "Activar esta pantalla" }).click();
-  await tablet.waitForTimeout(1500);
-  check("con la clave mal, no entra", await tablet.getByText("Clave incorrecta.").isVisible());
+  await tablet.getByText("Clave incorrecta.").waitFor({ timeout: 20000 });
+  check("con la clave mal, no entra", true);
 
   await tablet.getByLabel("Clave del quiosco").fill(CLAVE);
   await tablet.getByRole("button", { name: "Activar esta pantalla" }).click();

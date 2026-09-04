@@ -77,8 +77,8 @@ try {
   if (!configured) {
     // Respaldo: el pedido sale directo a la barra como pago pendiente.
     await shop.getByRole("button", { name: /^Enviar el pedido/ }).click();
-    await shop.waitForTimeout(2500);
-    check("se puede pedir sin pasarela", await shop.getByText(/La barra ya lo/).isVisible());
+    await shop.getByText(/La barra ya lo/).waitFor({ timeout: 20000 });
+    check("se puede pedir sin pasarela", true);
 
     orderId = (
       await shop

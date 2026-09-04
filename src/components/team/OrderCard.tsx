@@ -152,11 +152,19 @@ export default function OrderCard({
       <div className="mt-3 flex items-center justify-between gap-3 border-t-[1.5px] border-ink/10 pt-3">
         <p className="u-mono min-w-0 text-ink/45">
           {items} {items === 1 ? "bebida" : "bebidas"} ·{" "}
-          {order.paymentMethod
-            ? METHOD_LABEL[order.paymentMethod]
-            : order.payment === "pendiente"
-              ? "Sin pagar"
-              : PAYMENT_LABEL[order.payment]}
+          {
+            /*
+             * `payment` manda siempre, no `paymentMethod`: es el único campo que
+             * de verdad significa "ya entró la plata" -lo pone el webhook de
+             * Wompi o el servidor al confirmar-. `paymentMethod` es sólo lo que
+             * el cliente dijo que iba a usar (una preferencia del quiosco), y
+             * mostrarlo en vez de comprobar `payment` dejaba que cualquiera
+             * marcara un pedido sin pagar como "ya cobrado" en el tablero.
+             */
+            order.payment === "pendiente"
+              ? `Sin pagar${order.paymentMethod ? ` · ${METHOD_LABEL[order.paymentMethod]}` : ""}`
+              : PAYMENT_LABEL[order.payment]
+          }
         </p>
         <p className="u-mono shrink-0 text-base text-ink">{money(order.total)}</p>
       </div>

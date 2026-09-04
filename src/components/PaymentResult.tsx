@@ -23,8 +23,14 @@ export default function PaymentResult({
 }: {
   orderId: string;
   confirmed: boolean;
-  mode: "envio" | "recoger";
-  total: number;
+  /**
+   * Ausentes si el pedido no es de la cuenta con sesión abierta -incluido
+   * cualquier pedido de invitado, que no tiene cuenta que lo reclame-: el id
+   * es secuencial y adivinable, así que el monto y el modo sólo se enseñan a
+   * quien de verdad es dueño del pedido.
+   */
+  mode?: "envio" | "recoger";
+  total?: number;
   signedIn: boolean;
 }) {
   const { clear } = useCart();
@@ -68,11 +74,15 @@ export default function PaymentResult({
               Pago recibido, la barra ya lo <span className="u-italic text-mango">tiene</span>
             </h1>
             <p className="u-mono mt-5 text-base tracking-[0.1em]">{orderId}</p>
-            <p className="u-mono mt-2 text-ink/45">{money(total)} pagados</p>
+            {total !== undefined ? (
+              <p className="u-mono mt-2 text-ink/45">{money(total)} pagados</p>
+            ) : null}
             <p className="mt-4 leading-relaxed text-ink/65">
               {mode === "envio"
                 ? "Te llamamos cuando el domiciliario salga. Veinticinco minutos desde ahora."
-                : "Te avisamos cuando esté listo para recoger."}
+                : mode === "recoger"
+                  ? "Te avisamos cuando esté listo para recoger."
+                  : "La barra ya lo tiene y te avisa en cuanto esté listo."}
             </p>
           </>
         ) : (

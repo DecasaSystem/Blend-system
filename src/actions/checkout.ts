@@ -1,7 +1,7 @@
 "use server";
 
 import { headers } from "next/headers";
-import { placeOrder, type PlaceOrderInput } from "./orders";
+import { createOrder, type PlaceOrderInput } from "@/lib/create-order";
 import { paymentsEnabled, startPayment } from "@/lib/payments";
 import { getCustomer } from "@/lib/customer-session";
 
@@ -14,13 +14,13 @@ import { getCustomer } from "@/lib/customer-session";
  */
 
 export async function payWithCard(
-  input: Omit<PlaceOrderInput, "payment" | "awaitingPayment">,
+  input: PlaceOrderInput,
 ): Promise<{ url: string } | { error: string }> {
   if (!paymentsEnabled()) {
     return { error: "El pago con tarjeta no está disponible ahora mismo." };
   }
 
-  const created = await placeOrder({ ...input, payment: "tarjeta", awaitingPayment: true });
+  const created = await createOrder(input, { payment: "tarjeta", awaitingPayment: true });
   if ("error" in created) return created;
 
   const customer = await getCustomer();

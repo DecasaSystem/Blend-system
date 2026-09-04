@@ -53,9 +53,11 @@ try {
   await shop.getByLabel("Dirección").fill("Cra. 14 #12-40, apto 302");
   await shop.getByLabel(/Algo más/).fill("Alergia a la nuez");
   await shop.getByRole("button", { name: /^Enviar el pedido/ }).click();
-  await shop.waitForTimeout(2500);
-
-  check("la tienda confirma el pedido", await shop.getByText(/La barra ya lo/).isVisible());
+  // Esperar a la condición, no a un reloj fijo: el servidor recalcula precios,
+  // repriceLines y una escritura a Postgres antes de responder, y con dos
+  // pestañas abiertas (barra + tienda) esto a veces pasa de 2.5 s.
+  await shop.getByText(/La barra ya lo/).waitFor({ timeout: 20000 });
+  check("la tienda confirma el pedido", true);
   orderId = (
     await shop
       .locator(".u-mono")

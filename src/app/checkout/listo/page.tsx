@@ -29,7 +29,13 @@ export default async function PagoListoPage({
   if (!pedido) redirect("/");
 
   const [row] = await db
-    .select({ id: orders.id, status: orders.status, mode: orders.mode, total: orders.total })
+    .select({
+      id: orders.id,
+      status: orders.status,
+      mode: orders.mode,
+      total: orders.total,
+      customerId: orders.customerId,
+    })
     .from(orders)
     .where(eq(orders.id, pedido))
     .limit(1);
@@ -38,12 +44,21 @@ export default async function PagoListoPage({
 
   const customer = await getCustomer();
 
+  /*
+   * El id del pedido es secuencial (B-1043, B-1044…), así que cualquiera
+   * podía recorrerlos y leer el monto y la modalidad de todos los pedidos de
+   * la tienda, no solo el suyo. El monto y el modo sólo se enseñan si el
+   * pedido es de la cuenta con sesión abierta; si no, la página confirma que
+   * el pago se recibió, sin más detalle.
+   */
+  const propio = Boolean(customer && row.customerId === customer.id);
+
   return (
     <PaymentResult
       orderId={row.id}
       confirmed={row.status !== "pago"}
-      mode={row.mode}
-      total={row.total}
+      mode={propio ? row.mode : undefined}
+      total={propio ? row.total : undefined}
       signedIn={Boolean(customer)}
     />
   );

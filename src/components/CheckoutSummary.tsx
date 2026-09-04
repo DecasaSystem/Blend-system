@@ -92,7 +92,8 @@ export default function CheckoutSummary({
         return;
       }
 
-      const res = await placeOrder({ ...order, payment: "pendiente" });
+      // "pendiente" ya es lo único que placeOrder acepta desde el navegador.
+      const res = await placeOrder(order);
       if ("error" in res) {
         setError(res.error);
         return;

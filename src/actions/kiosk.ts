@@ -18,7 +18,7 @@ import {
 import { checkPasswordStrength } from "@/lib/password";
 import { requireUser } from "@/lib/session";
 import { loadSiteContent } from "./content";
-import { placeOrder } from "./orders";
+import { createOrder } from "@/lib/create-order";
 import type { CartLine } from "@/lib/cart";
 
 /**
@@ -111,8 +111,14 @@ export async function lockKiosk(password: string): Promise<{ ok: true } | { erro
  * Sin dirección, sin cuenta y sin teléfono: se pide de pie en el mostrador y
  * se paga ahí. Lo único que hace falta es un nombre para cantarlo.
  *
- * Los precios los recalcula `placeOrder` contra el contenido publicado, igual
+ * Los precios los recalcula `createOrder` contra el contenido publicado, igual
  * que en la tienda: la tablet manda una intención de compra, no una factura.
+ *
+ * `paymentMethod` es lo que el cliente toca en la pantalla -«voy a pagar con
+ * tarjeta»-, no una confirmación de que ya pagó: por eso `payment` se queda
+ * siempre en "pendiente" y es la barra quien cobra al entregar. `OrderCard`
+ * tiene que seguir mostrando "Sin pagar" mientras `payment` diga eso, sin
+ * importar qué traiga `paymentMethod`.
  */
 export async function placeKioskOrder(
   lines: CartLine[],
@@ -128,19 +134,20 @@ export async function placeKioskOrder(
   const nombre = name.trim();
   if (!nombre) return { error: "Escribe un nombre para el pedido." };
 
-  const res = await placeOrder({
-    lines,
-    mode: "recoger",
-    storeId: kiosko.storeId,
-    customer: { name: nombre.slice(0, 60), phone: "", notes: notes?.trim() || undefined },
-    payment: "pendiente",
-    paymentMethod,
-    channel: "mostrador",
-    // Si el equipo cambia un precio mientras alguien está pidiendo, mejor
-    // rechazar y que lo rehaga que enseñarle un total en pantalla y cobrarle
-    // otro distinto en la barra.
-    expectedTotal,
-  });
+  const res = await createOrder(
+    {
+      lines,
+      mode: "recoger",
+      storeId: kiosko.storeId,
+      customer: { name: nombre.slice(0, 60), phone: "", notes: notes?.trim() || undefined },
+      channel: "mostrador",
+      // Si el equipo cambia un precio mientras alguien está pidiendo, mejor
+      // rechazar y que lo rehaga que enseñarle un total en pantalla y cobrarle
+      // otro distinto en la barra.
+      expectedTotal,
+    },
+    { payment: "pendiente", paymentMethod },
+  );
 
   if ("error" in res) return res;
 
