@@ -96,6 +96,28 @@ export default function ContentEditor() {
   const set = <K extends keyof SiteContent>(key: K, value: SiteContent[K]) =>
     setDraft((d) => ({ ...d, [key]: value }));
 
+  /**
+   * Crear una categoría en «Menú» la mete sola a las cajas del quiosco que
+   * tienen sub-categorías (Batidos, Combos): así aparece al instante en la
+   * pestaña «Quiosco» con su selector, sin hacer nada más. Si no la quieres
+   * ahí, la quitas de «Sub-categorías que muestra» en esa caja.
+   */
+  const addCategory = () => {
+    const cat = blankCategory();
+    setDraft((d) => ({
+      ...d,
+      categories: [...d.categories, cat],
+      kiosk: {
+        ...d.kiosk,
+        categories: d.kiosk.categories.map((box) =>
+          box.categoryIds.length === 0 || box.categoryIds.includes(cat.id)
+            ? box
+            : { ...box, categoryIds: [...box.categoryIds, cat.id] },
+        ),
+      },
+    }));
+  };
+
   const save = () => {
     setError(null);
     startTransition(async () => {
@@ -402,10 +424,7 @@ export default function ContentEditor() {
                   </div>
                 );
               })}
-              <AddButton
-                label="Añadir categoría"
-                onClick={() => set("categories", [...draft.categories, blankCategory()])}
-              />
+              <AddButton label="Añadir categoría" onClick={addCategory} />
             </Panel>
 
             {draft.categories.map((c) => (

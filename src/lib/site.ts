@@ -113,7 +113,7 @@ export function normalizeSite(site: SiteContent): SiteContent {
       name: box.name ?? fabrica?.name ?? box.id,
       icon: box.icon ?? fabrica?.icon ?? "🥤",
       color: box.color ?? fabrica?.color ?? "#FF6A1A",
-      categoryIds: box.categoryIds ?? fabrica?.categoryIds ?? [],
+      categoryIds: (box.categoryIds ?? fabrica?.categoryIds ?? []).filter(Boolean),
       productsByCategory,
       useDaily: box.useDaily ?? fabrica?.useDaily ?? false,
     };
