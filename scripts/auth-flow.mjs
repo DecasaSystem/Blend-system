@@ -19,7 +19,6 @@ ctx.on("page", (p) => {
 });
 const page = await ctx.newPage();
 
-
 try {
   // --- Sin sesión no se llega al tablero ---
   await page.goto(`${URL}/equipo`, { waitUntil: "networkidle" });
@@ -33,7 +32,7 @@ try {
 
   // --- Clave equivocada ---
   await page.getByLabel("Correo").fill(user.email);
-  await page.getByLabel("Contraseña").fill("estaNoEsLaClave");
+  await page.locator('input[name="password"]').fill("estaNoEsLaClave");
   await page.getByRole("button", { name: "Entrar" }).click();
   await page.waitForTimeout(1200);
   const msg = (await page.locator("#login-error").innerText()).trim();
@@ -46,7 +45,7 @@ try {
 
   // --- Correo que no existe: mismo mensaje ---
   await page.getByLabel("Correo").fill("nadie@blend.test");
-  await page.getByLabel("Contraseña").fill("loquesea1234");
+  await page.locator('input[name="password"]').fill("loquesea1234");
   await page.getByRole("button", { name: "Entrar" }).click();
   await page.waitForTimeout(1200);
   const msg2 = (await page.locator("#login-error").innerText()).trim();
@@ -54,7 +53,7 @@ try {
 
   // --- Entrar de verdad ---
   await page.getByLabel("Correo").fill(user.email);
-  await page.getByLabel("Contraseña").fill(user.password);
+  await page.locator('input[name="password"]').fill(user.password);
   await page.getByRole("button", { name: "Entrar" }).click();
   await page.waitForURL(`${URL}/equipo`, { timeout: 60000 });
   // El tablero elige diseño tras montar, así que la columna aparece un instante después.

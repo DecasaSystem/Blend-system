@@ -43,7 +43,7 @@ export async function deleteUser(sql, email) {
 export async function login(page, url, user) {
   await page.goto(`${url}/equipo/login`, { waitUntil: "networkidle" });
   await page.getByLabel("Correo").fill(user.email);
-  await page.getByLabel("Contraseña").fill(user.password);
+  await page.locator('input[name="password"]').fill(user.password);
   await page.getByRole("button", { name: "Entrar" }).click();
   await page.waitForURL(`${url}/equipo`, { timeout: 60000 });
 }

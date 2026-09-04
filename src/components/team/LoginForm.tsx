@@ -5,10 +5,12 @@ import { useFormStatus } from "react-dom";
 import Link from "next/link";
 import Logo from "../Logo";
 import InkField from "../InkField";
+import { usePasswordEye } from "../PasswordEye";
 import { signIn, type SignInState } from "@/actions/auth";
 
 export default function LoginForm() {
   const [state, action] = useActionState<SignInState, FormData>(signIn, {});
+  const clave = usePasswordEye();
 
   return (
     <main className="relative min-h-svh overflow-hidden bg-ink text-paper">
@@ -32,7 +34,7 @@ export default function LoginForm() {
         </h1>
         <p className="mt-4 text-paper/65">Solo para el equipo de tienda.</p>
 
-        <form action={action} className="mt-8">
+        <form action={action} onSubmit={clave.hide} className="mt-8">
           <label className="u-mono mb-2 block text-paper/50" htmlFor="email">
             Correo
           </label>
@@ -49,18 +51,23 @@ export default function LoginForm() {
           <label className="u-mono mb-2 mt-4 block text-paper/50" htmlFor="password">
             Contraseña
           </label>
-          <input
-            id="password"
-            name="password"
-            type="password"
-            autoComplete="current-password"
-            required
-            placeholder="••••••••"
-            aria-describedby={state.error ? "login-error" : undefined}
-            className={`w-full rounded-full border-[1.5px] bg-transparent px-5 py-3.5 text-base text-paper outline-none placeholder:text-paper/35 focus:border-paper ${
-              state.error ? "border-mango" : "border-paper/30"
-            }`}
-          />
+          {/* `relative` para que el ojo se posicione dentro del campo, y `pr-14`
+              para que el texto largo no pase por debajo del botón. */}
+          <div className="relative">
+            <input
+              id="password"
+              name="password"
+              type={clave.type}
+              autoComplete="current-password"
+              required
+              placeholder="••••••••"
+              aria-describedby={state.error ? "login-error" : undefined}
+              className={`w-full rounded-full border-[1.5px] bg-transparent py-3.5 pl-5 pr-14 text-base text-paper outline-none placeholder:text-paper/35 focus:border-paper ${
+                state.error ? "border-mango" : "border-paper/30"
+              }`}
+            />
+            {clave.eye}
+          </div>
 
           {state.error ? (
             <p id="login-error" className="u-mono mt-3 text-mango" role="alert">

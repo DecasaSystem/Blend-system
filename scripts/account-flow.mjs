@@ -28,7 +28,7 @@ async function register(target, mail) {
   await target.getByLabel("Nombre").fill("Camila Ruiz");
   await target.getByLabel("Correo").fill(mail);
   await target.getByLabel("Teléfono").fill("310 123 4567");
-  await target.getByLabel("Contraseña").fill(password);
+  await target.locator('input[name="password"]').fill(password);
   await target.getByRole("button", { name: "Crear cuenta" }).click();
   await target.waitForURL(`${URL}/cuenta`, { timeout: 60000 });
 }
@@ -42,7 +42,7 @@ try {
   await page.goto(`${URL}/cuenta/registro`, { waitUntil: "networkidle" });
   await page.getByLabel("Nombre").fill("Camila Ruiz");
   await page.getByLabel("Correo").fill(email);
-  await page.getByLabel("Contraseña").fill("corta");
+  await page.locator('input[name="password"]').fill("corta");
   await page.getByRole("button", { name: "Crear cuenta" }).click();
   await page.waitForTimeout(1500);
   check(
@@ -93,7 +93,10 @@ try {
   // --- El checkout llega prellenado y con la dirección guardada ---
   const shop = await ctx.newPage();
   await shop.goto(URL, { waitUntil: "networkidle" });
-  check("la barra muestra Mi cuenta", await shop.getByRole("link", { name: "Mi cuenta" }).isVisible());
+  check(
+    "la barra muestra Mi cuenta",
+    await shop.getByRole("link", { name: "Mi cuenta" }).isVisible(),
+  );
 
   await shop.evaluate(() => localStorage.clear());
   await shop.reload({ waitUntil: "networkidle" });
@@ -106,7 +109,10 @@ try {
   await shop.goto(`${URL}/checkout`, { waitUntil: "networkidle" });
 
   check("prellena el nombre", (await shop.getByLabel("Nombre").inputValue()) === "Camila Ruiz");
-  check("prellena el teléfono", (await shop.getByLabel("Teléfono").inputValue()) === "310 123 4567");
+  check(
+    "prellena el teléfono",
+    (await shop.getByLabel("Teléfono").inputValue()) === "310 123 4567",
+  );
   check(
     "prellena la dirección guardada",
     (await shop.getByLabel("Dirección").inputValue()) === "Cra. 19 #10-55, apto 501",
@@ -164,7 +170,7 @@ try {
 
   // --- Volver a entrar ---
   await page.getByLabel("Correo").fill(email);
-  await page.getByLabel("Contraseña").fill(password);
+  await page.locator('input[name="password"]').fill(password);
   await page.getByRole("button", { name: "Entrar" }).click();
   await page.waitForURL(`${URL}/cuenta`, { timeout: 60000 });
   await page.waitForTimeout(600);

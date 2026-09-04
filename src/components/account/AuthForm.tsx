@@ -5,6 +5,7 @@ import { useFormStatus } from "react-dom";
 import Link from "next/link";
 import AccountShell from "./AccountShell";
 import GoogleButton from "./GoogleButton";
+import { usePasswordEye } from "../PasswordEye";
 import { signIn, signUp, type AccountState } from "@/actions/account";
 
 /** Entrar y crear cuenta comparten forma: sólo cambian los campos. */
@@ -18,6 +19,7 @@ export default function AuthForm({
 }) {
   const isSignUp = mode === "registro";
   const [state, action] = useActionState<AccountState, FormData>(isSignUp ? signUp : signIn, {});
+  const clave = usePasswordEye();
 
   return (
     <AccountShell
@@ -41,7 +43,7 @@ export default function AuthForm({
         </div>
       ) : null}
 
-      <form action={action} className="mt-8 grid gap-4">
+      <form action={action} onSubmit={clave.hide} className="mt-8 grid gap-4">
         {isSignUp ? (
           <Field
             label="Nombre"
@@ -75,12 +77,13 @@ export default function AuthForm({
         <Field
           label="Contraseña"
           name="password"
-          type="password"
+          type={clave.type}
           autoComplete={isSignUp ? "new-password" : "current-password"}
           placeholder="••••••••"
           required
           hint={isSignUp ? "Mínimo 10 caracteres" : undefined}
           invalid={Boolean(state.error)}
+          trailing={clave.eye}
         />
 
         {state.error ? (
@@ -124,6 +127,7 @@ function Field({
   required,
   hint,
   invalid,
+  trailing,
 }: {
   label: string;
   name: string;
@@ -133,20 +137,26 @@ function Field({
   required?: boolean;
   hint?: string;
   invalid?: boolean;
+  /** Botón que va dentro del campo, pegado a la derecha. */
+  trailing?: React.ReactNode;
 }) {
   return (
     <label className="block">
       <span className="u-mono mb-2 block text-ink/45">{label}</span>
-      <input
-        id={name}
-        name={name}
-        type={type}
-        placeholder={placeholder}
-        autoComplete={autoComplete}
-        required={required}
-        aria-describedby={invalid ? "account-error" : undefined}
-        className={`input ${invalid ? "border-mango" : ""}`}
-      />
+      <div className="relative">
+        <input
+          id={name}
+          name={name}
+          type={type}
+          placeholder={placeholder}
+          autoComplete={autoComplete}
+          required={required}
+          aria-describedby={invalid ? "account-error" : undefined}
+          // `pr-14` sólo cuando hay botón: si no, el texto pasaría por debajo.
+          className={`input ${trailing ? "pr-14" : ""} ${invalid ? "border-mango" : ""}`}
+        />
+        {trailing}
+      </div>
       {hint ? <span className="u-mono mt-1.5 block text-ink/35">{hint}</span> : null}
     </label>
   );

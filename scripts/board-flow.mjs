@@ -27,7 +27,13 @@ try {
   const board = await ctx.newPage();
   await login(board, URL, user);
   await board.waitForTimeout(1000);
-  check("arranca sin pedidos", await board.getByText(/Nada esperando/).first().isVisible());
+  check(
+    "arranca sin pedidos",
+    await board
+      .getByText(/Nada esperando/)
+      .first()
+      .isVisible(),
+  );
 
   // --- La tienda hace un pedido ---
   const shop = await ctx.newPage();
@@ -72,7 +78,10 @@ try {
 
   // --- El tablero se entera solo (consulta cada 4 s) ---
   const card = board.locator("article").filter({ hasText: orderId });
-  await card.first().waitFor({ timeout: 20000 }).catch(() => {});
+  await card
+    .first()
+    .waitFor({ timeout: 20000 })
+    .catch(() => {});
   check("el pedido llega al tablero sin recargar", (await card.count()) === 1);
 
   const cardText = (await card.first().innerText()).replace(/\n/g, " | ");
@@ -95,7 +104,11 @@ try {
   };
 
   const press = async (label) =>
-    board.locator("article").filter({ hasText: orderId }).getByRole("button", { name: label }).click();
+    board
+      .locator("article")
+      .filter({ hasText: orderId })
+      .getByRole("button", { name: label })
+      .click();
 
   await press("Empezar");
   check("el estado se guarda en la base", (await waitForStatus("preparando")) === "preparando");
@@ -132,7 +145,11 @@ try {
   const stranger = await browser.newContext();
   const sneak = await stranger.newPage();
   const res = await sneak.goto(`${URL}/equipo`, { waitUntil: "networkidle" });
-  check("un desconocido no entra al tablero", sneak.url().endsWith("/equipo/login"), String(res?.status()));
+  check(
+    "un desconocido no entra al tablero",
+    sneak.url().endsWith("/equipo/login"),
+    String(res?.status()),
+  );
   await stranger.close();
 } catch (err) {
   crashed(err);

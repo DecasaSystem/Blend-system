@@ -36,7 +36,9 @@ try {
 
   const [scheme, saltHex, keyHex] = String(user.password_hash).split(":");
   console.log(`Cuenta: ${user.email}`);
-  console.log(`Formato del hash: ${scheme} · sal ${saltHex?.length ?? 0} · clave ${keyHex?.length ?? 0}`);
+  console.log(
+    `Formato del hash: ${scheme} · sal ${saltHex?.length ?? 0} · clave ${keyHex?.length ?? 0}`,
+  );
 
   if (scheme !== "scrypt" || !saltHex || !keyHex) {
     console.log("\nEl hash guardado está mal formado. Vuelve a crear la cuenta.");
@@ -47,7 +49,11 @@ try {
   console.log(`Longitud de lo que escribiste: ${password.length} caracteres`);
 
   const expected = Buffer.from(keyHex, "hex");
-  const actual = await scryptAsync(password.normalize("NFKC"), Buffer.from(saltHex, "hex"), expected.length);
+  const actual = await scryptAsync(
+    password.normalize("NFKC"),
+    Buffer.from(saltHex, "hex"),
+    expected.length,
+  );
   const ok = actual.length === expected.length && timingSafeEqual(actual, expected);
 
   console.log(ok ? "\nCOINCIDE. La contraseña guardada es esa." : "\nNO COINCIDE con la guardada.");

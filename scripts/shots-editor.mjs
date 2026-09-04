@@ -43,7 +43,12 @@ for (const d of [
   // Menú con un producto abierto
   await page.getByRole("button", { name: "Menú", exact: true }).click();
   await page.waitForTimeout(300);
-  await page.locator("details").filter({ hasText: "Mango Terco" }).first().locator("summary").click();
+  await page
+    .locator("details")
+    .filter({ hasText: "Mango Terco" })
+    .first()
+    .locator("summary")
+    .click();
   await page.waitForTimeout(300);
   await page.screenshot({ path: `${OUT}/${d.name}-producto.png` });
 

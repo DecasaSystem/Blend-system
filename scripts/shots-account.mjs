@@ -40,7 +40,7 @@ try {
     await page.getByLabel("Nombre").fill("Camila Ruiz");
     await page.getByLabel("Correo").fill(email);
     await page.getByLabel("Teléfono").fill("310 123 4567");
-    await page.getByLabel("Contraseña").fill(password);
+    await page.locator('input[name="password"]').fill(password);
     await page.getByRole("button", { name: "Crear cuenta" }).click();
     await page.waitForURL(`${URL}/cuenta`, { timeout: 25000 });
 

@@ -64,14 +64,14 @@ try {
   const slot = await page.locator("[data-google-slot]").count();
   check(
     configured ? "aparece el hueco del botón de Google" : "sin credenciales no hay botón",
-    (slot > 0) === configured,
+    slot > 0 === configured,
     `huecos=${slot}`,
   );
 
   check(
     "el correo y la contraseña siguen ahí",
     (await page.getByLabel("Correo").isVisible()) &&
-      (await page.getByLabel("Contraseña").isVisible()),
+      (await page.locator('input[name="password"]').isVisible()),
   );
 
   // --- Una cuenta con contraseña, creada antes ---
@@ -80,7 +80,7 @@ try {
   await page.getByLabel("Correo").fill(emailConPassword);
   await page.getByLabel("Teléfono").fill("310 123 4567");
   const password = randomBytes(12).toString("base64url");
-  await page.getByLabel("Contraseña").fill(password);
+  await page.locator('input[name="password"]').fill(password);
   await page.getByRole("button", { name: "Crear cuenta" }).click();
   await page.waitForURL(`${URL}/cuenta`, { timeout: 60000 });
   check("existe una cuenta con contraseña", true);
@@ -102,7 +102,8 @@ try {
   `;
   check("sigue habiendo una sola cuenta", cuentas.n === 1, `${cuentas.n}`);
 
-  const [despues] = await sql`select password_hash, google_id from customers where id = ${antes.id}`;
+  const [despues] =
+    await sql`select password_hash, google_id from customers where id = ${antes.id}`;
   check("guarda el identificador de Google", despues.google_id === googleIdExistente);
   check("conserva la contraseña que ya tenía", despues.password_hash !== null);
 
@@ -128,7 +129,7 @@ try {
   const anon = await limpio.newPage();
   await anon.goto(`${URL}/cuenta/entrar`, { waitUntil: "networkidle" });
   await anon.getByLabel("Correo").fill(emailNuevo);
-  await anon.getByLabel("Contraseña").fill("loquesea1234567");
+  await anon.locator('input[name="password"]').fill("loquesea1234567");
   await anon.getByRole("button", { name: "Entrar" }).click();
   await anon.waitForTimeout(2500);
   check(
