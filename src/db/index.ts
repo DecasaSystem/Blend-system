@@ -25,8 +25,10 @@ const client =
   globalForDb.blendSql ??
   postgres(url, {
     max: 5,
-    idle_timeout: 20,
-    connect_timeout: 15,
+    // En Vercel las funciones se congelan entre invocaciones: tiempos más
+    // generosos evitan que un cold start mate la conexión antes de usarla.
+    idle_timeout: 30,
+    connect_timeout: 20,
   });
 
 if (process.env.NODE_ENV !== "production") globalForDb.blendSql = client;
