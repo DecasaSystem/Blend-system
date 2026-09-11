@@ -84,17 +84,24 @@ export default function VesselArt({
 }) {
   if (media) {
     return (
-      // eslint-disable-next-line @next/next/no-img-element
-      /* `object-contain`, no `cover`: la foto de un producto es el producto
+      /* La foto va dentro de una caja con la misma proporción que la
+         ilustración (viewBox 200×268). Así todas las cartas miden igual sin
+         importar si el equipo subió una foto apaisada, cuadrada o vertical:
+         antes el alto lo dictaba cada foto y una carta quedaba más alta que
+         la de al lado.
+         `object-contain`, no `cover`: la foto de un producto es el producto
          entero. Recortarla para llenar la caja le corta la tapa o el popote. */
-      <img
-        src={mediaUrl(media, { width })}
-        srcSet={mediaSrcSet(media, width)}
-        alt={alt ?? ""}
-        className={`h-full w-full object-contain ${className}`}
-        loading="lazy"
-        decoding="async"
-      />
+      <div className={`aspect-[200/268] ${className}`}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={mediaUrl(media, { width })}
+          srcSet={mediaSrcSet(media, width)}
+          alt={alt ?? ""}
+          className="h-full w-full object-contain"
+          loading="lazy"
+          decoding="async"
+        />
+      </div>
     );
   }
 
