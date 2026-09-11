@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition } from "react";
+import { CupLoader } from "@/components/CupLoader";
 import { useRouter } from "next/navigation";
 import {
   Area,
@@ -1195,7 +1196,9 @@ export default function ContentEditor() {
             ) : flash ? (
               <span className="text-matcha-deep">{flash}</span>
             ) : pending ? (
-              "Publicando…"
+              <>
+                <CupLoader /> Publicando…
+              </>
             ) : dirty ? (
               "Cambios sin publicar"
             ) : customized ? (

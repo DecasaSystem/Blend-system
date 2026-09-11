@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition } from "react";
+import { CupLoader } from "@/components/CupLoader";
 import { useRouter } from "next/navigation";
 import Logo from "../Logo";
 import VesselArt from "../VesselArt";
@@ -330,7 +331,13 @@ export default function KioskOrder({
               disabled={pendiente || !nombre.trim() || count === 0}
               className="btn btn-mango flex-1 py-5 text-lg disabled:cursor-not-allowed disabled:opacity-40"
             >
-              {pendiente ? "Enviando…" : `Enviar a la barra · ${money(subtotal)}`}
+              {pendiente ? (
+                <>
+                  <CupLoader /> Enviando…
+                </>
+              ) : (
+                `Enviar a la barra · ${money(subtotal)}`
+              )}
             </button>
             <button
               type="button"

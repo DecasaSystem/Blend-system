@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import { CupLoader } from "@/components/CupLoader";
 import { useFormStatus } from "react-dom";
 import Link from "next/link";
 import Logo from "../Logo";
@@ -97,7 +98,13 @@ function SubmitButton() {
       disabled={pending}
       className="btn btn-mango mt-6 w-full disabled:opacity-60"
     >
-      {pending ? "Entrando…" : "Entrar"}
+      {pending ? (
+        <>
+          <CupLoader /> Entrando…
+        </>
+      ) : (
+        "Entrar"
+      )}
     </button>
   );
 }

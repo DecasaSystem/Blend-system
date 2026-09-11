@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { CupLoader } from "@/components/CupLoader";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Logo from "./Logo";
@@ -94,6 +95,7 @@ export default function PaymentResult({
             <p className="mt-4 leading-relaxed text-ink/65">
               Tarda unos segundos. No cierres esta página; se actualiza sola.
             </p>
+            <CupLoader size={72} label="Esperando a la pasarela…" className="mt-6" />
           </>
         )}
 

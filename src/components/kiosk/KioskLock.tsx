@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { CupLoader } from "@/components/CupLoader";
 import { useRouter } from "next/navigation";
 import Logo from "../Logo";
 import InkField from "../InkField";
@@ -121,7 +122,13 @@ export default function KioskLock({ stores, activo }: { stores: Store[]; activo:
                 disabled={pendiente}
                 className="btn btn-mango mt-6 w-full disabled:opacity-60"
               >
-                {pendiente ? "Un momento…" : "Activar esta pantalla"}
+                {pendiente ? (
+                  <>
+                    <CupLoader /> Un momento…
+                  </>
+                ) : (
+                  "Activar esta pantalla"
+                )}
               </button>
             </form>
           </>

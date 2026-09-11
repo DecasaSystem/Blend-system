@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
+import { CupLoader } from "@/components/CupLoader";
 import { Barras, Card, Columnas, Empty, LineaVentas, Reparto, Tile } from "./charts";
 import { loadStats, type Fila, type Stats } from "@/actions/stats";
 import { money } from "@/lib/cart";
@@ -114,7 +115,7 @@ export default function StatsPanel() {
   }
 
   if (!stats) {
-    return <p className="u-mono py-16 text-center text-ink/35">Cargando métricas…</p>;
+    return <CupLoader size={72} label="Cargando métricas…" className="py-16" />;
   }
 
   const r = stats.resumen;

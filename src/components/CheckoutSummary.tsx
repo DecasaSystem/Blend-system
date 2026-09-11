@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { CupLoader } from "@/components/CupLoader";
 import Link from "next/link";
 import Logo from "./Logo";
 import { useCart } from "./CartProvider";
@@ -441,7 +442,11 @@ export default function CheckoutSummary({
                 className="btn btn-mango mt-6 w-full disabled:opacity-60 sm:w-auto"
               >
                 {pending
-                  ? "Un momento…"
+                  ? (
+                    <>
+                      <CupLoader /> Un momento…
+                    </>
+                  )
                   : cardPayments && method === "tarjeta"
                     ? `Pagar ${money(total)}`
                     : `Enviar el pedido · ${money(total)}`}

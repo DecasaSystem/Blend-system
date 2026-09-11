@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState, useTransition } from "react";
+import { CupLoader } from "@/components/CupLoader";
 import {
   changeMemberRole,
   createMember,
@@ -103,7 +104,9 @@ export default function TeamPanel({ user }: { user: SessionUser }) {
           ) : flash ? (
             <span className="text-matcha-deep">{flash}</span>
           ) : pendiente ? (
-            <span className="text-ink/40">Un momento…</span>
+            <span className="inline-flex items-center gap-1.5 text-ink/40">
+              <CupLoader /> Un momento…
+            </span>
           ) : null}
         </p>
       </div>
@@ -119,7 +122,7 @@ export default function TeamPanel({ user }: { user: SessionUser }) {
       ) : null}
 
       {miembros === null ? (
-        <p className="u-mono py-10 text-center text-ink/35">Cargando…</p>
+        <CupLoader size={64} label="Cargando el equipo…" className="py-10" />
       ) : (
         <ul className="mt-5 grid gap-2">
           {miembros.map((m) => (

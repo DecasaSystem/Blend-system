@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { CupLoader } from "@/components/CupLoader";
 import type { Map as MapLibreMap, Marker } from "maplibre-gl";
 import IllustratedMap from "./IllustratedMap";
 import { boundsOf, CITY_CENTER } from "@/lib/geo";
@@ -208,8 +209,8 @@ export default function StoreMap({
       />
 
       {status === "cargando" ? (
-        <p className="u-mono absolute left-3 top-3 rounded-full border-[1.5px] border-ink/15 bg-paper/90 px-3 py-1.5 text-ink/45 backdrop-blur">
-          Cargando el mapa…
+        <p className="u-mono absolute left-3 top-3 flex items-center gap-1.5 rounded-full border-[1.5px] border-ink/15 bg-paper/90 px-3 py-1.5 text-ink/45 backdrop-blur">
+          <CupLoader size={14} /> Cargando el mapa…
         </p>
       ) : null}
 
