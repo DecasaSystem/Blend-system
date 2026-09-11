@@ -39,12 +39,16 @@ export default function MenuSection() {
 
         <p className="u-mono mt-4 text-ink/40">{active?.note ?? "Fruta congelada, nunca hielo"}</p>
 
-        {/* Rejilla */}
-        <div className="mt-8 grid grid-cols-2 gap-4 sm:gap-5 lg:grid-cols-4">
+        {/* Rejilla. Cuatro columnas sólo desde xl: en un portátil de 1024–1280 px
+            la carta quedaba en 180–245 px de contenido y el pie (precio + Editar
+            + agregar, ~250 px) no cabía: el precio se montaba sobre «Editar». */}
+        <div className="mt-8 grid grid-cols-2 gap-4 sm:gap-5 lg:grid-cols-3 xl:grid-cols-4">
           {list.map((p) => (
             <article
               key={p.id}
-              className={`card-ink group flex flex-col p-4 sm:p-5 ${p.soldOut ? "opacity-60" : ""}`}
+              // `@container`: el botón «Editar» decide si se muestra según el
+              // ancho real de la carta, no el de la pantalla.
+              className={`card-ink group @container flex flex-col p-4 sm:p-5 ${p.soldOut ? "opacity-60" : ""}`}
             >
               <div className="flex items-start justify-between gap-2">
                 {p.soldOut ? (
@@ -119,12 +123,15 @@ export default function MenuSection() {
                   ) : null}
                   {money(fromPrice(p))}
                 </span>
-                <div className="flex items-center gap-1.5">
+                <div className="flex shrink-0 items-center gap-1.5">
+                  {/* Sólo si la carta tiene ≥ 16rem de contenido, que es lo que
+                      cabe junto al precio. En móvil y en cartas estrechas el
+                      nombre y la ilustración ya abren la hoja. */}
                   <button
                     type="button"
                     onClick={() => openSheet(p)}
                     disabled={p.soldOut}
-                    className="u-mono hidden min-h-11 items-center rounded-full border-[1.5px] border-ink/20 px-3 text-ink/60 transition-colors hover:border-ink hover:text-ink disabled:opacity-40 sm:inline-flex"
+                    className="u-mono hidden min-h-11 items-center rounded-full border-[1.5px] border-ink/20 px-3 text-ink/60 transition-colors hover:border-ink hover:text-ink disabled:opacity-40 @[16rem]:inline-flex"
                   >
                     Editar
                   </button>
