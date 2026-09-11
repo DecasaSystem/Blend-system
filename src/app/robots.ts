@@ -1,4 +1,5 @@
 import type { MetadataRoute } from "next";
+import { siteOrigin } from "@/lib/seo";
 
 /**
  * robots.txt: lo público se indexa, lo operativo no.
@@ -16,6 +17,6 @@ export default function robots(): MetadataRoute.Robots {
         disallow: ["/equipo", "/quiosco", "/checkout", "/cuenta", "/api/"],
       },
     ],
-    sitemap: "https://blend.cafe/sitemap.xml",
+    sitemap: `${siteOrigin()}/sitemap.xml`,
   };
 }

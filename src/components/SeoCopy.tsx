@@ -33,19 +33,28 @@ export default function SeoCopy({ site }: { site: SiteContent }) {
     .map((s) => `${s.name}, ${s.address}. Horario ${s.hours}`)
     .join(". ");
 
+  // Lo que vende el quiosco y no está en la carta web (las crispetas, por
+  // ejemplo) también cuenta: es lo que la gente busca de una tienda física.
+  const cajasQuiosco = site.kiosk.categories
+    .map((c) => c.name)
+    .filter((n) => !site.categories.some((c) => c.name === n));
+  const categorias = site.categories.map((c) => c.name.toLocaleLowerCase("es")).join(", ");
+
   return (
     <aside className="sr-only" aria-label={`Sobre ${site.brand.name}`}>
       <h2>
         {site.brand.name}: {site.brand.tagline} en Armenia, Quindío
       </h2>
       <p>
-        {site.brand.name} es una casa de batidos naturales de fruta congelada en Armenia, Quindío,
-        Colombia. Batidos saludables sin azúcar añadida, matcha ceremonial de Uji, açaí bowls con
-        granola de la casa, cold brew de 18 horas y shots de jengibre. {site.brand.delivery}.
-        Pedidos en línea con pago con tarjeta o en efectivo, y puntos de venta en dos sedes.
-        Teléfono {site.brand.phone}.
+        {site.brand.name} es una casa de batidos, smoothies y jugos naturales de fruta congelada en
+        Armenia, Quindío, Colombia. Batidos saludables sin azúcar añadida, matcha ceremonial de Uji,
+        açaí bowls con granola de la casa, cold brew de 18 horas y shots de jengibre
+        {cajasQuiosco.length ? `, y en tienda ${cajasQuiosco.join(", ").toLocaleLowerCase("es")}` : ""}
+        . {site.brand.delivery}. Pedidos en línea con pago con tarjeta o en efectivo, y puntos de
+        venta en {site.stores.length} {site.stores.length === 1 ? "sede" : "sedes"}. Teléfono{" "}
+        {site.brand.phone}.
       </p>
-      <h2>Menú de batidos, matcha, bowls y café frío</h2>
+      <h2>Menú de {categorias}</h2>
       <p>{menu}.</p>
       {delDia ? (
         <>

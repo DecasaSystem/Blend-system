@@ -7,7 +7,7 @@ import PaymentResult from "@/components/PaymentResult";
 import { getCustomer } from "@/lib/customer-session";
 
 export const metadata: Metadata = {
-  title: "BLEND · Pedido confirmado",
+  title: "Pedido confirmado",
   robots: { index: false, follow: false },
 };
 

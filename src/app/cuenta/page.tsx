@@ -5,7 +5,7 @@ import { myAddresses, myOrders, myStamps } from "@/actions/account";
 import { getCustomer } from "@/lib/customer-session";
 
 export const metadata: Metadata = {
-  title: "BLEND · Tu cuenta",
+  title: "Tu cuenta",
   robots: { index: false, follow: false },
 };
 

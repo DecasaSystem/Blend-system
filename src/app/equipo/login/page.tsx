@@ -4,7 +4,7 @@ import LoginForm from "@/components/team/LoginForm";
 import { getSessionUser } from "@/lib/session";
 
 export const metadata: Metadata = {
-  title: "BLEND · Entrar",
+  title: "Entrar",
   robots: { index: false, follow: false },
 };
 

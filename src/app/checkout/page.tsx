@@ -5,7 +5,7 @@ import { cardPaymentsAvailable } from "@/actions/checkout";
 import { getCustomer } from "@/lib/customer-session";
 
 export const metadata: Metadata = {
-  title: "BLEND · Tu pedido",
+  title: "Tu pedido",
   robots: { index: false, follow: false },
 };
 

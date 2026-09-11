@@ -4,7 +4,7 @@ import { listOrders } from "@/actions/orders";
 import { requireUser } from "@/lib/session";
 
 export const metadata: Metadata = {
-  title: "BLEND · Barra",
+  title: "Barra",
   robots: { index: false, follow: false },
 };
 

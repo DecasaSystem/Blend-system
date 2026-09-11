@@ -18,12 +18,12 @@ import SeoCopy from "@/components/SeoCopy";
 import SeoJsonLd from "@/components/SeoJsonLd";
 import { getCustomer } from "@/lib/customer-session";
 import { loadSiteContent } from "@/actions/content";
-import { faqJsonLd, menuJsonLd, pageMetadata } from "@/lib/seo";
+import { faqJsonLd, menuJsonLd, pageMetadata, productsJsonLd } from "@/lib/seo";
 
 export const metadata: Metadata = pageMetadata({
   title: "BLEND — Casa de batidos, matcha y açaí en Armenia",
   description:
-    "Batidos de fruta congelada, matcha ceremonial de Uji, açaí bowls y cold brew en Armenia, Quindío. Sedes Norte y Centro. Pide en línea, recoge en 25 minutos o recibe a domicilio.",
+    "Batidos, smoothies y jugos naturales de fruta congelada, matcha ceremonial de Uji, açaí bowls, cold brew y crispetas en Armenia, Quindío. Sedes Norte y Centro. Pide en línea, recoge en 25 minutos o recibe a domicilio.",
   path: "/",
 });
 
@@ -33,7 +33,7 @@ export default async function Home() {
 
   return (
     <>
-      <SeoJsonLd data={[menuJsonLd(site), faqJsonLd(site)]} />
+      <SeoJsonLd data={[menuJsonLd(site), productsJsonLd(site), faqJsonLd(site)]} />
       <Marquee />
       <Nav signedIn={Boolean(customer)} />
       <main>

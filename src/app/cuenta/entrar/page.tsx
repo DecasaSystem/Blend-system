@@ -4,7 +4,7 @@ import AuthForm from "@/components/account/AuthForm";
 import { getCustomer } from "@/lib/customer-session";
 
 export const metadata: Metadata = {
-  title: "BLEND · Entrar",
+  title: "Entrar",
   robots: { index: false, follow: false },
 };
 

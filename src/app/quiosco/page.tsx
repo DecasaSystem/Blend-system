@@ -14,7 +14,7 @@ import { loadSiteContent } from "@/actions/content";
  */
 
 export const metadata: Metadata = {
-  title: "BLEND · Pide aquí",
+  title: "Pide aquí",
   robots: { index: false, follow: false, nocache: true },
 };
 
