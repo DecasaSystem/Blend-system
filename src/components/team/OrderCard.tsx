@@ -16,9 +16,12 @@ import {
 } from "@/lib/orders";
 import { useSite } from "../SiteProvider";
 
-/** Corto a propósito: en la ficha compite con el total. */
+/**
+ * Corto a propósito: en la ficha compite con el total. `tarjeta` es lo que
+ * confirma Wompi, y por ahí entra también PSE o Nequi: se dice «en línea».
+ */
 const PAYMENT_LABEL: Record<Order["payment"], string> = {
-  tarjeta: "Tarjeta",
+  tarjeta: "Pagado en línea",
   efectivo: "Efectivo",
   pendiente: "Sin pagar",
 };

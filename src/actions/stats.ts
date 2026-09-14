@@ -226,7 +226,7 @@ export async function loadStats(dias: number): Promise<Stats> {
       { nombre: "Recoger", valor: modo.recoger },
     ],
     pago: [
-      { nombre: "Tarjeta", valor: pago.tarjeta },
+      { nombre: "En línea", valor: pago.tarjeta },
       { nombre: "Efectivo", valor: pago.efectivo },
       { nombre: "Sin pagar", valor: pago.pendiente },
     ],

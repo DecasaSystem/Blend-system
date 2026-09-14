@@ -12,8 +12,11 @@ import { useSite } from "./SiteProvider";
 
 /**
  * Resumen y envío del pedido a la barra.
- * El pago con tarjeta entra en la fase 6; por ahora el pedido sale marcado
- * como "pago pendiente" y aparece igual en /equipo.
+ *
+ * Con Wompi configurado se ofrece pagar en línea (tarjeta, PSE, Nequi: los
+ * medios los elige el cliente dentro de Wompi). Sin claves, o si prefiere
+ * pagar al recibir, el pedido sale marcado como "pago pendiente" y aparece
+ * igual en /equipo.
  */
 type SavedAddress = { id: string; label: string; address: string };
 
@@ -409,7 +412,14 @@ export default function CheckoutSummary({
                   <div className="grid gap-2 sm:grid-cols-2">
                     {(
                       [
-                        { id: "tarjeta", label: "Con tarjeta ahora", hint: "Pago seguro" },
+                        // El id sigue siendo «tarjeta» por el historial de
+                        // pedidos; Wompi ofrece también PSE y Nequi y hay que
+                        // decirlo, o quien no tiene tarjeta ni lo intenta.
+                        {
+                          id: "tarjeta",
+                          label: "Pagar en línea ahora",
+                          hint: "Tarjeta, PSE o Nequi",
+                        },
                         {
                           id: "recibir",
                           label: mode === "envio" ? "Al recibir" : "Al recoger",
@@ -460,7 +470,7 @@ export default function CheckoutSummary({
 
               <p className="u-mono mt-3 text-ink/40">
                 {cardPayments && method === "tarjeta"
-                  ? "Te llevamos a Wompi. La barra ve tu pedido cuando el pago se confirme."
+                  ? "Te llevamos a Wompi, donde eliges tarjeta de crédito o débito, PSE o Nequi. La barra ve tu pedido cuando el pago se confirme."
                   : "El pedido llega a la barra marcado como pago pendiente."}
               </p>
             </form>
