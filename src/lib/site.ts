@@ -1,5 +1,6 @@
 import {
   brand,
+  builder,
   builderBases,
   builderIngredients,
   categories,
@@ -18,8 +19,9 @@ import {
   slides,
   stores,
   toppings,
+  type BuilderConfig,
+  type BuilderItem,
   type Category,
-  type Ingredient,
   type KioskConfig,
   type Pricing,
   type Product,
@@ -55,8 +57,9 @@ export type SiteContent = {
   toppings: Topping[];
   sizes: Size[];
   pricing: Pricing;
-  builderBases: Ingredient[];
-  builderIngredients: Ingredient[];
+  builder: BuilderConfig;
+  builderBases: BuilderItem[];
+  builderIngredients: BuilderItem[];
   stores: Store[];
   sections: Record<SectionKey, SectionCopy>;
   processSteps: Step[];
@@ -78,6 +81,7 @@ export function defaultSite(): SiteContent {
     toppings,
     sizes,
     pricing,
+    builder,
     builderBases,
     builderIngredients,
     stores,
@@ -95,7 +99,8 @@ export function defaultSite(): SiteContent {
  * El merge de `loadSiteContent` es superficial: si la fila guardada trae un
  * `kiosk` de antes (sin `productIds`, o sin alguna caja nueva), ese objeto
  * pisa al de fábrica entero y el quiosco revienta con `undefined.map`.
- * Aquí cada caja vieja se rellena campo por campo.
+ * Aquí cada caja vieja se rellena campo por campo. Lo mismo con las reglas de
+ * «Arma tu blend»: el contenido guardado antes de que existieran no las trae.
  */
 export function normalizeSite(site: SiteContent): SiteContent {
   const base = defaultSite();
@@ -124,8 +129,21 @@ export function normalizeSite(site: SiteContent): SiteContent {
       boxes.push({ ...f, useDaily: f.useDaily ?? false });
     }
   }
+  // Bases e ingredientes guardados antes de `kcal` vienen sin él: se dejan tal
+  // cual, la sección sólo enseña calorías cuando alguno las trae.
+  const builderBases = (site.builderBases ?? base.builderBases).filter((b) => b?.name);
+  const builderIngredients = (site.builderIngredients ?? base.builderIngredients).filter(
+    (i) => i?.name,
+  );
+
   return {
     ...site,
+    builderBases,
+    builderIngredients,
+    builder: builderRules(
+      { ...base.builder, ...(site.builder ?? {}) },
+      builderIngredients.map((i) => i.name),
+    ),
     kiosk: {
       enabled: kiosk.enabled ?? true,
       idleVideo: kiosk.idleVideo,
@@ -134,6 +152,32 @@ export function normalizeSite(site: SiteContent): SiteContent {
       categories: boxes,
     },
   };
+}
+
+/** Tope razonable: más de esto ya no cabe en el vaso ni en la pantalla. */
+export const BUILDER_MAX_LIMIT = 12;
+
+/**
+ * Deja las reglas del constructor en un estado que no se contradiga.
+ *
+ * El editor y el servidor pasan por aquí: el máximo es al menos uno, los
+ * incluidos en el precio nunca superan al máximo, y los marcados al abrir sólo
+ * son ingredientes que existen, sin repetir y sin pasar del máximo. Sin esto,
+ * borrar un ingrediente dejaría un nombre fantasma en `preset` y la sección
+ * abriría con un hueco.
+ */
+export function builderRules(rules: BuilderConfig, ingredientNames: string[]): BuilderConfig {
+  const max = Math.min(BUILDER_MAX_LIMIT, Math.max(1, Math.floor(Number(rules.max) || 1)));
+  const included = Math.min(max, Math.max(0, Math.floor(Number(rules.included) || 0)));
+  const preset = Array.from(new Set(Array.isArray(rules.preset) ? rules.preset : []))
+    .filter((n) => ingredientNames.includes(n))
+    .slice(0, max);
+  return { max, included, preset, toppings: rules.toppings !== false };
+}
+
+/** Una base o ingrediente nuevo del constructor, listo para editar. */
+export function blankBuilderItem(name: string, color: string): BuilderItem {
+  return { name, color };
 }
 
 /** Un producto nuevo, listo para editar. */

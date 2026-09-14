@@ -16,24 +16,28 @@ import {
   Text,
   Toggle,
 } from "./fields";
-import { fromPrice, money, priceOf } from "@/lib/cart";
+import { builderPrice, fromPrice, money, priceOf } from "@/lib/cart";
 import {
+  BUILDER_MAX_LIMIT,
+  blankBuilderItem,
   blankCategory,
   blankProduct,
   blankStore,
+  builderRules,
   defaultSite,
   sizeKb,
   type SiteContent,
 } from "@/lib/site";
 import { resetSiteContent, saveSiteContent } from "@/actions/content";
 import { useSite } from "@/components/SiteProvider";
-import type { SectionKey, Vessel } from "@/lib/content";
+import type { BuilderItem, SectionKey, Vessel } from "@/lib/content";
 import { KIOSK_FLAT } from "@/lib/content";
 
 const TABS = [
   { id: "carrusel", label: "Carrusel" },
   { id: "dia", label: "Del día" },
   { id: "menu", label: "Menú" },
+  { id: "constructor", label: "Arma tu blend" },
   { id: "quiosco", label: "Quiosco" },
   { id: "precios", label: "Precios y adicionales" },
   { id: "textos", label: "Textos" },
@@ -118,6 +122,43 @@ export default function ContentEditor() {
       },
     }));
   };
+
+  /*
+   * «Arma tu blend». Los números se guardan tal cual se escriben: si al teclear
+   * «10» en el máximo se recortara el resto en el «1» intermedio, el equipo
+   * perdería lo que tenía. Lo que de verdad aplica lo calcula `builderRules`,
+   * igual que en el servidor, y es lo que se enseña en los resúmenes.
+   */
+  const rules = builderRules(
+    draft.builder,
+    draft.builderIngredients.map((i) => i.name),
+  );
+
+  const setRules = (patch: Partial<SiteContent["builder"]>) =>
+    setDraft((d) => ({ ...d, builder: { ...d.builder, ...patch } }));
+
+  const togglePreset = (name: string) =>
+    setDraft((d) => {
+      const on = d.builder.preset.includes(name);
+      const preset = on ? d.builder.preset.filter((n) => n !== name) : [...d.builder.preset, name];
+      return { ...d, builder: { ...d.builder, preset } };
+    });
+
+  // Al renombrar un ingrediente, los marcados al abrir lo siguen; al borrarlo,
+  // desaparece de ahí. Sin esto quedaría un nombre fantasma y la sección
+  // abriría con un hueco.
+  const setBuilderItems = (
+    key: "builderBases" | "builderIngredients",
+    items: BuilderItem[],
+    rename?: { from: string; to: string },
+  ) =>
+    setDraft((d) => {
+      if (key === "builderBases") return { ...d, builderBases: items };
+      const preset = (
+        rename ? d.builder.preset.map((n) => (n === rename.from ? rename.to : n)) : d.builder.preset
+      ).filter((n) => items.some((i) => i.name === n));
+      return { ...d, builderIngredients: items, builder: { ...d.builder, preset } };
+    });
 
   const save = () => {
     setError(null);
@@ -561,6 +602,167 @@ export default function ContentEditor() {
           </>
         ) : null}
 
+        {tab === "constructor" ? (
+          <>
+            <Note>
+              Lo que el cliente puede elegir al armar su blend: las bases, los ingredientes y las
+              reglas del juego. Las bases también son las que ofrece la ficha de cada bebida del
+              menú. El encabezado de la sección («Elige tres…») se edita en «Textos».
+            </Note>
+
+            <Panel
+              title="Reglas"
+              meta={`Hasta ${rules.max} ingredientes · ${rules.included} en el precio${
+                rules.toppings ? " · con adicionales" : " · sin adicionales"
+              }`}
+              defaultOpen
+            >
+              <Row>
+                <Num
+                  label="Máximo de ingredientes"
+                  value={draft.builder.max}
+                  min={1}
+                  onChange={(v) => setRules({ max: Math.min(BUILDER_MAX_LIMIT, v) })}
+                  suffix={`hasta ${BUILDER_MAX_LIMIT}`}
+                />
+                <Num
+                  label="Incluidos en el precio base"
+                  value={draft.builder.included}
+                  min={0}
+                  onChange={(v) => setRules({ included: v })}
+                  suffix="los demás cobran recargo"
+                />
+              </Row>
+              {draft.builder.included > rules.max ? (
+                <p className="u-mono normal-case tracking-[0.01em] text-mango-deep">
+                  Los incluidos no pueden superar al máximo: se toman como {rules.max}.
+                </p>
+              ) : null}
+              <Toggle
+                label="Ofrecer adicionales al armar el blend"
+                value={draft.builder.toppings}
+                onChange={(v) => setRules({ toppings: v })}
+                hint={
+                  draft.toppings.length > 0
+                    ? `Los ${draft.toppings.length} de «Precios y adicionales», con su precio`
+                    : "No hay adicionales creados en «Precios y adicionales»"
+                }
+              />
+
+              <div>
+                <span className="u-mono mb-1.5 block text-ink/45">
+                  Marcados al abrir la sección · {rules.preset.length} de {rules.max}
+                </span>
+                {draft.builderIngredients.length > 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {draft.builderIngredients.map((ing, i) => {
+                      const on = rules.preset.includes(ing.name);
+                      const full = !on && rules.preset.length >= rules.max;
+                      return (
+                        <button
+                          key={i}
+                          type="button"
+                          onClick={() => togglePreset(ing.name)}
+                          aria-pressed={on}
+                          disabled={full || !ing.name}
+                          className={`flex min-h-11 items-center gap-2 rounded-full border-[1.5px] px-3.5 text-[0.85rem] transition-colors ${
+                            on
+                              ? "border-ink bg-ink text-paper"
+                              : full || !ing.name
+                                ? "cursor-not-allowed border-ink/10 text-ink/30"
+                                : "border-ink/20 bg-white text-ink/70 hover:border-ink"
+                          }`}
+                        >
+                          <span className="h-3 w-3 rounded-full" style={{ background: ing.color }} />
+                          {ing.name || "Sin nombre"}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : null}
+                <p className="u-mono mt-1.5 normal-case tracking-[0.01em] text-ink/35">
+                  Con ninguno marcado, la sección abre vacía y el cliente empieza de cero.
+                </p>
+              </div>
+            </Panel>
+
+            <Panel
+              title="Precio"
+              meta={`Desde ${money(builderPrice(0, draft.pricing, rules))} · +${money(
+                draft.pricing.builder.perExtra,
+              )} por extra`}
+              defaultOpen
+            >
+              <Row>
+                <Num
+                  label={`Precio base (hasta ${rules.included} ingredientes)`}
+                  value={draft.pricing.builder.base}
+                  step={100}
+                  onChange={(v) =>
+                    set("pricing", {
+                      ...draft.pricing,
+                      builder: { ...draft.pricing.builder, base: v },
+                    })
+                  }
+                />
+                <Num
+                  label="Recargo por cada ingrediente extra"
+                  value={draft.pricing.builder.perExtra}
+                  step={100}
+                  onChange={(v) =>
+                    set("pricing", {
+                      ...draft.pricing,
+                      builder: { ...draft.pricing.builder, perExtra: v },
+                    })
+                  }
+                />
+              </Row>
+              <p className="u-mono normal-case tracking-[0.01em] text-ink/35">
+                Con los {rules.max} ingredientes sale en{" "}
+                {money(builderPrice(rules.max, draft.pricing, rules))}. Los adicionales se suman
+                aparte, cada uno con su precio. Se cobra desde el servidor con estos mismos números.
+              </p>
+            </Panel>
+
+            <Panel
+              title="Bases"
+              meta={draft.builderBases.map((b) => b.name).join(" · ") || "Ninguna"}
+              defaultOpen
+            >
+              <BuilderItemList
+                items={draft.builderBases}
+                onChange={(items) => setBuilderItems("builderBases", items)}
+                addLabel="Añadir base"
+                blankName="Base nueva"
+                blankColor="#F0E6D6"
+              />
+              <p className="u-mono normal-case tracking-[0.01em] text-ink/35">
+                La primera es la que viene marcada, aquí y en la ficha de cada bebida. El color
+                aclara la mezcla en la vista previa.
+              </p>
+            </Panel>
+
+            <Panel
+              title="Ingredientes"
+              meta={`${draft.builderIngredients.length} · el cliente elige hasta ${rules.max}`}
+              defaultOpen
+            >
+              <BuilderItemList
+                items={draft.builderIngredients}
+                onChange={(items, rename) => setBuilderItems("builderIngredients", items, rename)}
+                addLabel="Añadir ingrediente"
+                blankName="Ingrediente nuevo"
+                blankColor="#FFB020"
+              />
+              <p className="u-mono normal-case tracking-[0.01em] text-ink/35">
+                Cada uno tiñe la vista previa con su color. Las calorías son opcionales: si ninguno
+                las trae, la sección no las muestra. Si borras uno, los carritos abiertos que lo
+                tenían no podrán pagar hasta rearmar el blend; es a propósito.
+              </p>
+            </Panel>
+          </>
+        ) : null}
+
         {tab === "quiosco" ? (
           <>
             <Note>
@@ -699,8 +901,9 @@ export default function ContentEditor() {
                 }
               />
               <p className="u-mono normal-case tracking-[0.01em] text-ink/35">
-                Si le cambias el nombre a uno, los carritos que ya lo tenían dejan de cobrarlo. Es a
-                propósito: nunca se cobra algo que ya no existe.
+                Se ofrecen en la ficha de cada bebida y, si lo activas en «Arma tu blend», también
+                al armar un blend. Si le cambias el nombre a uno, los carritos que ya lo tenían dejan
+                de cobrarlo. Es a propósito: nunca se cobra algo que ya no existe.
               </p>
             </Panel>
 
@@ -811,33 +1014,6 @@ export default function ContentEditor() {
                     set("pricing", {
                       ...draft.pricing,
                       delivery: { ...draft.pricing.delivery, freeFrom: Math.max(1, v) },
-                    })
-                  }
-                />
-              </Row>
-            </Panel>
-
-            <Panel title="Arma tu blend" meta={`Desde ${money(draft.pricing.builder.base)}`}>
-              <Row>
-                <Num
-                  label="Precio con dos ingredientes"
-                  value={draft.pricing.builder.base}
-                  step={100}
-                  onChange={(v) =>
-                    set("pricing", {
-                      ...draft.pricing,
-                      builder: { ...draft.pricing.builder, base: v },
-                    })
-                  }
-                />
-                <Num
-                  label="Recargo por el tercero"
-                  value={draft.pricing.builder.perExtra}
-                  step={100}
-                  onChange={(v) =>
-                    set("pricing", {
-                      ...draft.pricing,
-                      builder: { ...draft.pricing.builder, perExtra: v },
                     })
                   }
                 />
@@ -1150,37 +1326,6 @@ export default function ContentEditor() {
                 values={draft.marquee}
                 addLabel="Añadir mensaje"
                 onChange={(v) => set("marquee", v)}
-              />
-            </Panel>
-
-            <Panel title="Bases y frutas" meta="Para «Arma tu blend» y la personalización">
-              <StringList
-                label="Bases"
-                values={draft.builderBases.map((b) => b.name)}
-                addLabel="Añadir base"
-                onChange={(names) =>
-                  set(
-                    "builderBases",
-                    names.map((name, k) => ({
-                      name,
-                      color: draft.builderBases[k]?.color ?? "#F0E6D6",
-                    })),
-                  )
-                }
-              />
-              <StringList
-                label="Ingredientes"
-                values={draft.builderIngredients.map((b) => b.name)}
-                addLabel="Añadir ingrediente"
-                onChange={(names) =>
-                  set(
-                    "builderIngredients",
-                    names.map((name, k) => ({
-                      name,
-                      color: draft.builderIngredients[k]?.color ?? "#FFB020",
-                    })),
-                  )
-                }
               />
             </Panel>
           </>
@@ -1499,6 +1644,122 @@ function AddButton({ label, onClick }: { label: string; onClick: () => void }) {
       className="u-mono mt-2 min-h-11 w-full rounded-2xl border-[1.5px] border-dashed border-ink/25 px-4 text-ink/50 transition-colors hover:border-ink hover:text-ink"
     >
       + {label}
+    </button>
+  );
+}
+
+/**
+ * Bases o ingredientes de «Arma tu blend»: nombre, color y calorías, en orden.
+ *
+ * Antes era una lista de nombres y el color se asignaba por posición: borrar
+ * el segundo dejaba a todos los siguientes con el color del vecino. Aquí cada
+ * fila lleva lo suyo. El orden se cambia con flechas porque es el orden en que
+ * se ven en la tienda, y la primera base es la que viene marcada.
+ *
+ * `rename` avisa de qué nombre cambió a cuál, para que quien guarde nombres
+ * aparte (los marcados al abrir) pueda seguirlo.
+ */
+function BuilderItemList({
+  items,
+  onChange,
+  addLabel,
+  blankName,
+  blankColor,
+}: {
+  items: BuilderItem[];
+  onChange: (items: BuilderItem[], rename?: { from: string; to: string }) => void;
+  addLabel: string;
+  blankName: string;
+  blankColor: string;
+}) {
+  const upd = (i: number, patch: Partial<BuilderItem>, rename?: { from: string; to: string }) =>
+    onChange(
+      items.map((x, j) => (j === i ? { ...x, ...patch } : x)),
+      rename,
+    );
+
+  const move = (i: number, dir: -1 | 1) => {
+    const j = i + dir;
+    if (j < 0 || j >= items.length) return;
+    const copy = [...items];
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+    onChange(copy);
+  };
+
+  // Dos con el mismo nombre serían uno solo en la tienda y en el ticket.
+  const repeated = new Set(
+    items.map((x) => x.name.trim()).filter((n, k, all) => n && all.indexOf(n) !== k),
+  );
+
+  return (
+    <div className="grid gap-2">
+      {items.map((it, i) => (
+        <div
+          key={i}
+          className="grid gap-2 rounded-2xl border-[1.5px] border-ink/10 p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,12rem)_5.5rem_auto] sm:items-end"
+        >
+          <Text
+            label="Nombre"
+            value={it.name}
+            onChange={(v) => upd(i, { name: v }, { from: it.name, to: v })}
+            hint={repeated.has(it.name.trim()) ? "Repetido: ponle otro nombre" : undefined}
+          />
+          <Color label="Color" value={it.color} onChange={(v) => upd(i, { color: v })} />
+          <Num label="Kcal" value={it.kcal ?? 0} onChange={(v) => upd(i, { kcal: v })} />
+          <div className="flex gap-1.5">
+            <ListButton label="Subir" onClick={() => move(i, -1)} disabled={i === 0}>
+              ↑
+            </ListButton>
+            <ListButton
+              label="Bajar"
+              onClick={() => move(i, 1)}
+              disabled={i === items.length - 1}
+            >
+              ↓
+            </ListButton>
+            <ListButton
+              label={`Quitar ${it.name || "elemento"}`}
+              onClick={() => onChange(items.filter((_, j) => j !== i))}
+              danger
+            >
+              ×
+            </ListButton>
+          </div>
+        </div>
+      ))}
+      <AddButton
+        label={addLabel}
+        onClick={() => onChange([...items, blankBuilderItem(blankName, blankColor)])}
+      />
+    </div>
+  );
+}
+
+function ListButton({
+  label,
+  onClick,
+  disabled,
+  danger,
+  children,
+}: {
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+  danger?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={label}
+      title={label}
+      className={`grid h-11 w-11 shrink-0 place-items-center rounded-full border-[1.5px] border-ink/20 text-ink/50 transition-colors disabled:cursor-not-allowed disabled:opacity-30 ${
+        danger ? "hover:border-mango-deep hover:text-mango-deep" : "hover:border-ink hover:text-ink"
+      }`}
+    >
+      {children}
     </button>
   );
 }

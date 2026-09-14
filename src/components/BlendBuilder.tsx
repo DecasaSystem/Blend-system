@@ -5,9 +5,8 @@ import SectionHead from "./SectionHead";
 import InkField from "./InkField";
 import { useCart } from "./CartProvider";
 import { useSite } from "./SiteProvider";
-import { builderPrice, money } from "@/lib/cart";
-
-const MAX = 3;
+import { builderOptions, builderPrice, money, unitPrice } from "@/lib/cart";
+import type { BuilderItem } from "@/lib/content";
 
 const hexToRgb = (hex: string) => {
   const n = parseInt(hex.slice(1), 16);
@@ -48,22 +47,37 @@ const NAMES = [
 
 export default function BlendBuilder() {
   const { add } = useCart();
-  const { sections, builderBases, builderIngredients, pricing } = useSite();
+  const { sections, builder, builderBases, builderIngredients, pricing, toppings } = useSite();
+  const MAX = builder.max;
+
   const [baseName, setBaseName] = useState(builderBases[0]?.name ?? "");
-  const [picked, setPicked] = useState<string[]>(["Mango", "Maracuyá"]);
+  // Lo que viene marcado al abrir lo decide el equipo; ya llega filtrado a
+  // ingredientes que existen y sin pasar del máximo (ver `builderRules`).
+  const [picked, setPicked] = useState<string[]>(builder.preset);
+  const [extras, setExtras] = useState<string[]>([]);
 
   // Se guarda el nombre, no el objeto: el equipo puede editar las bases.
   // El último respaldo cubre el caso de que las borre todas.
-  const base = builderBases.find((b) => b.name === baseName) ??
+  const base: BuilderItem = builderBases.find((b) => b.name === baseName) ??
     builderBases[0] ?? { name: "", color: "#F0E6D6" };
 
-  const inks = picked
-    .map((n) => builderIngredients.find((i) => i.name === n)?.color)
-    .filter(Boolean) as string[];
+  const chosen = picked
+    .map((n) => builderIngredients.find((i) => i.name === n))
+    .filter((i): i is BuilderItem => Boolean(i));
+  const inks = chosen.map((i) => i.color);
 
   const color = useMemo(() => mixColors(inks, base.color), [inks, base.color]);
-  const kcal = 90 + picked.length * 42 + (base.name.includes("avena") ? 55 : 20);
-  const price = builderPrice(picked.length, pricing);
+
+  // Calorías sólo si el equipo las puso; un cero inventado sería mentir.
+  const kcal = (base.kcal ?? 0) + chosen.reduce((n, i) => n + (i.kcal ?? 0), 0);
+
+  const offerToppings = builder.toppings && toppings.length > 0;
+  const options = builderOptions(base.name, offerToppings ? extras : []);
+  // Se cotiza lo que existe, igual que hará el servidor al cobrar.
+  const basePrice = builderPrice(chosen.length, pricing, builder);
+  const price = unitPrice(basePrice, options, toppings);
+  const extrasTotal = price - basePrice;
+
   const name = picked.length
     ? `${picked[0]} ${NAMES[(picked.length + picked[0].length) % NAMES.length]}`
     : "Tu blend";
@@ -72,6 +86,14 @@ export default function BlendBuilder() {
     setPicked((prev) =>
       prev.includes(n) ? prev.filter((x) => x !== n) : prev.length >= MAX ? prev : [...prev, n],
     );
+
+  const toggleExtra = (n: string) =>
+    setExtras((prev) => (prev.includes(n) ? prev.filter((x) => x !== n) : [...prev, n]));
+
+  const reset = () => {
+    setPicked([]);
+    setExtras([]);
+  };
 
   return (
     <section id="constructor" className="relative overflow-hidden bg-ink py-20 text-paper lg:py-28">
@@ -100,19 +122,26 @@ export default function BlendBuilder() {
                   className="relative h-32 w-32 rounded-full border-[1.5px] border-paper/40 transition-colors duration-700 sm:h-52 sm:w-52"
                   style={{ background: color }}
                 />
-                {inks.map((c, i) => (
-                  <span
-                    key={i}
-                    className="drift absolute h-20 w-20 rounded-full sm:h-32 sm:w-32"
-                    style={{
-                      background: c,
-                      mixBlendMode: "screen",
-                      opacity: 0.5,
-                      transform: `translate(${[-30, 28, 0][i]}px, ${[24, 16, -34][i]}px)`,
-                      animationDelay: `${i * -5}s`,
-                    }}
-                  />
-                ))}
+                {inks.map((c, i) => {
+                  // Las tintas se reparten en círculo: el máximo lo pone el
+                  // equipo, así que no hay una lista fija de posiciones.
+                  const angle = (i / Math.max(3, inks.length)) * Math.PI * 2;
+                  const x = Math.round(Math.cos(angle) * 30);
+                  const y = Math.round(Math.sin(angle) * 30);
+                  return (
+                    <span
+                      key={i}
+                      className="drift absolute h-20 w-20 rounded-full sm:h-32 sm:w-32"
+                      style={{
+                        background: c,
+                        mixBlendMode: "screen",
+                        opacity: 0.5,
+                        transform: `translate(${x}px, ${y}px)`,
+                        animationDelay: `${i * -5}s`,
+                      }}
+                    />
+                  );
+                })}
               </div>
 
               <div className="mt-5 text-center sm:mt-6">
@@ -120,9 +149,13 @@ export default function BlendBuilder() {
                 <p className="u-display mt-1 text-3xl sm:text-5xl">{name}</p>
               </div>
 
-              <dl className="mt-6 grid grid-cols-3 gap-2 border-t-[1.5px] border-paper/15 pt-5 text-center">
+              <dl
+                className={`mt-6 grid gap-2 border-t-[1.5px] border-paper/15 pt-5 text-center ${
+                  kcal > 0 ? "grid-cols-3" : "grid-cols-2"
+                }`}
+              >
                 <Stat label="Color" value={color.toUpperCase()} />
-                <Stat label="Kcal" value={String(kcal)} />
+                {kcal > 0 ? <Stat label="Kcal" value={String(kcal)} /> : null}
                 <Stat label="Precio" value={money(price)} />
               </dl>
             </div>
@@ -191,6 +224,50 @@ export default function BlendBuilder() {
               })}
             </div>
 
+            {/* Lo que cuesta pasarse de los incluidos, dicho antes de que pase. */}
+            {pricing.builder.perExtra > 0 && MAX > builder.included ? (
+              <p className="u-mono mt-3 text-paper/40">
+                {builder.included > 0
+                  ? `Hasta ${builder.included} van en el precio · `
+                  : ""}
+                +{money(pricing.builder.perExtra)} por cada ingrediente extra
+              </p>
+            ) : null}
+
+            {offerToppings ? (
+              <>
+                <div className="mt-8 flex items-baseline justify-between">
+                  <p className="u-mono text-paper/50">Adicionales</p>
+                  {extras.length > 0 ? (
+                    <p className="u-mono text-paper/50">+{money(extrasTotal)}</p>
+                  ) : null}
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {toppings.map((t) => {
+                    const on = extras.includes(t.name);
+                    return (
+                      <button
+                        key={t.name}
+                        type="button"
+                        onClick={() => toggleExtra(t.name)}
+                        aria-pressed={on}
+                        className={`rounded-full border-[1.5px] px-3.5 py-2.5 text-[0.85rem] transition-all ${
+                          on
+                            ? "border-paper bg-paper text-ink"
+                            : "border-paper/25 text-paper/80 hover:border-paper"
+                        }`}
+                      >
+                        {t.name}{" "}
+                        <span className={on ? "text-ink/45" : "text-paper/40"}>
+                          +{money(t.price)}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            ) : null}
+
             <div className="mt-8 flex flex-wrap items-center gap-3">
               <button
                 type="button"
@@ -201,7 +278,8 @@ export default function BlendBuilder() {
                     keySuffix: `${base.name}-${picked.join("+")}`,
                     name,
                     color,
-                    basePrice: price,
+                    basePrice,
+                    options,
                     custom: [base.name, ...picked],
                   })
                 }
@@ -216,7 +294,7 @@ export default function BlendBuilder() {
               </button>
               <button
                 type="button"
-                onClick={() => setPicked([])}
+                onClick={reset}
                 className="btn btn-ghost border-paper/30 text-paper/80 hover:bg-paper/10"
               >
                 Empezar de nuevo

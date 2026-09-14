@@ -379,27 +379,56 @@ export const dailyOffer: Record<string, { price: number; left: number; why: stri
   "acai-mango-chile": { price: 24900, left: 21, why: "Probando receta nueva, danos tu opinión" },
 };
 
-export const builderBases: Ingredient[] = [
-  { name: "Leche de avena", color: "#F0E6D6" },
-  { name: "Agua de coco", color: "#E4F2EA" },
-  { name: "Leche de almendra", color: "#EFE2CE" },
-  { name: "Jugo de naranja", color: "#FF8A2B" },
+/**
+ * Base o ingrediente de «Arma tu blend». Las bases también son las que ofrece
+ * la ficha de cada bebida del menú. `kcal` es lo que aporta al vaso; si ningún
+ * item lo trae, la sección no enseña calorías.
+ */
+export type BuilderItem = Ingredient & { kcal?: number };
+
+export const builderBases: BuilderItem[] = [
+  { name: "Leche de avena", color: "#F0E6D6", kcal: 55 },
+  { name: "Agua de coco", color: "#E4F2EA", kcal: 20 },
+  { name: "Leche de almendra", color: "#EFE2CE", kcal: 25 },
+  { name: "Jugo de naranja", color: "#FF8A2B", kcal: 45 },
 ];
 
-export const builderIngredients: Ingredient[] = [
-  { name: "Mango", color: "#FFB020" },
-  { name: "Fresa", color: "#F2557A" },
-  { name: "Açaí", color: "#6B2FA8" },
-  { name: "Matcha", color: "#6FA82E" },
-  { name: "Espinaca", color: "#4E9B34" },
-  { name: "Piña", color: "#FFD166" },
-  { name: "Ube", color: "#7B3FF2" },
-  { name: "Banano", color: "#F5DE8A" },
-  { name: "Pitaya", color: "#E0457B" },
-  { name: "Cacao", color: "#5B3A2A" },
-  { name: "Maracuyá", color: "#FF6A1A" },
-  { name: "Menta", color: "#8FD14F" },
+export const builderIngredients: BuilderItem[] = [
+  { name: "Mango", color: "#FFB020", kcal: 45 },
+  { name: "Fresa", color: "#F2557A", kcal: 25 },
+  { name: "Açaí", color: "#6B2FA8", kcal: 50 },
+  { name: "Matcha", color: "#6FA82E", kcal: 10 },
+  { name: "Espinaca", color: "#4E9B34", kcal: 8 },
+  { name: "Piña", color: "#FFD166", kcal: 40 },
+  { name: "Ube", color: "#7B3FF2", kcal: 60 },
+  { name: "Banano", color: "#F5DE8A", kcal: 55 },
+  { name: "Pitaya", color: "#E0457B", kcal: 35 },
+  { name: "Cacao", color: "#5B3A2A", kcal: 40 },
+  { name: "Maracuyá", color: "#FF6A1A", kcal: 30 },
+  { name: "Menta", color: "#8FD14F", kcal: 5 },
 ];
+
+/**
+ * Reglas de «Arma tu blend». Antes eran constantes dentro del componente;
+ * ahora el equipo las edita desde /equipo y el servidor cobra con ellas.
+ */
+export type BuilderConfig = {
+  /** Cuántos ingredientes puede elegir el cliente como máximo. */
+  max: number;
+  /** Cuántos entran en el precio base; cada uno de más cobra `pricing.builder.perExtra`. */
+  included: number;
+  /** Ingredientes que aparecen marcados al abrir la sección. */
+  preset: string[];
+  /** Si se ofrecen los adicionales (los de `toppings`) al armar el blend. */
+  toppings: boolean;
+};
+
+export const builder: BuilderConfig = {
+  max: 3,
+  included: 2,
+  preset: ["Mango", "Maracuyá"],
+  toppings: true,
+};
 
 export const toppings = [
   { name: "Granola de la casa", price: 4500 },
@@ -426,7 +455,10 @@ export const sizes: Size[] = [
 export type Pricing = {
   /** Cuánto cuesta el domicilio y a partir de cuánto va gratis. */
   delivery: { fee: number; freeFrom: number };
-  /** «Arma tu blend»: precio con dos ingredientes y recargo del tercero. */
+  /**
+   * «Arma tu blend»: precio con hasta `builder.included` ingredientes y
+   * recargo por cada uno de más.
+   */
   builder: { base: number; perExtra: number };
 };
 

@@ -1,4 +1,4 @@
-import type { Pricing, Size } from "./content";
+import type { BuilderConfig, Pricing, Size } from "./content";
 import type { SiteContent, Topping } from "./site";
 
 /**
@@ -44,8 +44,13 @@ export type CartLine = {
   /** Precio de lista, solo para tachar cuando hay oferta. */
   listPrice?: number;
   qty: number;
+  /**
+   * Opciones de la bebida. En un blend armado a mano sólo cuentan la base, los
+   * adicionales y la nota: el tamaño va vacío porque el constructor cobra un
+   * precio único.
+   */
   options?: LineOptions;
-  /** Ingredientes elegidos en "Arma tu blend". */
+  /** Base y luego ingredientes elegidos en "Arma tu blend". */
   custom?: string[];
   offerLabel?: string;
   /** Tope de unidades cuando queda poco inventario. */
@@ -137,10 +142,24 @@ export function offerPriceOf(
   return offerBase + priceOf(product, sizeId, sizes) - priceOf(product, sizes[0]?.id, sizes);
 }
 
-/** Precio de un blend armado a mano: base más el recargo por cada extra. */
-export function builderPrice(ingredients: number, pricing: Pricing) {
-  return pricing.builder.base + Math.max(0, ingredients - 2) * pricing.builder.perExtra;
+/**
+ * Precio de un blend armado a mano, antes de adicionales: el precio base cubre
+ * `included` ingredientes y cada uno de más suma el recargo.
+ */
+export function builderPrice(ingredients: number, pricing: Pricing, rules: BuilderConfig) {
+  return (
+    pricing.builder.base + Math.max(0, ingredients - rules.included) * pricing.builder.perExtra
+  );
 }
+
+/** Opciones de un blend armado: sin tamaño ni dulzor, sólo lo que se cobra y se lee. */
+export const builderOptions = (base: string, extras: string[], note = ""): LineOptions => ({
+  size: "",
+  base,
+  sweet: "normal",
+  extras,
+  note,
+});
 
 /**
  * Identidad de la línea. Dos veces el mismo producto con las mismas opciones
@@ -168,8 +187,13 @@ export function lineKey(productId: string, options?: LineOptions, suffix = "") {
  * perder el dato.
  */
 export function describe(line: CartLine, sizes: Size[] = []): string {
-  if (line.custom) return line.custom.join(", ");
   const o = line.options;
+  // Blend armado: la receta va junta y los adicionales después, como en el resto.
+  if (line.custom) {
+    return [line.custom.join(", "), ...(o?.extras ?? []), o?.note?.trim()]
+      .filter(Boolean)
+      .join(" · ");
+  }
   if (!o) return "";
   const size = sizes.find((s) => s.id === o.size);
   const sweet = SWEETNESS.find((s) => s.id === o.sweet);
@@ -202,18 +226,40 @@ export function repriceLines(
     const qty = Math.floor(Number(line.qty));
     if (!Number.isFinite(qty) || qty < 1) return { error: "Hay una cantidad que no es válida." };
 
-    // Blend armado a mano: no existe en el catálogo, se cotiza por ingredientes.
+    // Blend armado a mano: no existe en el catálogo, se cotiza por ingredientes
+    // con las reglas publicadas. Ni un ingrediente repetido ni uno de más
+    // pasan: el navegador sólo puede pedir lo que la sección deja elegir.
     if (line.custom) {
-      const [baseName, ...picked] = line.custom;
+      const [baseName, ...picked] = Array.isArray(line.custom) ? line.custom : [];
       const base = site.builderBases.find((b) => b.name === baseName);
       const known = picked.filter((n) => site.builderIngredients.some((i) => i.name === n));
-      if (!base || known.length === 0 || known.length !== picked.length) {
+      const repeated = new Set(picked).size !== picked.length;
+      if (
+        !base ||
+        known.length === 0 ||
+        known.length !== picked.length ||
+        repeated ||
+        picked.length > site.builder.max
+      ) {
         return { error: "Uno de los blends que armaste ya no está disponible." };
       }
-      const price = builderPrice(known.length, site.pricing);
+      const price = builderPrice(known.length, site.pricing, site.builder);
+
+      // Los adicionales sólo se cobran si el constructor los ofrece y siguen
+      // existiendo; el tamaño y el dulzor no aplican y se dejan neutros.
+      const raw = line.options?.extras;
+      const asked = Array.isArray(raw) ? raw : [];
+      const options = builderOptions(
+        base.name,
+        site.builder.toppings ? asked.filter((n) => site.toppings.some((t) => t.name === n)) : [],
+        String(line.options?.note ?? "").slice(0, 140),
+      );
+
       out.push({
         ...line,
-        unitPrice: price,
+        custom: [base.name, ...known],
+        options,
+        unitPrice: unitPrice(price, options, site.toppings),
         basePrice: price,
         listPrice: undefined,
         offerLabel: undefined,

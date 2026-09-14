@@ -187,9 +187,10 @@ export async function loadStats(dias: number): Promise<Stats> {
       for (const extra of opciones.extras) suma(adicionales, extra, q);
 
       // El tamaño se guarda por id; el nombre puede haber cambiado desde
-      // entonces, y si el equipo lo borró se muestra el id tal cual.
+      // entonces, y si el equipo lo borró se muestra el id tal cual. Un blend
+      // armado no tiene tamaño: no cuenta aquí.
       const tam = site.sizes.find((s) => s.id === opciones.size);
-      suma(tamanos, tam ? tam.label : opciones.size, q);
+      if (opciones.size) suma(tamanos, tam ? tam.label : opciones.size, q);
       if (opciones.base) suma(bases, opciones.base, q);
     }
   }
