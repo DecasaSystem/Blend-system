@@ -133,10 +133,20 @@ export default function KioskLock({ stores, activo }: { stores: Store[]; activo:
             </form>
           </>
         ) : (
-          <p className="mt-6 rounded-2xl border-[1.5px] border-paper/20 px-5 py-4 leading-relaxed text-paper/70">
-            El autopedido todavía no está activado. Alguien del equipo tiene que ponerle una clave
-            desde <span className="u-mono">/equipo → Cuentas</span>.
-          </p>
+          <div className="mt-6 rounded-2xl border-[1.5px] border-paper/20 px-5 py-4 leading-relaxed text-paper/70">
+            <p>
+              El autopedido todavía no tiene clave. Un administrador la pone en{" "}
+              <span className="u-mono">/equipo → Cuentas → Autopedido del mostrador</span>; después
+              vuelve aquí y la escribe una vez.
+            </p>
+            <p className="u-mono mt-3 text-paper/45">
+              Ojo: el interruptor de «Contenido → Quiosco» sólo enciende la pantalla; no sustituye a
+              la clave.
+            </p>
+            <a href="/equipo" className="btn btn-sm btn-paper mt-4">
+              Ir a /equipo
+            </a>
+          </div>
         )}
       </div>
     </main>

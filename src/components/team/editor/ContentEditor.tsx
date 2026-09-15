@@ -771,12 +771,17 @@ export default function ContentEditor() {
               crea dos veces.
             </Note>
 
-            <Panel title="Pantalla de espera" meta={draft.kiosk.enabled ? "Activa" : "Apagada"} defaultOpen>
+            <Panel title="Pantalla de espera" meta={draft.kiosk.enabled ? "Encendida" : "Apagada"} defaultOpen>
+              {/* No confundir con activar el quiosco: eso es ponerle clave en
+                  «Cuentas». Esto sólo decide si la tablet enseña la pantalla
+                  o un aviso de «no disponible». Antes se llamaba «Quiosco
+                  activo» y la gente lo encendía aquí y no entendía por qué la
+                  tablet seguía pidiendo clave. */}
               <Toggle
-                label="Quiosco activo"
+                label="Pantalla encendida"
                 value={draft.kiosk.enabled}
                 onChange={(v) => set("kiosk", { ...draft.kiosk, enabled: v })}
-                hint="Apagado, la pantalla muestra que no está disponible"
+                hint="Apagada, la tablet dice que no está disponible. La clave para conectar una tablet se pone aparte, en Cuentas → Autopedido del mostrador."
               />
               <Media
                 label="Video de espera (se repite solo)"

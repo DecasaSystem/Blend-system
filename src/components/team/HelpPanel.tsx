@@ -552,11 +552,14 @@ export default function HelpPanel({ user }: { user: SessionUser }) {
               steps={[
                 <>
                   Un administrador activa el quiosco en <b>Cuentas → Autopedido del mostrador</b>{" "}
-                  con una clave de diez caracteres o más. Si ya está activo, usa la que haya.
+                  con una clave de diez caracteres o más. Si ya está activo, usa la que haya.{" "}
+                  <b>Es la clave lo que lo activa</b>: el interruptor de «Contenido → Quiosco» sólo
+                  enciende o apaga la pantalla de espera, y tiene que estar encendido también.
                 </>,
                 <>
-                  En la tablet, abre el navegador y escribe la dirección de la tienda seguida de{" "}
-                  <Mono>/quiosco</Mono>.
+                  En la tablet, abre el navegador y entra a la dirección de la tienda seguida de{" "}
+                  <Mono>/quiosco</Mono>. En <b>Cuentas → Autopedido</b> está la dirección completa
+                  con botones para copiarla o abrirla.
                 </>,
                 <>
                   Elige la <b>sede</b>, ponle un <b>nombre</b> a la pantalla («Barra norte») para
@@ -707,6 +710,12 @@ export default function HelpPanel({ user }: { user: SessionUser }) {
                 Espera a que la barra de progreso termine antes de publicar. Si pegaste una URL,
                 tiene que ser el enlace directo a la imagen (termina en .jpg, .png, .webp), no la
                 página que la contiene.
+              </Faq>
+              <Faq q="El quiosco dice que «todavía no tiene clave» aunque lo encendí">
+                Lo que encendiste fue la pantalla de espera, en Contenido → Quiosco. Activarlo es
+                ponerle una <b>clave</b> en <b>Cuentas → Autopedido del mostrador</b> (sólo un
+                administrador). Con la clave puesta y la pantalla encendida, la tablet ya deja
+                conectarse.
               </Faq>
               <Faq q="El quiosco pide la clave otra vez">
                 La conexión de una tablet dura tres meses, o hasta que alguien la desconecte o apague

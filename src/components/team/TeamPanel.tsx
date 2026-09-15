@@ -21,6 +21,7 @@ import {
   type KioskRow,
 } from "@/actions/kiosk";
 import type { SessionUser } from "@/lib/session";
+import { useSite } from "../SiteProvider";
 
 /**
  * Cuentas del equipo.
@@ -157,7 +158,22 @@ export default function TeamPanel({ user }: { user: SessionUser }) {
  * Vive aquí porque es lo mismo que gestionar cuentas: dar y quitar acceso.
  */
 function Quiosco() {
+  const { kiosk } = useSite();
   const [estado, setEstado] = useState<{ activo: boolean; pantallas: KioskRow[] } | null>(null);
+  const [copiado, setCopiado] = useState(false);
+  // La dirección de la tablet, con el dominio real de donde se está mirando.
+  const [url, setUrl] = useState("/quiosco");
+  useEffect(() => setUrl(`${window.location.origin}/quiosco`), []);
+
+  const copiar = async () => {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopiado(true);
+      setTimeout(() => setCopiado(false), 2000);
+    } catch {
+      /* sin portapapeles: la dirección está a la vista para copiarla a mano */
+    }
+  };
   const [clave, setClave] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
@@ -217,11 +233,47 @@ function Quiosco() {
       </div>
 
       <p className="mt-3 leading-relaxed text-ink/62">
-        La pantalla para que el cliente pida solo, de pie en la tienda. Está en{" "}
-        <span className="u-mono">/quiosco</span> y no hay ningún enlace hacia ella: se llega
-        escribiendo la dirección y la clave que pongas aquí. Los pedidos entran al tablero marcados
-        como mostrador, para recoger y sin cobrar.
+        La pantalla para que el cliente pida solo, de pie en la tienda. No hay ningún enlace hacia
+        ella desde la tienda: en la tablet se escribe esta dirección y, una sola vez, la clave que
+        pongas aquí. Los pedidos entran al tablero marcados como mostrador, para recoger y sin
+        cobrar.
       </p>
+
+      {/* La dirección a la vista, para copiarla o abrirla sin teclearla. */}
+      <div className="mt-4 flex flex-wrap items-center gap-2 rounded-2xl border-[1.5px] border-ink/15 bg-white p-2 pl-4">
+        <span className="u-mono min-w-0 flex-1 truncate normal-case tracking-[0.01em] text-ink/70">
+          {url}
+        </span>
+        <button
+          type="button"
+          onClick={copiar}
+          className="u-mono min-h-11 rounded-full border-[1.5px] border-ink/20 px-3.5 text-ink/60 transition-colors hover:border-ink hover:text-ink"
+        >
+          {copiado ? "Copiada ✓" : "Copiar"}
+        </button>
+        <a
+          href="/quiosco"
+          target="_blank"
+          rel="noopener"
+          className="u-mono inline-flex min-h-11 items-center rounded-full border-[1.5px] border-ink bg-ink px-3.5 text-paper transition-colors hover:bg-ink-2"
+        >
+          Abrir el quiosco ↗
+        </a>
+      </div>
+
+      {estado && !estado.activo ? (
+        <p className="u-mono mt-3 normal-case tracking-[0.01em] text-ink/50">
+          Sin clave, la tablet dirá que el autopedido no está activado, aunque la pantalla esté
+          encendida en «Contenido → Quiosco». Ponle una clave abajo: eso es lo que lo activa.
+        </p>
+      ) : null}
+
+      {estado?.activo && !kiosk.enabled ? (
+        <p className="u-mono mt-3 rounded-2xl border-[1.5px] border-mango-deep bg-mango/10 px-4 py-3 normal-case tracking-[0.01em] text-mango-deep">
+          La clave está puesta, pero la pantalla está apagada en «Contenido → Quiosco → Pantalla de
+          espera»: la tablet dirá que no está disponible hasta encenderla ahí.
+        </p>
+      ) : null}
 
       <form
         onSubmit={(e) => {
