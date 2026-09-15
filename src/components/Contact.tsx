@@ -13,7 +13,7 @@ export default function Contact() {
   const [sent, setSent] = useState(false);
 
   return (
-    <section id="contacto" className="relative overflow-hidden bg-ink py-20 text-paper lg:py-28">
+    <section id="contacto" className="scroll-mt-[-4.5rem] lg:scroll-mt-[-6.5rem] relative overflow-hidden bg-ink py-20 text-paper lg:py-28">
       <InkField
         tone="dark"
         blobs={[

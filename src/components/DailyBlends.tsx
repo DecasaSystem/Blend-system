@@ -25,7 +25,7 @@ export default function DailyBlends() {
   if (items.length === 0) return null;
 
   return (
-    <section id="del-dia" className="relative overflow-hidden bg-paper-2 py-20 lg:py-28">
+    <section id="del-dia" className="scroll-mt-[-4.5rem] lg:scroll-mt-[-6.5rem] relative overflow-hidden bg-paper-2 py-20 lg:py-28">
       <InkField
         className="opacity-45"
         blobs={[

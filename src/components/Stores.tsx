@@ -13,7 +13,7 @@ export default function Stores() {
   if (!active) return null;
 
   return (
-    <section id="tiendas" className="relative bg-paper py-20 lg:py-28">
+    <section id="tiendas" className="scroll-mt-[-4.5rem] lg:scroll-mt-[-6.5rem] relative bg-paper py-20 lg:py-28">
       <div className="mx-auto max-w-[1400px] px-4 sm:px-6 lg:px-10">
         <SectionHead copy={sections.stores} tone="#7B3FF2" />
 

@@ -16,7 +16,7 @@ export default function MenuSection() {
   const active = categories.find((c) => c.id === cat);
 
   return (
-    <section id="menu" className="relative bg-paper py-20 lg:py-28">
+    <section id="menu" className="scroll-mt-[-4.5rem] lg:scroll-mt-[-6.5rem] relative bg-paper py-20 lg:py-28">
       <div className="mx-auto max-w-[1400px] px-4 sm:px-6 lg:px-10">
         <SectionHead copy={sections.menu} tone="#8FD14F" />
 

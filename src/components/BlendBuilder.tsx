@@ -96,7 +96,7 @@ export default function BlendBuilder() {
   };
 
   return (
-    <section id="constructor" className="relative overflow-hidden bg-ink py-20 text-paper lg:py-28">
+    <section id="constructor" className="scroll-mt-[-4.5rem] lg:scroll-mt-[-6.5rem] relative overflow-hidden bg-ink py-20 text-paper lg:py-28">
       <InkField
         tone="dark"
         blobs={[
