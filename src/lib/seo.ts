@@ -146,7 +146,10 @@ export function localBusinessJsonLd(site: SiteContent) {
     name: site.brand.name,
     description: `${site.brand.tagline} en Armenia, Quindío. ${site.brand.delivery}.`,
     url: origin,
-    logo: site.brand.logo || `${origin}/apple-icon`,
+    // El logo que Google enseña en la ficha del negocio. Se sirve desde el
+    // propio dominio, cuadrado y limpio (sin el margen del archivo original):
+    // es el mismo del favicon, así la pestaña y el buscador enseñan lo mismo.
+    logo: { "@type": "ImageObject", url: `${origin}/icon-512.png`, width: 512, height: 512 },
     image: [`${origin}/opengraph-image`, ...(site.brand.logo ? [site.brand.logo] : [])],
     telephone: site.brand.phone,
     email: site.brand.email,

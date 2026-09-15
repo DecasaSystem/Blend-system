@@ -8,7 +8,7 @@ import { brand, categories } from "@/lib/content";
  *
  * Antes la metadata apuntaba a `/og.png`, que no existía: el enlace se
  * compartía sin foto. Se dibuja aquí con el sistema visual del sitio (papel,
- * tinta, las tres tintas sobreimpresas) y se genera una vez en el build: usa
+ * tinta, el logo de la marca) y se genera una vez en el build: usa
  * el contenido de fábrica y no la base, para que nunca dependa de ella.
  */
 
@@ -23,10 +23,13 @@ export default async function Image() {
   // Se lee del disco en el build (la imagen es estática); `fetch(new URL(…,
   // import.meta.url))`, que es lo que sugiere la documentación, no está
   // implementado en Turbopack para archivos locales.
-  const [bold, medium] = await Promise.all([
+  const [bold, medium, logo] = await Promise.all([
     readFile(join(process.cwd(), "src", "app", "_og", "Poppins-Bold.ttf")),
     readFile(join(process.cwd(), "src", "app", "_og", "Poppins-Medium.ttf")),
+    // El logo real de la marca (el mismo del favicon), no una ilustración.
+    readFile(join(process.cwd(), "src", "app", "_og", "logo.png")),
   ]);
+  const logoSrc = `data:image/png;base64,${logo.toString("base64")}`;
 
   // Lo que la gente busca; «Extras» no es una búsqueda.
   const pills = [
@@ -53,12 +56,8 @@ export default async function Image() {
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 28 }}>
-          {/* Las tres tintas del logo, sobreimpresas. */}
-          <div style={{ display: "flex", position: "relative", width: 132, height: 132 }}>
-            <div style={circle(0, 0, "#ff6a1a")} />
-            <div style={circle(44, 4, "#7b3ff2", 0.88)} />
-            <div style={circle(22, 44, "#8fd14f", 0.88)} />
-          </div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={logoSrc} width={132} height={132} alt="" style={{ borderRadius: 30 }} />
           <div style={{ display: "flex", flexDirection: "column" }}>
             <div style={{ fontSize: 112, fontWeight: 700, lineHeight: 0.95, letterSpacing: -4 }}>
               {brand.name}
@@ -126,16 +125,3 @@ export default async function Image() {
   );
 }
 
-function circle(left: number, top: number, fill: string, opacity = 1) {
-  return {
-    position: "absolute" as const,
-    left,
-    top,
-    width: 88,
-    height: 88,
-    borderRadius: 999,
-    background: fill,
-    opacity,
-    border: `4px solid ${INK}`,
-  };
-}

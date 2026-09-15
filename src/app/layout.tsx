@@ -54,6 +54,11 @@ export const metadata: Metadata = {
     googleBot: { index: true, follow: true, "max-image-preview": "large", "max-snippet": -1 },
   },
   formatDetection: { telephone: true, email: true, address: true },
+  // Google Search Console: el código de la «etiqueta HTML» va en la variable
+  // GOOGLE_SITE_VERIFICATION de Vercel. Sin ella no se emite nada.
+  verification: process.env.GOOGLE_SITE_VERIFICATION
+    ? { google: process.env.GOOGLE_SITE_VERIFICATION }
+    : undefined,
   openGraph: {
     title: "BLEND — Casa de batidos, matcha y açaí en Armenia",
     description:
