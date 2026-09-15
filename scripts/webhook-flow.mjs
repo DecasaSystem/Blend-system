@@ -103,7 +103,23 @@ async function statusOf() {
   return row;
 }
 
-const back = (opts = {}) => fetch(`${URL}/checkout/listo?pedido=${orderId}`, opts);
+/**
+ * La página de vuelta, leída completa.
+ *
+ * Hay un `loading.tsx`, así que Next manda las cabeceras (200) enseguida y
+ * termina la página en streaming: hay que esperar el cuerpo entero antes de
+ * mirar la base, y un `redirect()` que ocurre después de las cabeceras no
+ * puede ser un 307: Next lo inyecta en el cuerpo y el navegador lo sigue.
+ * Por eso `redirectsTo` mira las dos cosas.
+ */
+async function back() {
+  const res = await fetch(`${URL}/checkout/listo?pedido=${orderId}`, { redirect: "manual" });
+  const body = await res.text();
+  const redirectsTo = (path) =>
+    (res.status === 307 && (res.headers.get("location") ?? "").includes(path)) ||
+    (res.status === 200 && body.includes(path));
+  return { status: res.status, body, redirectsTo };
+}
 
 try {
   await seed();
@@ -171,24 +187,24 @@ try {
 
   // --- Pagado: se confirma al instante consultando el link, sin webhook ---
   ledger.set(LINK, link("PAID"));
-  const ok = await back({ redirect: "manual" });
+  const ok = await back();
   check("la vuelta con link pagado responde 200", ok.status === 200, String(ok.status));
   check("la vuelta con link pagado libera el pedido", (await statusOf()).status === "nuevo");
-  check("la vuelta con link pagado lo dice", (await ok.text()).includes("Pago recibido"));
+  check("la vuelta con link pagado lo dice", ok.body.includes("Pago recibido"));
 
   // --- Pagado pero con otro monto: no se libera ---
   await seed();
   ledger.set(LINK, link("PAID", { total: 100 }));
-  await back({ redirect: "manual" });
+  await back();
   check("un link pagado con otro monto no libera", (await statusOf()).status === "pago");
 
   // --- Rechazado: la vuelta manda al checkout con el carrito intacto ---
   ledger.set(LINK, link("REJECTED"));
-  const bounced = await back({ redirect: "manual" });
+  const bounced = await back();
   check(
     "la vuelta con pago rechazado redirige al checkout",
-    bounced.status === 307 && (bounced.headers.get("location") ?? "").includes("cancelado=1"),
-    `${bounced.status} ${bounced.headers.get("location")}`,
+    bounced.redirectsTo("/checkout?cancelado=1"),
+    String(bounced.status),
   );
   check("la vuelta con pago rechazado marca fallido", (await statusOf()).status === "fallido");
 
@@ -198,27 +214,31 @@ try {
   const waiting = await back();
   check("la vuelta con pago pendiente responde 200", waiting.status === 200);
   check("la vuelta con pago pendiente no libera", (await statusOf()).status === "pago");
-  check("la vuelta con pago pendiente lo dice", (await waiting.text()).includes("procesando"));
+  check("la vuelta con pago pendiente lo dice", waiting.body.includes("procesando"));
 
   // --- Link abierto: volvió sin pagar ---
   ledger.set(LINK, link("ACTIVE"));
   const open = await back();
   check("la vuelta sin pagar responde 200", open.status === 200);
   check("la vuelta sin pagar no libera", (await statusOf()).status === "pago");
-  check("la vuelta sin pagar lo dice", (await open.text()).includes("no est"));
+  check("la vuelta sin pagar lo dice", open.body.includes("no est"));
 
   // --- Bold no responde: se espera, no se inventa nada ---
   ledger.delete(LINK);
   const down = await back();
   check("si Bold no responde la vuelta igual carga", down.status === 200);
   check("si Bold no responde no libera", (await statusOf()).status === "pago");
-  check("si Bold no responde dice que confirma", (await down.text()).includes("Confirmando"));
+  check("si Bold no responde dice que confirma", down.body.includes("Confirmando"));
 
   // --- Enlace vencido: media hora después, la vuelta lo da por perdido ---
   ledger.set(LINK, link("ACTIVE"));
   await sql`update orders set created_at = now() - interval '40 minutes' where id = ${orderId}`;
-  const stale = await back({ redirect: "manual" });
-  check("un pedido vencido redirige al checkout", stale.status === 307, String(stale.status));
+  const stale = await back();
+  check(
+    "un pedido vencido redirige al checkout",
+    stale.redirectsTo("/checkout?cancelado=1"),
+    String(stale.status),
+  );
   check("un pedido vencido queda fallido", (await statusOf()).status === "fallido");
 } catch (err) {
   crashed(err);
