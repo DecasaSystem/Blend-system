@@ -7,6 +7,7 @@ import OrderCard from "./OrderCard";
 import ContentEditor from "./editor/ContentEditor";
 import StatsPanel from "./stats/StatsPanel";
 import TeamPanel from "./TeamPanel";
+import HelpPanel from "./HelpPanel";
 import {
   askForNotifications,
   chime,
@@ -43,7 +44,9 @@ export default function OrderBoard({
   const now = useNow();
   const [sound, setSound] = useState(false);
   const [tab, setTab] = useState<BoardStatus>("nuevo");
-  const [view, setView] = useState<"pedidos" | "metricas" | "contenido" | "cuentas">("pedidos");
+  const [view, setView] = useState<"pedidos" | "metricas" | "contenido" | "cuentas" | "ayuda">(
+    "pedidos",
+  );
   const arrived = useNewOrderAlert(orders, sound);
   const wide = useMediaQuery("(min-width: 1024px)");
 
@@ -118,9 +121,10 @@ export default function OrderBoard({
             <Logo size={30} />
             <span className="u-display text-2xl">BLEND</span>
           </Link>
-          {/* Las tres partes de la vista de equipo */}
+          {/* Las partes de la vista de equipo. En un celular no caben todas:
+              la píldora se desplaza de lado por dentro, sin barra visible. */}
           <div
-            className="flex items-center gap-1 rounded-full border-[1.5px] border-ink p-1"
+            className="flex max-w-full items-center gap-1 overflow-x-auto rounded-full border-[1.5px] border-ink p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
             role="tablist"
           >
             {(
@@ -131,6 +135,8 @@ export default function OrderBoard({
                 // Las cuentas sólo las gestiona un administrador; a la barra ni
                 // se le enseña la pestaña.
                 ...(user.role === "admin" ? [{ id: "cuentas", label: "Cuentas" } as const] : []),
+                // El manual: cómo se usa todo esto. Para todos los roles.
+                { id: "ayuda", label: "Ayuda" },
               ] as const
             ).map((v) => (
               <button
@@ -139,7 +145,7 @@ export default function OrderBoard({
                 role="tab"
                 aria-selected={view === v.id}
                 onClick={() => setView(v.id)}
-                className={`u-mono min-h-9 rounded-full px-3.5 transition-colors ${
+                className={`u-mono min-h-9 shrink-0 whitespace-nowrap rounded-full px-3.5 transition-colors ${
                   view === v.id ? "bg-ink text-paper" : "text-ink/55"
                 }`}
               >
@@ -204,6 +210,10 @@ export default function OrderBoard({
       ) : view === "cuentas" ? (
         <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6">
           <TeamPanel user={user} />
+        </div>
+      ) : view === "ayuda" ? (
+        <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
+          <HelpPanel user={user} />
         </div>
       ) : view === "contenido" ? (
         // Más angosto que el tablero —un formulario de 1600 px no se lee— pero
