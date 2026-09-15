@@ -95,7 +95,10 @@ export default function Footer() {
           <p>
             © {new Date().getFullYear()} Blend · Hecho en {brand.city}
           </p>
-          <div className="flex gap-4">
+          <div className="flex flex-wrap gap-4">
+            <a href="#app" className="hover:text-ink">
+              Instalar la app
+            </a>
             <a href="#" className="hover:text-ink">
               Aviso de privacidad
             </a>

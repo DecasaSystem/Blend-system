@@ -8,6 +8,7 @@ import { addAddress, removeAddress, signOut, type AccountState } from "@/actions
 import { describe, money } from "@/lib/cart";
 import { STATUS_COLOR, STATUS_LABEL, formatClock, type Order } from "@/lib/orders";
 import { useSite } from "../SiteProvider";
+import InstallApp from "../InstallApp";
 import type { Customer } from "@/lib/customer-session";
 
 type Address = {
@@ -49,6 +50,9 @@ export default function AccountPanel({
       lead={customer.email}
       wide
     >
+      {/* La app en el teléfono: quien tiene cuenta es quien repite. */}
+      <InstallApp variant="card" />
+
       {/* Sellos */}
       <section className="card-ink mt-8 p-6 hover:translate-x-0 hover:translate-y-0 hover:shadow-[4px_5px_0_0_var(--color-ink)]">
         <p className="u-mono text-ink/45">{rewards.eyebrow}</p>

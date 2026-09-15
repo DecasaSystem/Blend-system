@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import Logo from "./Logo";
 import { useCart } from "./CartProvider";
 import { money } from "@/lib/cart";
+import InstallApp from "./InstallApp";
 
 /**
  * Vuelta de la pasarela, en cuatro estados:
@@ -111,6 +112,8 @@ export default function PaymentResult({
                   ? "Te avisamos cuando esté listo para recoger."
                   : "La barra ya lo tiene y te avisa en cuanto esté listo."}
             </p>
+            {/* Buen momento para proponer la app: acaba de pedir y le fue bien. */}
+            <InstallApp variant="card" />
           </>
         ) : state === "pending" ? (
           <>

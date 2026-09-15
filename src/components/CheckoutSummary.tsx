@@ -9,6 +9,7 @@ import { describe, money, MAX_QTY } from "@/lib/cart";
 import { placeOrder } from "@/actions/orders";
 import { payWithCard } from "@/actions/checkout";
 import { useSite } from "./SiteProvider";
+import InstallApp from "./InstallApp";
 
 /**
  * Resumen y envío del pedido a la barra.
@@ -136,6 +137,7 @@ export default function CheckoutSummary({
               ? "Te llamamos cuando el domiciliario salga. Veinticinco minutos desde ahora."
               : `Te avisamos cuando esté listo para recoger en ${store?.name ?? "la tienda"}.`}
           </p>
+          <InstallApp variant="card" />
 
           <div className="mt-8 flex flex-wrap justify-center gap-3">
             <Link href="/" className="btn btn-mango">
