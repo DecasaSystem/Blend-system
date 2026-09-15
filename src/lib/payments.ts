@@ -79,6 +79,15 @@ export async function startPayment(input: PaymentInput): Promise<{ url: string; 
   // Bold pide entre 2 y 100 caracteres.
   const description = input.description.trim().slice(0, 100);
 
+  // Bold sólo acepta volver a una URL https; con http responde 403 a secas.
+  // En local (http://localhost) se manda el link sin vuelta: el cliente ve el
+  // recibo de Bold con el número de pedido y regresa a mano. En producción
+  // siempre es https.
+  const secureReturn = input.redirectUrl.startsWith("https://");
+  if (!secureReturn) {
+    console.warn(`[bold] la URL de vuelta no es https, se omite: ${input.redirectUrl}`);
+  }
+
   const res = await fetch(`${API_BASE}/online/link/v1`, {
     method: "POST",
     headers: { Authorization: `x-api-key ${apiKey}`, "Content-Type": "application/json" },
@@ -86,10 +95,11 @@ export async function startPayment(input: PaymentInput): Promise<{ url: string; 
     body: JSON.stringify({
       amount_type: "CLOSE",
       amount: { currency: CURRENCY, total_amount: Math.round(input.total), tip_amount: 0 },
+      // Bold no admite repetir la referencia: el número de pedido es único.
       reference: input.orderId,
       description: description.length >= 2 ? description : "Pedido BLEND",
       expiration_date: expiresAt,
-      callback_url: input.redirectUrl,
+      ...(secureReturn ? { callback_url: input.redirectUrl } : {}),
       ...(input.email ? { payer_email: input.email } : {}),
     }),
   });
