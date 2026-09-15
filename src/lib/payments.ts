@@ -1,198 +1,252 @@
 import "server-only";
 
-import { createHash, timingSafeEqual } from "node:crypto";
+import { createHmac, timingSafeEqual } from "node:crypto";
 
 /**
- * Cobros con tarjeta — Wompi (Colombia).
+ * Cobros en línea — Bold (Colombia): tarjeta, PSE, Nequi y Botón Bancolombia,
+ * todos por la misma página de pago de Bold.
  *
  * Todo lo que sabe la app sobre la pasarela está en este archivo. El checkout
- * llama a `startPayment` y el webhook a `readApprovedReference`; nada más
- * necesita saber qué proveedor hay detrás.
+ * llama a `startPayment`; el webhook y la página de vuelta llaman a
+ * `readPaymentEvent` / `lookupPayment` y le pasan el resultado a
+ * `settlePayment` (en `settle-payment.ts`). Nada más necesita saber qué
+ * proveedor hay detrás.
  *
- * Wompi no lleva SDK: el cobro es una redirección con firma y la confirmación
- * llega por webhook. Por eso aquí sólo hay URLs y hashes.
+ * Se usa la **API de links de pago**, no el botón con script: el servidor
+ * crea un link cerrado por el total del pedido y manda al cliente a la página
+ * de Bold. Así no se carga ningún script de terceros en la tienda, y el
+ * estado del link se puede consultar al instante cuando el cliente vuelve
+ * (la consulta del botón, `payment-voucher`, puede tardar hasta diez minutos
+ * en tener la venta).
+ *
+ * Bold cuenta en pesos enteros, sin centavos. La firma de los webhooks es un
+ * HMAC sobre el cuerpo completo, así que ahí sí se puede confiar en lo que
+ * dice el aviso: no hace falta volver a preguntar.
  *
  * Documentación:
- *   https://docs.wompi.co/docs/colombia/widget-checkout-web/
- *   https://docs.wompi.co/docs/colombia/eventos/
+ *   https://developers.bold.co/pagos-en-linea/api-link-de-pagos
+ *   https://developers.bold.co/webhook
+ *   https://developers.bold.co/pagos-en-linea/llaves-de-integracion
  */
 
-const publicKey = process.env.WOMPI_PUBLIC_KEY;
-const integritySecret = process.env.WOMPI_INTEGRITY_SECRET;
-const eventsSecret = process.env.WOMPI_EVENTS_SECRET;
+/** "Llave de identidad": identifica al comercio. Es pública, pero aquí sólo la usa el servidor. */
+const apiKey = process.env.BOLD_API_KEY;
+/** "Llave secreta": firma los webhooks. Sólo en el servidor. */
+const secretKey = process.env.BOLD_SECRET_KEY;
 
-/** Wompi cobra en pesos colombianos, contados en centavos. */
-const MINOR_UNITS = 100;
 const CURRENCY = "COP";
 
-const CHECKOUT_URL = process.env.WOMPI_CHECKOUT_URL ?? "https://checkout.wompi.co/p/";
+/** La API de integraciones. `BOLD_API_BASE` sólo se usa en pruebas, contra un stub. */
+const API_BASE = (process.env.BOLD_API_BASE ?? "https://integrations.api.bold.co").replace(
+  /\/$/,
+  "",
+);
 
-/** Sin claves, la tienda sigue funcionando: sólo se cobra al recibir. */
+/**
+ * Cuánto vale el enlace de pago. Pasado ese tiempo Bold lo da por vencido, y
+ * el pedido también (`expireStalePayments`). Un batido no se pide con horas de
+ * antelación: media hora sobra para escribir una tarjeta.
+ */
+export const PAYMENT_WINDOW_MINUTES = 30;
+
+/** Sin la llave, la tienda sigue funcionando: sólo se cobra al recibir. */
 export function paymentsEnabled() {
-  return Boolean(publicKey && integritySecret);
+  return Boolean(apiKey);
 }
 
-const sha256 = (value: string) => createHash("sha256").update(value, "utf8").digest("hex");
-
 export type PaymentInput = {
-  /** El número de pedido. Viaja como `reference` y es lo que devuelve el webhook. */
+  /** El número de pedido. Viaja como `reference` del link. */
   orderId: string;
+  /** En pesos. */
   total: number;
   email?: string;
-  name?: string;
-  phone?: string;
+  description: string;
   redirectUrl: string;
 };
 
-/** Arma la URL de pago firmada. */
-export function startPayment(input: PaymentInput): { url: string } {
-  if (!publicKey || !integritySecret) {
-    throw new Error("Los pagos con tarjeta no están configurados.");
-  }
+/**
+ * Crea el link de pago y devuelve a dónde mandar al cliente.
+ *
+ * `ref` es el id del link (`LNK_…`). Hay que guardarlo en el pedido: es lo que
+ * Bold manda como referencia en el webhook y con lo que se consulta el estado.
+ */
+export async function startPayment(input: PaymentInput): Promise<{ url: string; ref: string }> {
+  if (!apiKey) throw new Error("Los pagos en línea no están configurados.");
 
-  const amountInCents = Math.round(input.total * MINOR_UNITS);
+  // Bold quiere la caducidad en nanosegundos desde la época Unix.
+  const expiresAt = (Date.now() + PAYMENT_WINDOW_MINUTES * 60_000) * 1e6;
 
-  // La firma de integridad va sobre referencia + monto + moneda + secreto, en
-  // ese orden exacto. Es lo que impide que alguien cambie el monto en la URL.
-  const signature = sha256(`${input.orderId}${amountInCents}${CURRENCY}${integritySecret}`);
+  // Bold pide entre 2 y 100 caracteres.
+  const description = input.description.trim().slice(0, 100);
 
-  const params = new URLSearchParams({
-    "public-key": publicKey,
-    currency: CURRENCY,
-    "amount-in-cents": String(amountInCents),
-    reference: input.orderId,
-    "signature:integrity": signature,
-    "redirect-url": input.redirectUrl,
+  const res = await fetch(`${API_BASE}/online/link/v1`, {
+    method: "POST",
+    headers: { Authorization: `x-api-key ${apiKey}`, "Content-Type": "application/json" },
+    cache: "no-store",
+    body: JSON.stringify({
+      amount_type: "CLOSE",
+      amount: { currency: CURRENCY, total_amount: Math.round(input.total), tip_amount: 0 },
+      reference: input.orderId,
+      description: description.length >= 2 ? description : "Pedido BLEND",
+      expiration_date: expiresAt,
+      callback_url: input.redirectUrl,
+      ...(input.email ? { payer_email: input.email } : {}),
+    }),
   });
 
-  if (input.email) params.set("customer-data:email", input.email);
-  if (input.name) params.set("customer-data:full-name", input.name);
-  if (input.phone) params.set("customer-data:phone-number", input.phone.replace(/\D/g, ""));
+  const body = (await res.json().catch(() => null)) as
+    | { payload?: { payment_link?: string; url?: string }; errors?: unknown[] }
+    | null;
 
-  return { url: `${CHECKOUT_URL}?${params.toString()}` };
+  const ref = body?.payload?.payment_link;
+  const url = body?.payload?.url;
+  if (!res.ok || !ref || !url) {
+    console.error(
+      "[bold] no se pudo crear el link:",
+      res.status,
+      JSON.stringify(body?.errors ?? body),
+    );
+    throw new Error(`Bold no creó el link de pago (HTTP ${res.status}).`);
+  }
+
+  return { url, ref };
 }
 
-type WompiEvent = {
-  event?: string;
-  timestamp?: number;
-  data?: { transaction?: Record<string, unknown> };
-  signature?: { properties?: string[]; checksum?: string };
+/** Lo que la app necesita saber de un cobro, venga del webhook o de una consulta. */
+export type PaymentStatus =
+  /** Cobrado. */
+  | "approved"
+  /** El banco todavía lo procesa (PSE). */
+  | "pending"
+  /** El link sigue abierto: el cliente no ha pagado todavía. */
+  | "open"
+  /** Rechazado, cancelado, con error o vencido. Nadie pagó. */
+  | "failed";
+
+export type PaymentLookup = {
+  status: PaymentStatus;
+  /** Con lo que se encuentra el pedido: el id del link, o nuestro número de pedido. */
+  reference: string;
+  /** En pesos. */
+  amount: number;
+  transactionId?: string;
 };
 
-export type ApprovedPayment = { reference: string; amountInCents: number; transactionId: string };
+/** Los estados de un link de pago según Bold. */
+const LINK_STATUS: Record<string, PaymentStatus> = {
+  PAID: "approved",
+  ACTIVE: "open",
+  PROCESSING: "pending",
+  REJECTED: "failed",
+  CANCELLED: "failed",
+  EXPIRED: "failed",
+};
 
 /**
- * La API de Wompi. El prefijo de la clave dice en qué ambiente estamos.
- * `WOMPI_API_BASE` sólo se usa en pruebas, para apuntar a un servidor de mentira.
+ * La fuente de verdad: lo que diga Bold del link cuando se le pregunta.
+ *
+ * Lo usa la página de vuelta: con el `payment_ref` guardado en el pedido se
+ * confirma al instante, sin esperar al webhook (que además, en modo pruebas,
+ * Bold no manda solo).
+ *
+ * Lanza si Bold no responde: quien llama decide si reintentar o esperar.
+ * Dar por bueno un pago sin poder confirmarlo sería peor.
  */
-function apiBase() {
-  if (process.env.WOMPI_API_BASE) return process.env.WOMPI_API_BASE.replace(/\/$/, "");
-  return publicKey?.startsWith("pub_prod_")
-    ? "https://production.wompi.co/v1"
-    : "https://sandbox.wompi.co/v1";
+export async function lookupPayment(ref: string): Promise<PaymentLookup> {
+  if (!apiKey) throw new Error("Falta BOLD_API_KEY.");
+
+  const res = await fetch(`${API_BASE}/online/link/v1/${encodeURIComponent(ref)}`, {
+    headers: { Authorization: `x-api-key ${apiKey}` },
+    cache: "no-store",
+  });
+
+  if (!res.ok) throw new Error(`Bold no confirmó el link de pago (HTTP ${res.status}).`);
+
+  const data = (await res.json()) as {
+    id?: string;
+    status?: string;
+    total?: number;
+    transaction_id?: string;
+  };
+
+  const status = data.status ? LINK_STATUS[data.status] : undefined;
+  if (!status || typeof data.total !== "number") {
+    throw new Error("Bold respondió con un link que no se entiende.");
+  }
+
+  return { status, reference: ref, amount: data.total, transactionId: data.transaction_id };
 }
 
-/**
- * Comprueba el aviso y devuelve el pago si de verdad fue aprobado.
- *
- * Son dos pasos, y el segundo importa tanto como el primero:
- *
- * 1. Se recalcula el checksum con los campos que el propio aviso lista en
- *    `signature.properties`, más el timestamp y el secreto de eventos. Eso
- *    descarta un aviso inventado desde fuera.
- *
- * 2. Se vuelve a preguntar a Wompi por la transacción usando su `id`. Hace
- *    falta porque la firma SÓLO cubre los campos listados, y `reference` no
- *    suele estar entre ellos: con la firma a secas, alguien podría tomar el
- *    aviso legítimo de su propio pago, cambiarle la referencia por la de otro
- *    pedido —el checksum seguiría cuadrando— y hacer que ese pedido saliera a
- *    la barra sin pagarse. La referencia y el monto se leen de la respuesta de
- *    Wompi, nunca del cuerpo recibido.
- */
-export async function readApprovedPayment(rawBody: string): Promise<ApprovedPayment | null> {
-  if (!eventsSecret) throw new Error("Falta WOMPI_EVENTS_SECRET.");
-  if (!publicKey) throw new Error("Falta WOMPI_PUBLIC_KEY.");
+type BoldEvent = {
+  id?: string;
+  type?: string;
+  data?: {
+    payment_id?: string;
+    amount?: { currency?: string; total?: number };
+    metadata?: { reference?: string };
+  };
+};
 
-  let event: WompiEvent;
+/** Los tipos de aviso que manda Bold y qué significan para el pedido. */
+const EVENT_STATUS: Record<string, PaymentStatus | null> = {
+  SALE_APPROVED: "approved",
+  SALE_REJECTED: "failed",
+  // Una anulación es un reembolso: lo resuelve el equipo a mano, no el tablero.
+  VOID_APPROVED: null,
+  VOID_REJECTED: null,
+};
+
+/**
+ * Comprueba el aviso y devuelve lo que dice del cobro.
+ *
+ * La firma viaja en la cabecera `x-bold-signature`: HMAC-SHA256 con la llave
+ * secreta sobre el cuerpo en base64, en hexadecimal. Como cubre el cuerpo
+ * entero, con la firma bien todo lo que dice el aviso es de fiar —la
+ * referencia y el monto incluidos—, así que no hay que volver a preguntar.
+ *
+ * Devuelve null si el aviso es legítimo pero no cambia nada del pedido.
+ */
+export function readPaymentEvent(
+  rawBody: string,
+  signature: string | null,
+): PaymentLookup | null {
+  // En modo pruebas Bold firma con la llave vacía; en producción, nunca.
+  if (secretKey === undefined) throw new Error("Falta BOLD_SECRET_KEY.");
+  if (!signature) throw new Error("Aviso sin firma.");
+
+  const expected = createHmac("sha256", secretKey)
+    .update(Buffer.from(rawBody, "utf8").toString("base64"))
+    .digest("hex");
+
+  if (!sameHash(expected, signature)) throw new Error("Firma que no cuadra.");
+
+  let event: BoldEvent;
   try {
-    event = JSON.parse(rawBody) as WompiEvent;
+    event = JSON.parse(rawBody) as BoldEvent;
   } catch {
     throw new Error("Cuerpo del aviso ilegible.");
   }
 
-  const properties = event.signature?.properties;
-  const received = event.signature?.checksum;
-  if (!Array.isArray(properties) || !received || typeof event.timestamp !== "number") {
-    throw new Error("Aviso sin firma.");
+  const status = event.type ? EVENT_STATUS[event.type] : undefined;
+  if (!status) return null;
+
+  const reference = event.data?.metadata?.reference;
+  const amount = event.data?.amount?.total;
+  if (typeof reference !== "string" || !reference || typeof amount !== "number") {
+    throw new Error("El aviso no trae referencia o monto.");
   }
 
-  const concatenated =
-    properties.map((path) => String(readPath(event, path) ?? "")).join("") +
-    event.timestamp +
-    eventsSecret;
-
-  if (!sameHash(sha256(concatenated), received)) throw new Error("Firma que no cuadra.");
-
-  if (event.event !== "transaction.updated") return null;
-
-  const transactionId = event.data?.transaction?.id;
-  if (typeof transactionId !== "string" || !transactionId) return null;
-
-  // El id tiene que estar entre los campos firmados; si no, tampoco es de fiar.
-  if (!properties.includes("transaction.id")) {
-    throw new Error("El aviso no firma el id de la transacción.");
-  }
-
-  return confirmWithWompi(transactionId);
+  return { status, reference, amount, transactionId: event.data?.payment_id };
 }
 
-/** La fuente de verdad: lo que diga Wompi cuando se le pregunta directamente. */
-async function confirmWithWompi(transactionId: string): Promise<ApprovedPayment | null> {
-  const res = await fetch(`${apiBase()}/transactions/${encodeURIComponent(transactionId)}`, {
-    headers: { Authorization: `Bearer ${publicKey}` },
-    cache: "no-store",
-  });
-
-  if (!res.ok) {
-    // Se lanza a propósito: la ruta responderá con error y Wompi reintentará.
-    // Marcar un pedido como pagado sin poder confirmarlo sería peor.
-    throw new Error(`Wompi no confirmó la transacción (HTTP ${res.status}).`);
-  }
-
-  const body = (await res.json()) as {
-    data?: { status?: string; reference?: string; amount_in_cents?: number };
-  };
-  const data = body.data;
-
-  if (!data || data.status !== "APPROVED") return null;
-  if (typeof data.reference !== "string" || typeof data.amount_in_cents !== "number") return null;
-
-  return {
-    reference: data.reference,
-    amountInCents: data.amount_in_cents,
-    transactionId,
-  };
-}
-
-/** Lo que se cobró tiene que ser lo que costaba el pedido. */
-export function amountMatches(totalInPesos: number, amountInCents: number) {
-  return Math.round(totalInPesos * MINOR_UNITS) === amountInCents;
-}
-
-/** Los `properties` vienen como "transaction.status", relativos a `data`. */
-function readPath(event: WompiEvent, path: string): unknown {
-  return path
-    .split(".")
-    .reduce<unknown>(
-      (node, key) =>
-        node && typeof node === "object" ? (node as Record<string, unknown>)[key] : undefined,
-      event.data,
-    );
+/** Lo que se cobró tiene que ser lo que costaba el pedido. Los dos en pesos. */
+export function amountMatches(totalInPesos: number, amountInPesos: number) {
+  return Math.round(totalInPesos) === Math.round(amountInPesos);
 }
 
 /** Comparación de tiempo constante: comparar con === filtra información. */
 function sameHash(a: string, b: string) {
-  const left = Buffer.from(a, "utf8");
-  const right = Buffer.from(b.toLowerCase(), "utf8");
+  const left = Buffer.from(a.toLowerCase(), "utf8");
+  const right = Buffer.from(b.trim().toLowerCase(), "utf8");
   return left.length === right.length && timingSafeEqual(left, right);
 }

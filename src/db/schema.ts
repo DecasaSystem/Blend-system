@@ -119,12 +119,19 @@ export const orders = pgTable(
     customerId: text("customer_id").references(() => customers.id, { onDelete: "set null" }),
     /** Cuándo se confirmó el cobro. Nulo mientras no esté pagado. */
     paidAt: timestamp("paid_at", { withTimezone: true }),
+    /**
+     * El id que la pasarela le dio al cobro (en Bold, el link `LNK_…`). Es lo
+     * que viene en el webhook y con lo que se consulta el estado al volver.
+     * Nulo si no se pagó en línea.
+     */
+    paymentRef: text("payment_ref"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
     index("orders_created_idx").on(t.createdAt),
     index("orders_status_idx").on(t.status),
     index("orders_customer_idx").on(t.customerId),
+    index("orders_payment_ref_idx").on(t.paymentRef),
   ],
 );
 

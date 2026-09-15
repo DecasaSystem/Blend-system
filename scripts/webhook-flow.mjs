@@ -1,100 +1,100 @@
 /**
- * Prueba del webhook de Wompi, que es lo único que mueve un pedido de
- * "esperando pago" a la barra.
+ * Prueba de la capa que resuelve un pago de Bold: el webhook y la página de
+ * vuelta, que mueven un pedido de "esperando pago" a la barra o a "fallido".
  *
- * Levanta un servidor que hace de API de Wompi, así que no hacen falta claves
- * reales ni red. El servidor de desarrollo tiene que arrancarse apuntando a él:
+ * Levanta un servidor que hace de API de Bold (links de pago), así que no hacen
+ * falta llaves reales ni red. El servidor de desarrollo tiene que arrancarse
+ * apuntando a él:
  *
- *   $env:WOMPI_PUBLIC_KEY='pub_test_ficticia'
- *   $env:WOMPI_INTEGRITY_SECRET='test_integrity_ficticio'
- *   $env:WOMPI_EVENTS_SECRET='test_events_ficticio'
- *   $env:WOMPI_API_BASE='http://localhost:4010/v1'
+ *   $env:BOLD_API_KEY='llave_ficticia'
+ *   $env:BOLD_SECRET_KEY='secreto_ficticio'
+ *   $env:BOLD_API_BASE='http://localhost:4010'
  *   npm run dev
  *
  *   node --env-file=.env.local scripts/webhook-flow.mjs
  */
-import { createHash, randomUUID } from "node:crypto";
+import { createHmac, randomUUID } from "node:crypto";
 import { createServer } from "node:http";
 import { reporter, sqlClient } from "./lib/team.mjs";
 
 const URL = process.argv[2] ?? "http://localhost:3000";
-const SECRET = process.argv[3] ?? "test_events_ficticio";
+const SECRET = process.argv[3] ?? "secreto_ficticio";
 const STUB_PORT = 4010;
 
 const sql = sqlClient();
 const { check, crashed, finish } = reporter();
 
 const orderId = `B-TEST-${randomUUID().slice(0, 6)}`;
+const LINK = `LNK_${randomUUID().slice(0, 8).toUpperCase()}`;
 const TOTAL = 10000;
-const sha256 = (v) => createHash("sha256").update(v, "utf8").digest("hex");
 
-const PROPERTIES = ["transaction.id", "transaction.status", "transaction.amount_in_cents"];
-
-/** Lo que responderá la API de mentira para cada transacción consultada. */
+/** Lo que responderá la API de mentira para cada link consultado. */
 const ledger = new Map();
 
 const stub = createServer((req, res) => {
+  res.setHeader("content-type", "application/json");
   const id = decodeURIComponent(req.url.split("/").pop());
   const record = ledger.get(id);
-  res.setHeader("content-type", "application/json");
   if (!record) {
     res.statusCode = 404;
-    res.end(JSON.stringify({ error: "no existe" }));
+    res.end(JSON.stringify({ errors: ["no existe"] }));
     return;
   }
-  res.end(JSON.stringify({ data: record }));
+  res.end(JSON.stringify(record));
 });
 
 await new Promise((resolve) => stub.listen(STUB_PORT, resolve));
 
-/** Arma un aviso como los que manda Wompi, con su checksum. */
-function buildEvent({
-  transactionId = "12345-1610641025-49201",
-  reference = orderId,
-  status = "APPROVED",
-  secret = SECRET,
-  amount = TOTAL * 100,
-  timestamp = Math.floor(Date.now() / 1000),
-  event = "transaction.updated",
-  properties = PROPERTIES,
-} = {}) {
-  const transaction = {
-    id: transactionId,
-    status,
-    amount_in_cents: amount,
-    reference,
-    currency: "COP",
-  };
-  const values = properties
-    .map((p) => String(p.split(".").reduce((n, k) => n?.[k], { transaction }) ?? ""))
-    .join("");
+/** Un link como los que devuelve `GET /online/link/v1/{id}`. */
+function link(status, { id = LINK, total = TOTAL } = {}) {
+  return { id, status, total, subtotal: total, reference: orderId, is_sandbox: true };
+}
 
+/** Arma un aviso como los que manda Bold, con su firma en la cabecera. */
+function buildEvent({
+  type = "SALE_APPROVED",
+  reference = LINK,
+  total = TOTAL,
+  paymentId = "PAGO-TEST-1",
+} = {}) {
   return JSON.stringify({
-    event,
-    data: { transaction },
-    environment: "test",
-    signature: { properties, checksum: sha256(values + timestamp + secret) },
-    timestamp,
-    sent_at: new Date().toISOString(),
+    id: randomUUID(),
+    type,
+    subject: paymentId,
+    source: "/payments",
+    spec_version: "1.0",
+    time: Date.now() * 1e6,
+    data: {
+      payment_id: paymentId,
+      merchant_id: "MERCHANT",
+      created_at: new Date().toISOString(),
+      amount: { currency: "COP", total, taxes: [], tip: 0 },
+      metadata: { reference },
+      payment_method: "CARD",
+    },
+    datacontenttype: "application/json",
   });
 }
 
-async function post(body) {
-  const res = await fetch(`${URL}/api/wompi/webhook`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body,
-  });
+/** Firma de Bold: HMAC-SHA256 con la llave secreta sobre el cuerpo en base64. */
+const sign = (body, secret = SECRET) =>
+  createHmac("sha256", secret).update(Buffer.from(body, "utf8").toString("base64")).digest("hex");
+
+async function post(body, signature = sign(body)) {
+  const headers = { "content-type": "application/json" };
+  if (signature !== null) headers["x-bold-signature"] = signature;
+  const res = await fetch(`${URL}/api/bold/webhook`, { method: "POST", headers, body });
   return res.status;
 }
 
 async function seed(status = "pago") {
   await sql`
-    insert into orders (id, status, mode, store_id, customer, lines, subtotal, delivery, total, payment)
+    insert into orders (id, status, mode, store_id, customer, lines, subtotal, delivery, total, payment, payment_ref)
     values (${orderId}, ${status}, 'recoger', 'norte',
             ${sql.json({ name: "Prueba", phone: "300" })},
-            ${sql.json([])}, ${TOTAL}, 0, ${TOTAL}, 'tarjeta')
-    on conflict (id) do update set status = ${status}, paid_at = null
+            ${sql.json([])}, ${TOTAL}, 0, ${TOTAL}, 'tarjeta', ${LINK})
+    on conflict (id) do update
+      set status = ${status}, paid_at = null, created_at = now(), payment_ref = ${LINK}
   `;
 }
 
@@ -103,57 +103,28 @@ async function statusOf() {
   return row;
 }
 
-try {
-  // Lo que Wompi "dirá" cuando le pregunten por esta transacción.
-  ledger.set("12345-1610641025-49201", {
-    id: "12345-1610641025-49201",
-    status: "APPROVED",
-    reference: orderId,
-    amount_in_cents: TOTAL * 100,
-  });
+const back = (opts = {}) => fetch(`${URL}/checkout/listo?pedido=${orderId}`, opts);
 
+try {
   await seed();
 
+  // ------------------------------------------------------------ webhook ---
+  const good = buildEvent();
+
   // --- Sin firma ---
-  const naked = JSON.stringify({ event: "transaction.updated", data: {} });
-  check("sin firma responde 400", (await post(naked)) === 400);
+  check("sin firma responde 400", (await post(good, null)) === 400);
   check("sin firma no toca el pedido", (await statusOf()).status === "pago");
 
   // --- Firmado con otro secreto ---
-  check(
-    "con secreto equivocado responde 400",
-    (await post(buildEvent({ secret: "otro_secreto" }))) === 400,
-  );
+  check("con secreto equivocado responde 400", (await post(good, sign(good, "otro"))) === 400);
   check("con secreto equivocado no toca el pedido", (await statusOf()).status === "pago");
 
-  // --- Campos firmados alterados después de firmar ---
-  const good = buildEvent();
-  const tampered = good.replace('"amount_in_cents":1000000', '"amount_in_cents":100');
-  check("si cambian un campo firmado responde 400", (await post(tampered)) === 400);
-  check("si cambian un campo firmado no toca el pedido", (await statusOf()).status === "pago");
-
-  // --- La referencia NO va firmada: por eso se confirma contra Wompi ---
-  // Se toma un aviso legítimo y se le cambia sólo la referencia. El checksum
-  // sigue cuadrando, así que la única defensa es preguntarle a Wompi.
-  await sql`
-    insert into orders (id, status, mode, store_id, customer, lines, subtotal, delivery, total, payment)
-    values ('B-VICTIMA', 'pago', 'recoger', 'norte',
-            ${sql.json({ name: "Otra", phone: "300" })},
-            ${sql.json([])}, ${TOTAL}, 0, ${TOTAL}, 'tarjeta')
-    on conflict (id) do update set status = 'pago'
-  `;
-  const hijacked = good.replace(`"reference":"${orderId}"`, '"reference":"B-VICTIMA"');
-  check("un aviso con la referencia cambiada responde 200", (await post(hijacked)) === 200);
-  const [victim] = await sql`select status from orders where id = 'B-VICTIMA'`;
-  check(
-    "cambiar la referencia no libera el pedido de otro",
-    victim.status === "pago",
-    victim.status,
-  );
-
-  // --- Si el aviso no firma el id, no es de fiar ---
-  const unsignedId = buildEvent({ properties: ["transaction.status"] });
-  check("rechaza un aviso que no firma el id", (await post(unsignedId)) === 400);
+  // --- Cuerpo alterado después de firmar: la firma cubre todo ---
+  const tampered = good.replace(`"total":${TOTAL}`, '"total":100');
+  check("si cambian el cuerpo responde 400", (await post(tampered, sign(good))) === 400);
+  const swapped = good.replace(`"reference":"${LINK}"`, '"reference":"LNK_OTRO"');
+  check("si cambian la referencia responde 400", (await post(swapped, sign(good))) === 400);
+  check("nada de eso toca el pedido", (await statusOf()).status === "pago");
 
   // --- Firma correcta ---
   check("con firma válida responde 200", (await post(good)) === 200);
@@ -161,49 +132,99 @@ try {
   check("mueve el pedido a la barra", paid.status === "nuevo", paid.status);
   check("anota cuándo se pagó", paid.paid_at !== null);
 
-  // --- Reenvío: Wompi reintenta, no debe deshacer trabajo ---
+  // --- Reenvío: Bold reintenta, no debe deshacer trabajo ---
   await sql`update orders set status = 'preparando' where id = ${orderId}`;
   check("un reenvío responde 200", (await post(buildEvent())) === 200);
   const after = await statusOf();
   check("el reenvío no devuelve el pedido a Nuevo", after.status === "preparando", after.status);
 
-  // --- Wompi dice que no está aprobada ---
+  // --- Rechazado ---
   await seed();
-  ledger.set("12345-1610641025-49201", {
-    id: "12345-1610641025-49201",
-    status: "DECLINED",
-    reference: orderId,
-    amount_in_cents: TOTAL * 100,
-  });
-  check("un pago rechazado responde 200", (await post(buildEvent({ status: "DECLINED" }))) === 200);
-  check("un pago rechazado no libera el pedido", (await statusOf()).status === "pago");
+  check("un pago rechazado responde 200", (await post(buildEvent({ type: "SALE_REJECTED" }))) === 200);
+  const declined = await statusOf();
+  check("un pago rechazado marca el pedido como fallido", declined.status === "fallido", declined.status);
+  check("un pago rechazado no anota cobro", declined.paid_at === null);
+
+  // --- El banco aprueba tarde (PSE) un pedido ya dado por fallido: la plata entró ---
+  check("una aprobación tardía responde 200", (await post(buildEvent())) === 200);
+  const rescued = await statusOf();
+  check("una aprobación tardía rescata el pedido fallido", rescued.status === "nuevo", rescued.status);
+
+  // --- Un rechazo tardío no deshace un pedido ya cobrado ---
+  check("un rechazo tardío responde 200", (await post(buildEvent({ type: "SALE_REJECTED" }))) === 200);
+  check("un rechazo tardío no toca un pedido cobrado", (await statusOf()).status === "nuevo");
 
   // --- Monto que no cuadra con el pedido ---
-  ledger.set("12345-1610641025-49201", {
-    id: "12345-1610641025-49201",
-    status: "APPROVED",
-    reference: orderId,
-    amount_in_cents: 100,
-  });
-  check("un monto que no cuadra responde 200", (await post(buildEvent({ amount: 100 }))) === 200);
+  await seed();
+  check("un monto que no cuadra responde 200", (await post(buildEvent({ total: 100 }))) === 200);
   check("un monto que no cuadra no libera el pedido", (await statusOf()).status === "pago");
 
-  // --- Wompi no responde: hay que reintentar, no dar por bueno ---
-  const unknown = buildEvent({ transactionId: "no-existe-en-wompi" });
-  check("si Wompi no confirma responde 503", (await post(unknown)) === 503);
-  check("si Wompi no confirma no libera el pedido", (await statusOf()).status === "pago");
+  // --- Referencia desconocida ---
+  check("una referencia sin pedido responde 200", (await post(buildEvent({ reference: "LNK_NADIE" }))) === 200);
+  check("una referencia sin pedido no toca nada", (await statusOf()).status === "pago");
 
-  // --- Otro tipo de evento ---
+  // --- Una anulación no es cosa del tablero ---
+  check("una anulación responde 200", (await post(buildEvent({ type: "VOID_APPROVED" }))) === 200);
+  check("una anulación no toca el pedido", (await statusOf()).status === "pago");
+
+  // ---------------------------------------------------- página de vuelta ---
+
+  // --- Pagado: se confirma al instante consultando el link, sin webhook ---
+  ledger.set(LINK, link("PAID"));
+  const ok = await back({ redirect: "manual" });
+  check("la vuelta con link pagado responde 200", ok.status === 200, String(ok.status));
+  check("la vuelta con link pagado libera el pedido", (await statusOf()).status === "nuevo");
+  check("la vuelta con link pagado lo dice", (await ok.text()).includes("Pago recibido"));
+
+  // --- Pagado pero con otro monto: no se libera ---
+  await seed();
+  ledger.set(LINK, link("PAID", { total: 100 }));
+  await back({ redirect: "manual" });
+  check("un link pagado con otro monto no libera", (await statusOf()).status === "pago");
+
+  // --- Rechazado: la vuelta manda al checkout con el carrito intacto ---
+  ledger.set(LINK, link("REJECTED"));
+  const bounced = await back({ redirect: "manual" });
   check(
-    "otro evento responde 200",
-    (await post(buildEvent({ event: "nequi_token.updated" }))) === 200,
+    "la vuelta con pago rechazado redirige al checkout",
+    bounced.status === 307 && (bounced.headers.get("location") ?? "").includes("cancelado=1"),
+    `${bounced.status} ${bounced.headers.get("location")}`,
   );
-  check("otro evento no libera el pedido", (await statusOf()).status === "pago");
+  check("la vuelta con pago rechazado marca fallido", (await statusOf()).status === "fallido");
+
+  // --- Pendiente (PSE): la vuelta lo dice y no libera ---
+  await seed();
+  ledger.set(LINK, link("PROCESSING"));
+  const waiting = await back();
+  check("la vuelta con pago pendiente responde 200", waiting.status === 200);
+  check("la vuelta con pago pendiente no libera", (await statusOf()).status === "pago");
+  check("la vuelta con pago pendiente lo dice", (await waiting.text()).includes("procesando"));
+
+  // --- Link abierto: volvió sin pagar ---
+  ledger.set(LINK, link("ACTIVE"));
+  const open = await back();
+  check("la vuelta sin pagar responde 200", open.status === 200);
+  check("la vuelta sin pagar no libera", (await statusOf()).status === "pago");
+  check("la vuelta sin pagar lo dice", (await open.text()).includes("no est"));
+
+  // --- Bold no responde: se espera, no se inventa nada ---
+  ledger.delete(LINK);
+  const down = await back();
+  check("si Bold no responde la vuelta igual carga", down.status === 200);
+  check("si Bold no responde no libera", (await statusOf()).status === "pago");
+  check("si Bold no responde dice que confirma", (await down.text()).includes("Confirmando"));
+
+  // --- Enlace vencido: media hora después, la vuelta lo da por perdido ---
+  ledger.set(LINK, link("ACTIVE"));
+  await sql`update orders set created_at = now() - interval '40 minutes' where id = ${orderId}`;
+  const stale = await back({ redirect: "manual" });
+  check("un pedido vencido redirige al checkout", stale.status === 307, String(stale.status));
+  check("un pedido vencido queda fallido", (await statusOf()).status === "fallido");
 } catch (err) {
   crashed(err);
 } finally {
   stub.close();
-  await sql`delete from orders where id in (${orderId}, 'B-VICTIMA')`;
+  await sql`delete from orders where id = ${orderId}`;
   const failures = finish();
   await sql.end({ timeout: 5 });
   process.exit(failures ? 1 : 0);

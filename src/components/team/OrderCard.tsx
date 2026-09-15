@@ -18,7 +18,7 @@ import { useSite } from "../SiteProvider";
 
 /**
  * Corto a propósito: en la ficha compite con el total. `tarjeta` es lo que
- * confirma Wompi, y por ahí entra también PSE o Nequi: se dice «en línea».
+ * confirma Bold, y por ahí entra también PSE o Nequi: se dice «en línea».
  */
 const PAYMENT_LABEL: Record<Order["payment"], string> = {
   tarjeta: "Pagado en línea",
@@ -159,7 +159,7 @@ export default function OrderCard({
             /*
              * `payment` manda siempre, no `paymentMethod`: es el único campo que
              * de verdad significa "ya entró la plata" -lo pone el webhook de
-             * Wompi o el servidor al confirmar-. `paymentMethod` es sólo lo que
+             * Bold o el servidor al confirmar-. `paymentMethod` es sólo lo que
              * el cliente dijo que iba a usar (una preferencia del quiosco), y
              * mostrarlo en vez de comprobar `payment` dejaba que cualquiera
              * marcara un pedido sin pagar como "ya cobrado" en el tablero.

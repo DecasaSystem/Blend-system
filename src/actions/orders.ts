@@ -4,6 +4,7 @@ import { desc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { orders } from "@/db/schema";
 import { createOrder, type PlaceOrderInput } from "@/lib/create-order";
+import { expireStalePayments } from "@/lib/settle-payment";
 import { requireUser } from "@/lib/session";
 import { STATUSES, type BoardStatus, type Order } from "@/lib/orders";
 
@@ -49,13 +50,16 @@ export async function placeOrder(
   return createOrder(input, { payment: "pendiente" });
 }
 
-/** El tablero: todo menos lo que aún no se ha cobrado. */
+/** El tablero: todo menos lo que aún no se ha cobrado o no se llegó a pagar. */
 export async function listOrders(): Promise<Order[]> {
   await requireUser();
+  // El tablero se consulta cada pocos segundos: buen momento para dar por
+  // vencidos los pagos que nadie terminó, sin necesitar un cron aparte.
+  await expireStalePayments();
   const rows = await db
     .select()
     .from(orders)
-    .where(sql`${orders.status} <> 'pago'`)
+    .where(sql`${orders.status} not in ('pago', 'fallido')`)
     .orderBy(desc(orders.createdAt))
     .limit(200);
   return rows.map(toOrder);

@@ -130,7 +130,9 @@ export async function loadStats(dias: number): Promise<Stats> {
       payment: orders.payment,
     })
     .from(orders)
-    .where(and(gte(orders.createdAt, desdeAntes), sql`${orders.status} <> 'pago'`))
+    .where(
+      and(gte(orders.createdAt, desdeAntes), sql`${orders.status} not in ('pago', 'fallido')`),
+    )
     .orderBy(orders.createdAt);
 
   const actuales = filas.filter((o) => o.createdAt >= desde);

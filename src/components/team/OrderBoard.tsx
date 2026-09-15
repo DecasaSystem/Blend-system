@@ -69,11 +69,11 @@ export default function OrderBoard({
       entregado: [],
     };
     // El más viejo primero: se atiende por orden de llegada.
-    // Los que esperan pago no llegan aquí, pero por si acaso se ignoran.
+    // Los que esperan pago o no se pagaron no llegan aquí, pero por si acaso.
     [...orders]
       .sort((a, b) => a.createdAt - b.createdAt)
       .forEach((o) => {
-        if (o.status !== "pago") map[o.status].push(o);
+        if (o.status in map) map[o.status as BoardStatus].push(o);
       });
     return map;
   }, [orders]);

@@ -1,23 +1,27 @@
 "use server";
 
 import { headers } from "next/headers";
+import { eq } from "drizzle-orm";
+import { db } from "@/db";
+import { orders } from "@/db/schema";
 import { createOrder, type PlaceOrderInput } from "@/lib/create-order";
 import { paymentsEnabled, startPayment } from "@/lib/payments";
 import { getCustomer } from "@/lib/customer-session";
 
 /**
- * Pagar con tarjeta.
+ * Pagar en línea (Bold: tarjeta, PSE, Nequi, Botón Bancolombia).
  *
  * Se crea el pedido antes de mandar a la pasarela, en estado `pago`: así el
  * número existe desde el principio y viaja como referencia del cobro, pero la
- * barra no lo ve hasta que el webhook confirme que entró la plata.
+ * barra no lo ve hasta que Bold confirme que entró la plata (al volver el
+ * cliente, o por el webhook).
  */
 
 export async function payWithCard(
   input: PlaceOrderInput,
 ): Promise<{ url: string } | { error: string }> {
   if (!paymentsEnabled()) {
-    return { error: "El pago con tarjeta no está disponible ahora mismo." };
+    return { error: "El pago en línea no está disponible ahora mismo." };
   }
 
   const created = await createOrder(input, { payment: "tarjeta", awaitingPayment: true });
@@ -28,18 +32,28 @@ export async function payWithCard(
 
   try {
     // El monto se toma del pedido que acaba de guardar el servidor, no de lo
-    // que mandó el navegador: es lo que se cobra y lo que se firma.
-    return startPayment({
+    // que mandó el navegador: es lo que se cobra.
+    const { url, ref } = await startPayment({
       orderId: created.id,
       total: created.total,
       email: customer?.email,
-      name: input.customer.name,
-      phone: input.customer.phone,
+      description: `Pedido ${created.id} · BLEND`,
       redirectUrl: `${origin}/checkout/listo?pedido=${created.id}`,
     });
+
+    // El id del link es lo que Bold manda en el webhook y con lo que se
+    // consulta el estado al volver: sin él, el pedido no se puede confirmar.
+    await db.update(orders).set({ paymentRef: ref }).where(eq(orders.id, created.id));
+
+    return { url };
   } catch (err) {
-    // El pedido se queda en `pago` y nunca llega a la barra: no se prepara nada
-    // que no se haya cobrado.
+    // Sin link no hay forma de pagar este pedido: se cierra ya, en vez de
+    // dejarlo media hora esperando un cobro que no puede llegar.
+    await db
+      .update(orders)
+      .set({ status: "fallido", statusAt: new Date() })
+      .where(eq(orders.id, created.id));
+
     return {
       error:
         err instanceof Error

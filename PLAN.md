@@ -66,25 +66,52 @@ Next.js 15 (App Router) · TypeScript · Tailwind v4 · Framer Motion
 En la fase 7 se migra a base de datos (Neon/Supabase vía Vercel Marketplace) sin
 cambiar la forma de los objetos ni la UI.
 
-**Pagos: Wompi.** Todo lo que sabe la app de la pasarela está en
-`src/lib/payments.ts`. Sin claves, la tienda funciona igual y sólo se cobra al
-recibir o al recoger.
+**Pagos: Bold** (tarjeta, PSE, Nequi y Botón Bancolombia: los elige el cliente
+dentro de la página de Bold). Todo lo que sabe la app de la pasarela está en
+`src/lib/payments.ts`; lo que se hace con el pedido según lo que diga Bold, en
+`src/lib/settle-payment.ts`. Sin llaves, la tienda funciona igual y sólo se
+cobra al recibir o al recoger.
 
-Un pedido con tarjeta nace en estado `pago` y **no aparece en el tablero**: la
-barra no debe preparar nada que no se haya cobrado.
+Se usa la **API de links de pago**, no el botón con script: el servidor crea un
+link cerrado por el total del pedido (`POST /online/link/v1`) y manda al cliente
+a `checkout.bold.co`. Así no se carga ningún script de terceros en la tienda y
+el estado del link se consulta al instante (`GET /online/link/v1/{LNK}`); la
+consulta del botón (`payment-voucher`) puede tardar hasta diez minutos en tener
+la venta. Bold cuenta en pesos enteros, sin centavos.
 
-Lo libera el webhook, y ahí hay dos comprobaciones, no una:
+Un pedido en línea nace en estado `pago` y **no aparece en el tablero**: la
+barra no debe preparar nada que no se haya cobrado. El id del link (`LNK_…`) se
+guarda en `orders.payment_ref`: es lo que Bold manda como referencia en el
+webhook y con lo que se consulta el estado. El link caduca a los 30 minutos;
+pasado ese plazo el pedido se marca `fallido` ("Sin pagar"), igual que si el
+banco lo rechaza o se anula.
 
-1. Se recalcula el checksum del aviso con el secreto de eventos.
-2. **Se le vuelve a preguntar a Wompi por la transacción.** Hace falta porque la
-   firma sólo cubre los campos que el propio aviso lista en
-   `signature.properties`, y `reference` no está entre ellos. Con la firma a
-   secas, alguien podría tomar el aviso legítimo de su propio pago, cambiarle la
-   referencia por la de otro pedido —el checksum seguiría cuadrando— y sacar ese
-   pedido a la barra sin pagarlo. La referencia y el monto se leen de la
-   respuesta de Wompi, nunca del cuerpo recibido.
+Lo resuelven dos caminos que hacen lo mismo (`settlePayment`):
 
-Además se comprueba que lo cobrado sea lo que costaba el pedido.
+- **La página de vuelta** (`/checkout/listo?pedido=…`). De la URL sólo se lee el
+  número de pedido; con su `payment_ref` se le pregunta a Bold y el pedido se
+  confirma al instante, sin esperar al webhook. Si el banco lo rechazó, el
+  cliente vuelve al checkout con el carrito intacto. Si sigue pendiente (PSE),
+  se le dice que puede irse. Si volvió sin pagar, se le dice claro.
+- **El webhook** (`/api/bold/webhook`), para quien cierra la pestaña en Bold y
+  para lo que el banco confirma minutos después. Bold exige un 200 en menos de
+  2 s y reintenta a los 15 min, 1 h, 4 h, 8 h y 24 h. **En modo pruebas Bold no
+  manda webhooks solo** (hay un botón "Probar el webhook"); por eso la página de
+  vuelta no depende de él.
+
+Seguridad:
+
+1. El webhook viene firmado en `x-bold-signature`: HMAC-SHA256 con la llave
+   secreta sobre el cuerpo en base64. Como cubre el cuerpo entero, con la firma
+   bien la referencia y el monto del aviso son de fiar (a diferencia de Wompi,
+   donde la firma sólo cubría algunos campos y había que volver a preguntar).
+2. La página de vuelta no se cree nada de la URL: consulta a Bold por el link
+   que el propio servidor creó.
+3. Siempre se comprueba que lo cobrado sea lo que costaba el pedido.
+4. Cada cambio de estado lleva `WHERE status = …`: el webhook y la página de
+   vuelta pueden llegar a la vez y gana el primero; un reenvío nunca devuelve
+   atrás un pedido que la barra ya empezó. Un `fallido` que Bold apruebe después
+   (PSE lento) sí vuelve a `nuevo`: la plata entró.
 
 **Mapa:** MapLibre GL con teselas de OpenFreeMap (libres, sin clave ni cuota).
 Se carga sólo al entrar en pantalla; si falla, queda el mapa ilustrado.
@@ -137,7 +164,7 @@ sin dar ningún error.
 | **3** | **Vista `/equipo`: tablero de pedidos** | **listo — en revisión** |
 | **4** | **Vista `/equipo`: editor de contenido** | **listo — en revisión** |
 | **5** | **Mapa interactivo real** | **listo — en revisión** |
-| **6** | **Pago con tarjeta** | **listo — falta probarlo contra Stripe real** |
+| **6** | **Pago en línea (Bold)** | **listo — falta probarlo con las llaves de pruebas de Bold** |
 | **7a** | **Base de datos, login del equipo y sesiones** | **listo — en revisión** |
 | **7b** | **Cuentas de clientes** | **listo — en revisión** |
 | 7c | Deploy en Vercel | pendiente |
@@ -181,14 +208,13 @@ node --env-file=.env.local scripts/stats-flow.mjs   # métricas (siembra pedidos
 node --env-file=.env.local scripts/team-flow.mjs    # cuentas del equipo y CSV
 ```
 
-El webhook se prueba aparte, con claves ficticias y un servidor que hace de API
-de Wompi, porque hay que arrancar el servidor apuntando a él:
+La capa de pagos se prueba aparte, con llaves ficticias y un servidor que hace
+de API de Bold, porque hay que arrancar el servidor apuntando a él:
 
 ```bash
-$env:WOMPI_PUBLIC_KEY='pub_test_ficticia'
-$env:WOMPI_INTEGRITY_SECRET='test_integrity_ficticio'
-$env:WOMPI_EVENTS_SECRET='test_events_ficticio'
-$env:WOMPI_API_BASE='http://localhost:4010/v1'
+$env:BOLD_API_KEY='llave_ficticia'
+$env:BOLD_SECRET_KEY='secreto_ficticio'
+$env:BOLD_API_BASE='http://localhost:4010'
 npm run dev
 node --env-file=.env.local scripts/webhook-flow.mjs
 node scripts/overflow.mjs <url> <sel> # busca desbordamiento horizontal

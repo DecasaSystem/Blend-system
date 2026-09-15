@@ -1,7 +1,7 @@
 /**
  * Prueba de la capa de pagos.
  *
- * Sin claves de Wompi comprueba que la tienda degrada bien y que el webhook
+ * Sin llaves de Bold comprueba que la tienda degrada bien y que el webhook
  * no se deja engañar. Con claves comprueba además que el pedido nace en `pago`
  * y no llega al tablero hasta que el aviso firmado lo confirme.
  *
@@ -14,7 +14,7 @@ const URL = process.argv[2] ?? "http://localhost:3000";
 const sql = sqlClient();
 const { check, crashed, finish } = reporter();
 const errors = [];
-const configured = Boolean(process.env.WOMPI_PUBLIC_KEY);
+const configured = Boolean(process.env.BOLD_API_KEY);
 
 const user = await createTempUser(sql, { role: "admin" });
 const browser = await chromium.launch({ executablePath: CHROME });
@@ -27,27 +27,22 @@ ctx.on("page", (p) => {
 let orderId = null;
 
 try {
-  console.log(configured ? "Wompi configurado" : "Sin claves de Wompi: se prueba el respaldo");
+  console.log(configured ? "Bold configurado" : "Sin llaves de Bold: se prueba el respaldo");
 
   // --- El webhook existe y rechaza lo que no venga firmado ---
-  const ping = await ctx.request.get(`${URL}/api/wompi/webhook`);
+  const ping = await ctx.request.get(`${URL}/api/bold/webhook`);
   check("la ruta del webhook responde", ping.ok(), String(ping.status()));
 
-  const unsigned = await ctx.request.post(`${URL}/api/wompi/webhook`, {
-    data: {
-      event: "transaction.updated",
-      data: { transaction: { reference: "B-1", status: "APPROVED" } },
-    },
-  });
+  const event = {
+    type: "SALE_APPROVED",
+    data: { payment_id: "x", amount: { total: 1000 }, metadata: { reference: "B-1" } },
+  };
+  const unsigned = await ctx.request.post(`${URL}/api/bold/webhook`, { data: event });
   check("rechaza un aviso sin firma", unsigned.status() === 400, `HTTP ${unsigned.status()}`);
 
-  const faked = await ctx.request.post(`${URL}/api/wompi/webhook`, {
-    data: {
-      event: "transaction.updated",
-      timestamp: Math.floor(Date.now() / 1000),
-      data: { transaction: { id: "x", status: "APPROVED", reference: "B-1" } },
-      signature: { properties: ["transaction.id"], checksum: "0".repeat(64) },
-    },
+  const faked = await ctx.request.post(`${URL}/api/bold/webhook`, {
+    data: event,
+    headers: { "x-bold-signature": "0".repeat(64) },
   });
   check("rechaza una firma inventada", faked.status() === 400, `HTTP ${faked.status()}`);
 
@@ -66,7 +61,7 @@ try {
 
   const hasCardOption = await shop.getByText("Cómo pagas").isVisible();
   check(
-    configured ? "ofrece pagar con tarjeta" : "sin claves no ofrece tarjeta",
+    configured ? "ofrece pagar en línea" : "sin llaves no ofrece pagar en línea",
     hasCardOption === configured,
   );
 
@@ -94,8 +89,8 @@ try {
     await shop.getByRole("button", { name: /^Pagar/ }).click();
     await shop.waitForTimeout(6000);
     check(
-      "manda a la pasarela de Wompi",
-      /checkout\.wompi\.co/.test(shop.url()),
+      "manda a la pasarela de Bold",
+      /checkout\.bold\.co/.test(shop.url()),
       shop.url().slice(0, 60),
     );
 

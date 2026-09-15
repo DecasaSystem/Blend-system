@@ -3,8 +3,10 @@ import { redirect } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { orders } from "@/db/schema";
-import PaymentResult from "@/components/PaymentResult";
+import PaymentResult, { type PaymentState } from "@/components/PaymentResult";
 import { getCustomer } from "@/lib/customer-session";
+import { lookupPayment, paymentsEnabled } from "@/lib/payments";
+import { expireIfStale, settlePayment } from "@/lib/settle-payment";
 
 export const metadata: Metadata = {
   title: "Pedido confirmado",
@@ -16,9 +18,17 @@ export const dynamic = "force-dynamic";
 /**
  * Regreso desde la pasarela.
  *
- * Volver aquí no confirma el cobro: eso lo hace el webhook, que es lo único
- * firmado por Stripe. Esta página sólo lee el estado del pedido, y si todavía
- * dice `pago` avisa de que puede tardar unos segundos.
+ * El pedido guarda el id del link de Bold (`payment_ref`); con él se le
+ * pregunta a Bold y el pedido se resuelve aquí mismo, en el instante en que el
+ * cliente vuelve: no hay que esperar al webhook, que puede tardar (en modo
+ * pruebas Bold ni siquiera lo manda solo).
+ *
+ * Volver aquí NO confirma nada por sí solo, y de la URL sólo se lee el número
+ * de pedido: lo que confirma es la respuesta de Bold sobre el link que el
+ * propio servidor creó, y sólo si el monto cuadra (`settlePayment`).
+ *
+ * Si el pago falló, el cliente vuelve al checkout con el carrito intacto para
+ * intentarlo otra vez; aquí no hay nada que enseñarle.
  */
 export default async function PagoListoPage({
   searchParams,
@@ -28,19 +38,45 @@ export default async function PagoListoPage({
   const { pedido } = await searchParams;
   if (!pedido) redirect("/");
 
-  const [row] = await db
-    .select({
-      id: orders.id,
-      status: orders.status,
-      mode: orders.mode,
-      total: orders.total,
-      customerId: orders.customerId,
-    })
-    .from(orders)
-    .where(eq(orders.id, pedido))
-    .limit(1);
+  const load = () =>
+    db
+      .select({
+        id: orders.id,
+        status: orders.status,
+        mode: orders.mode,
+        total: orders.total,
+        customerId: orders.customerId,
+        createdAt: orders.createdAt,
+        paymentRef: orders.paymentRef,
+      })
+      .from(orders)
+      .where(eq(orders.id, pedido))
+      .limit(1);
 
+  let [row] = await load();
   if (!row) redirect("/");
+
+  let state: PaymentState = row.status === "pago" ? "waiting" : "confirmed";
+
+  if (row.status === "pago" && paymentsEnabled()) {
+    if (row.paymentRef) {
+      try {
+        const tx = await lookupPayment(row.paymentRef);
+        const result = await settlePayment(tx);
+        if (result === "pending" || result === "open") state = result;
+      } catch (err) {
+        // Bold no respondió: se queda en "esperando" y el webhook remata.
+        console.warn("[bold] no se pudo consultar al volver:", err);
+      }
+    }
+    // Si sigue sin pagar y el enlace ya venció, no va a pagar.
+    await expireIfStale(row.id, row.createdAt);
+    [row] = await load();
+    if (!row) redirect("/");
+  }
+
+  if (row.status === "fallido") redirect("/checkout?cancelado=1");
+  if (row.status !== "pago") state = "confirmed";
 
   const customer = await getCustomer();
 
@@ -56,7 +92,7 @@ export default async function PagoListoPage({
   return (
     <PaymentResult
       orderId={row.id}
-      confirmed={row.status !== "pago"}
+      state={state}
       mode={propio ? row.mode : undefined}
       total={propio ? row.total : undefined}
       signedIn={Boolean(customer)}

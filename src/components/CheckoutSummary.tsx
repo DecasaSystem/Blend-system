@@ -13,8 +13,8 @@ import { useSite } from "./SiteProvider";
 /**
  * Resumen y envío del pedido a la barra.
  *
- * Con Wompi configurado se ofrece pagar en línea (tarjeta, PSE, Nequi: los
- * medios los elige el cliente dentro de Wompi). Sin claves, o si prefiere
+ * Con Bold configurado se ofrece pagar en línea (tarjeta, PSE, Nequi: los
+ * medios los elige el cliente dentro de Bold). Sin claves, o si prefiere
  * pagar al recibir, el pedido sale marcado como "pago pendiente" y aparece
  * igual en /equipo.
  */
@@ -30,6 +30,7 @@ export default function CheckoutSummary({
   addresses?: SavedAddress[];
   /** Falso si no hay pasarela configurada: entonces sólo se cobra al recibir. */
   cardPayments?: boolean;
+  /** Verdadero al volver de un pago rechazado, cancelado o vencido. */
   cancelled?: boolean;
 }) {
   const {
@@ -178,7 +179,8 @@ export default function CheckoutSummary({
 
             {cancelled ? (
               <p className="u-mono mt-4 rounded-2xl border-[1.5px] border-ink/15 bg-white px-4 py-3 normal-case tracking-[0.01em] text-ink/60">
-                No se cobró nada. Tu pedido sigue aquí por si quieres intentarlo otra vez.
+                El pago no se completó y no se cobró nada. Tu pedido sigue aquí para que lo
+                intentes otra vez o pagues al recibir.
               </p>
             ) : null}
 
@@ -413,7 +415,7 @@ export default function CheckoutSummary({
                     {(
                       [
                         // El id sigue siendo «tarjeta» por el historial de
-                        // pedidos; Wompi ofrece también PSE y Nequi y hay que
+                        // pedidos; Bold ofrece también PSE y Nequi y hay que
                         // decirlo, o quien no tiene tarjeta ni lo intenta.
                         {
                           id: "tarjeta",
@@ -470,7 +472,7 @@ export default function CheckoutSummary({
 
               <p className="u-mono mt-3 text-ink/40">
                 {cardPayments && method === "tarjeta"
-                  ? "Te llevamos a Wompi, donde eliges tarjeta de crédito o débito, PSE o Nequi. La barra ve tu pedido cuando el pago se confirme."
+                  ? "Te llevamos a la página segura de Bold, donde eliges tarjeta de crédito o débito, PSE, Nequi o Botón Bancolombia. La barra ve tu pedido cuando el pago se confirme."
                   : "El pedido llega a la barra marcado como pago pendiente."}
               </p>
             </form>

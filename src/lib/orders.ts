@@ -11,17 +11,24 @@ import type { Product, Size, Store } from "./content";
 export const STATUSES = ["nuevo", "preparando", "listo", "entregado"] as const;
 
 /**
- * `pago` es un estado previo: el pedido existe pero aún no está pagado con
- * tarjeta, así que no aparece en el tablero. La barra no debe ponerse a
+ * `pago` es un estado previo: el pedido existe pero aún no está pagado en
+ * línea, así que no aparece en el tablero. La barra no debe ponerse a
  * preparar algo que todavía no se ha cobrado.
+ *
+ * `fallido` es su salida sin plata: el banco lo rechazó, se anuló, o el
+ * enlace de pago venció sin usarse. Tampoco sale al tablero. Si después de
+ * todo Bold avisa que se aprobó (un PSE que el banco tardó en confirmar),
+ * el pedido vuelve a la vida y pasa a `nuevo`: la plata entró.
  */
-export const ALL_STATUSES = ["pago", ...STATUSES] as const;
+export const PENDING_STATUSES = ["pago", "fallido"] as const;
+export const ALL_STATUSES = [...PENDING_STATUSES, ...STATUSES] as const;
 
 export type OrderStatus = (typeof ALL_STATUSES)[number];
 export type BoardStatus = (typeof STATUSES)[number];
 
 export const STATUS_LABEL: Record<OrderStatus, string> = {
   pago: "Esperando pago",
+  fallido: "Sin pagar",
   nuevo: "Nuevo",
   preparando: "Preparando",
   listo: "Listo",
@@ -31,6 +38,7 @@ export const STATUS_LABEL: Record<OrderStatus, string> = {
 /** Lo que se hace con un pedido en cada estado. */
 export const STATUS_ACTION: Record<OrderStatus, string | null> = {
   pago: null,
+  fallido: null,
   nuevo: "Empezar",
   preparando: "Marcar listo",
   listo: "Marcar entregado",
@@ -39,6 +47,7 @@ export const STATUS_ACTION: Record<OrderStatus, string | null> = {
 
 export const STATUS_COLOR: Record<OrderStatus, string> = {
   pago: "#8A7BA0",
+  fallido: "#B0A8B9",
   nuevo: "#FF6A1A",
   preparando: "#7B3FF2",
   listo: "#8FD14F",
@@ -48,6 +57,7 @@ export const STATUS_COLOR: Record<OrderStatus, string> = {
 /** Minutos a partir de los cuales el pedido se marca en rojo. */
 export const LATE_AFTER: Record<OrderStatus, number> = {
   pago: Infinity,
+  fallido: Infinity,
   nuevo: 3,
   preparando: 8,
   listo: 12,
