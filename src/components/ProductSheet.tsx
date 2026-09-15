@@ -279,8 +279,15 @@ export default function ProductSheet() {
                 +
               </Step>
             </div>
-            <button type="button" onClick={save} className="btn btn-mango min-w-0 flex-1">
-              {editing ? "Guardar" : "Agregar"} · {money(unit * qty)}
+            {/* Dos piezas separadas, no un texto: en un teléfono de 390 px
+                «Agregar · $ 17.900» se partía en dos líneas a mitad del precio. */}
+            <button
+              type="button"
+              onClick={save}
+              className="btn btn-mango min-w-0 flex-1 justify-between px-4 max-[359px]:px-3 max-[359px]:tracking-[0.04em] sm:px-6"
+            >
+              <span>{editing ? "Guardar" : "Agregar"}</span>
+              <span className="whitespace-nowrap">{money(unit * qty)}</span>
             </button>
           </div>
           {qty >= cap && cap < MAX_QTY ? (
@@ -338,7 +345,7 @@ function Step({
       type="button"
       onClick={onClick}
       aria-label={label}
-      className="grid h-10 w-10 place-items-center rounded-full text-lg transition-colors hover:bg-ink hover:text-paper"
+      className="grid h-9 w-9 place-items-center rounded-full text-lg transition-colors hover:bg-ink hover:text-paper min-[360px]:h-10 min-[360px]:w-10"
     >
       {children}
     </button>

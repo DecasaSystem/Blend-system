@@ -42,7 +42,9 @@ export default function MenuSection() {
         {/* Rejilla. Cuatro columnas sólo desde xl: en un portátil de 1024–1280 px
             la carta quedaba en 180–245 px de contenido y el pie (precio + Editar
             + agregar, ~250 px) no cabía: el precio se montaba sobre «Editar». */}
-        <div className="mt-8 grid grid-cols-2 gap-4 sm:gap-5 lg:grid-cols-3 xl:grid-cols-4">
+        {/* Dos columnas desde 360 px; por debajo (iPhone SE, Galaxy pequeños)
+            una tarjeta de 136 px no deja sitio ni al precio ni a la foto. */}
+        <div className="mt-8 grid grid-cols-1 gap-4 min-[360px]:grid-cols-2 sm:gap-5 lg:grid-cols-3 xl:grid-cols-4">
           {list.map((p) => (
             <article
               key={p.id}
@@ -50,7 +52,9 @@ export default function MenuSection() {
               // ancho real de la carta, no el de la pantalla.
               className={`card-ink group @container flex flex-col p-4 sm:p-5 ${p.soldOut ? "opacity-60" : ""}`}
             >
-              <div className="flex items-start justify-between gap-2">
+              {/* Altura fija aunque no haya etiqueta: si no, la foto de esa
+                  tarjeta sube y la fila queda desalineada. */}
+              <div className="flex min-h-7 items-start justify-between gap-2">
                 {p.soldOut ? (
                   <span className="sticker" style={{ background: "#EFE4FF" }}>
                     Agotado
@@ -94,7 +98,7 @@ export default function MenuSection() {
                 <h3 className="u-display text-[1.35rem] leading-none sm:text-[1.75rem] lg:text-3xl">
                   {p.name}
                 </h3>
-                <p className="mt-2 line-clamp-2 text-[0.8rem] leading-snug text-ink/60 sm:text-[0.9rem]">
+                <p className="mt-2 line-clamp-3 text-[0.8rem] leading-snug text-ink/60 sm:line-clamp-2 sm:text-[0.9rem]">
                   {p.tagline}
                 </p>
               </button>
@@ -110,12 +114,14 @@ export default function MenuSection() {
                 ))}
               </div>
 
-              <div className="mt-auto flex items-center justify-between gap-2 pt-4 sm:pt-5">
+              <div className="mt-auto flex flex-wrap items-center justify-between gap-1.5 pt-4 @[14rem]:gap-2 sm:pt-5">
                 {/* El menú anuncia el vaso más barato; el resto se ve al elegir.
-                    «desde» va encima, en su propia línea: en la rejilla de móvil
-                    la tarjeta mide 171 px y, puesto al lado, empujaba el botón de
-                    agregar fuera de la tarjeta, encima de la de al lado. */}
-                <span className="u-price min-w-0 text-lg sm:text-xl">
+                    «desde» va encima, en su propia línea, y el tamaño del precio
+                    lo decide el ancho real de la tarjeta (`@container`): en la
+                    rejilla de un teléfono mide 150–170 px y con el precio grande
+                    el botón de agregar se le montaba encima. Si aun así no cabe,
+                    el botón baja a su propia línea (`flex-wrap` + `ml-auto`). */}
+                <span className="u-price min-w-0 text-[0.95rem] @[14rem]:text-lg @[18rem]:text-xl">
                   {sizes.length > 1 ? (
                     <span className="u-mono block text-[0.55rem] leading-none text-ink/40">
                       desde
@@ -123,7 +129,7 @@ export default function MenuSection() {
                   ) : null}
                   {money(fromPrice(p))}
                 </span>
-                <div className="flex shrink-0 items-center gap-1.5">
+                <div className="ml-auto flex shrink-0 items-center gap-1.5">
                   {/* Sólo si la carta tiene ≥ 16rem de contenido, que es lo que
                       cabe junto al precio. En móvil y en cartas estrechas el
                       nombre y la ilustración ya abren la hoja. */}
@@ -147,7 +153,7 @@ export default function MenuSection() {
                         options: defaultOptions(builderBases[0]?.name ?? "", sizes[0]?.id ?? ""),
                       })
                     }
-                    className="grid h-11 w-11 place-items-center rounded-full border-[1.5px] border-ink bg-mango text-white transition-transform active:scale-95 disabled:bg-ink/20 disabled:text-ink/40"
+                    className="grid h-10 w-10 place-items-center rounded-full border-[1.5px] border-ink bg-mango text-white transition-transform active:scale-95 disabled:bg-ink/20 disabled:text-ink/40 @[14rem]:h-11 @[14rem]:w-11"
                     aria-label={`Agregar ${p.name} al pedido`}
                   >
                     <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
