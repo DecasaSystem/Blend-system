@@ -146,6 +146,7 @@ export function normalizeSite(site: SiteContent): SiteContent {
     ),
     kiosk: {
       enabled: kiosk.enabled ?? true,
+      payOnline: kiosk.payOnline ?? true,
       idleVideo: kiosk.idleVideo,
       idleTitle: kiosk.idleTitle ?? base.kiosk.idleTitle,
       idleSubtitle: kiosk.idleSubtitle ?? base.kiosk.idleSubtitle,

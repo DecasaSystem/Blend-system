@@ -783,6 +783,12 @@ export default function ContentEditor() {
                 onChange={(v) => set("kiosk", { ...draft.kiosk, enabled: v })}
                 hint="Apagada, la tablet dice que no está disponible. La clave para conectar una tablet se pone aparte, en Cuentas → Autopedido del mostrador."
               />
+              <Toggle
+                label="Ofrecer «Pagar ahora» en la tablet"
+                value={draft.kiosk.payOnline}
+                onChange={(v) => set("kiosk", { ...draft.kiosk, payOnline: v })}
+                hint="El cliente puede pagar con Nequi, tarjeta o PSE escaneando un QR con su celular (o en la propia pantalla), además de pagar en caja. Sólo funciona con la pasarela configurada."
+              />
               <Media
                 label="Video de espera (se repite solo)"
                 value={draft.kiosk.idleVideo}

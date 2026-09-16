@@ -565,6 +565,12 @@ export const KIOSK_FLAT = "_default";
 
 export type KioskConfig = {
   enabled: boolean;
+  /**
+   * Ofrecer «pagar ahora» en la tablet (QR para el celular, o en pantalla),
+   * además de pagar en caja. Sólo tiene efecto si la pasarela está
+   * configurada; sin ella, la tablet sólo ofrece caja.
+   */
+  payOnline: boolean;
   idleVideo?: string;
   idleTitle: string;
   idleSubtitle: string;
@@ -573,6 +579,7 @@ export type KioskConfig = {
 
 export const kiosk: KioskConfig = {
   enabled: true,
+  payOnline: true,
   idleTitle: "Pide aquí",
   idleSubtitle: "Toca para empezar",
   categories: [

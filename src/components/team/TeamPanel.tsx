@@ -235,8 +235,8 @@ function Quiosco() {
       <p className="mt-3 leading-relaxed text-ink/62">
         La pantalla para que el cliente pida solo, de pie en la tienda. No hay ningún enlace hacia
         ella desde la tienda: en la tablet se escribe esta dirección y, una sola vez, la clave que
-        pongas aquí. Los pedidos entran al tablero marcados como mostrador, para recoger y sin
-        cobrar.
+        pongas aquí. Los pedidos entran al tablero marcados como mostrador y para recoger: pagados en línea
+        si el cliente eligió «Pagar ahora», o sin cobrar para pagar en caja.
       </p>
 
       {/* La dirección a la vista, para copiarla o abrirla sin teclearla. */}

@@ -8,10 +8,12 @@ import VesselArt from "../VesselArt";
 import ProductSheet from "../ProductSheet";
 import KioskIdle from "./KioskIdle";
 import KioskHome from "./KioskHome";
+import KioskPay from "./KioskPay";
 import { useCart } from "../CartProvider";
 import { useSite } from "../SiteProvider";
 import { describe, defaultOptions, fromPrice, money, priceOf } from "@/lib/cart";
-import { lockKiosk, placeKioskOrder } from "@/actions/kiosk";
+import { lockKiosk, placeKioskOrder, startKioskPayment } from "@/actions/kiosk";
+import type { ReturnState } from "@/lib/settle-payment";
 import type { KioskConfig } from "@/lib/content";
 import { KIOSK_FLAT } from "@/lib/content";
 
@@ -30,9 +32,15 @@ import { KIOSK_FLAT } from "@/lib/content";
 /** Tras entregar el pedido, la pantalla vuelve sola a estar libre. */
 const VOLVER_EN = 12;
 
-type Pago = "tarjeta" | "efectivo" | "transferencia";
+type Pago = "online" | "tarjeta" | "efectivo" | "transferencia";
 
 const PAGOS: { id: Pago; icono: string; nombre: string; nota: string }[] = [
+  {
+    id: "online",
+    icono: "📲",
+    nombre: "Pagar ahora",
+    nota: "Con Nequi, tarjeta o PSE desde tu celular (o aquí en la pantalla). Sin pasar por caja.",
+  },
   {
     id: "tarjeta",
     icono: "💳",
@@ -57,10 +65,16 @@ export default function KioskOrder({
   tienda,
   etiqueta,
   kiosk,
+  pagosEnLinea = false,
+  vuelta = null,
 }: {
   tienda: string;
   etiqueta: string;
   kiosk: KioskConfig;
+  /** Si la pasarela está configurada y el equipo la habilitó para la tablet. */
+  pagosEnLinea?: boolean;
+  /** La tablet acaba de volver de Bold con este pedido en este estado. */
+  vuelta?: { id: string; state: ReturnState; total: number } | null;
 }) {
   const router = useRouter();
   const site = useSite();
@@ -68,11 +82,23 @@ export default function KioskOrder({
 
   const [caja, setCaja] = useState<string | null>(null);
   const [cat, setCat] = useState("todo");
-  const [paso, setPaso] = useState<"idle" | "home" | "menu" | "confirmar">("idle");
+  const [paso, setPaso] = useState<"idle" | "home" | "menu" | "confirmar" | "pagar">("idle");
   const [nombre, setNombre] = useState("");
   const [notas, setNotas] = useState("");
-  const [pago, setPago] = useState<Pago>("tarjeta");
+  const [pago, setPago] = useState<Pago>(pagosEnLinea ? "online" : "tarjeta");
   const [listo, setListo] = useState<string | null>(null);
+  /** El pedido que está esperando su cobro en línea, y su link. */
+  const [cobro, setCobro] = useState<{
+    id: string;
+    url?: string;
+    total: number;
+    state: ReturnState;
+  } | null>(null);
+  /** Si el pedido que se acaba de cerrar ya quedó pagado en línea. */
+  const [pagado, setPagado] = useState(false);
+
+  // Las formas de pago que ofrece esta tablet.
+  const pagos = PAGOS.filter((m) => m.id !== "online" || pagosEnLinea);
   const [error, setError] = useState<string | null>(null);
   const [cuenta, setCuenta] = useState(VOLVER_EN);
   const [pendiente, empezar] = useTransition();
@@ -119,6 +145,24 @@ export default function KioskOrder({
     return site.categories.filter((c) => activa.categoryIds.includes(c.id));
   }, [activa, site.categories]);
 
+  // La tablet vuelve de la página de Bold. Se quita `?pedido=` de la barra
+  // para que un refresco no vuelva a enseñar el resultado a otro cliente.
+  useEffect(() => {
+    if (!vuelta) return;
+    window.history.replaceState(null, "", "/quiosco");
+    if (vuelta.state === "confirmed") {
+      setPagado(true);
+      setCuenta(VOLVER_EN);
+      setListo(vuelta.id);
+    } else {
+      // Sin pagar, pendiente o rechazado: la pantalla de cobro decide.
+      setCobro({ id: vuelta.id, total: vuelta.total, state: vuelta.state });
+      setPaso("pagar");
+    }
+    // Sólo al montar.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // El carrito de la tienda vive en el mismo navegador; una pantalla de
   // mostrador tiene que empezar vacía o el primer cliente hereda lo de antes.
   useEffect(() => {
@@ -144,16 +188,41 @@ export default function KioskOrder({
     return () => clearTimeout(t);
   }, [listo, cuenta]);
 
+  const reiniciar = () => {
+    setListo(null);
+    setCobro(null);
+    setPagado(false);
+    setPaso("idle");
+    setCaja(null);
+    setCat("todo");
+    setNombre("");
+    setNotas("");
+    setPago(pagosEnLinea ? "online" : "tarjeta");
+    setCuenta(VOLVER_EN);
+  };
+
   const enviar = () => {
     setError(null);
     empezar(async () => {
       // Recoger no lleva domicilio, así que el total es el subtotal.
+      if (pago === "online") {
+        const res = await startKioskPayment(lines, nombre, notas, subtotal);
+        if ("error" in res) {
+          setError(res.error);
+          return;
+        }
+        clear();
+        setCobro({ id: res.id, url: res.url, total: subtotal, state: "open" });
+        setPaso("pagar");
+        return;
+      }
       const res = await placeKioskOrder(lines, nombre, notas, subtotal, pago);
       if ("error" in res) {
         setError(res.error);
         return;
       }
       clear();
+      setPagado(false);
       setCuenta(VOLVER_EN);
       setListo(res.id);
     });
@@ -177,6 +246,29 @@ export default function KioskOrder({
           setCat("todo");
           setPaso("menu");
         }}
+      />
+    );
+  }
+
+  /* ---------------- Pagar ahora ---------------- */
+  if (paso === "pagar" && cobro && !listo) {
+    return (
+      <KioskPay
+        orderId={cobro.id}
+        url={cobro.url}
+        total={cobro.total}
+        initialState={cobro.state}
+        onPaid={() => {
+          setPagado(true);
+          setCuenta(VOLVER_EN);
+          setListo(cobro.id);
+        }}
+        onCounter={() => {
+          setPagado(false);
+          setCuenta(VOLVER_EN);
+          setListo(cobro.id);
+        }}
+        onCancel={reiniciar}
       />
     );
   }
@@ -206,22 +298,12 @@ export default function KioskOrder({
             {listo}
           </p>
           <p className="mt-6 text-xl leading-relaxed text-paper/70">
-            Pasa a la barra a pagar y te lo preparamos.
+            {pagado
+              ? "Pago recibido. Te llamamos por tu nombre cuando esté listo."
+              : "Pasa a la barra a pagar y te lo preparamos."}
           </p>
 
-          <button
-            type="button"
-            onClick={() => {
-              setListo(null);
-              setPaso("idle");
-              setCaja(null);
-              setCat("todo");
-              setNombre("");
-              setNotas("");
-              setCuenta(VOLVER_EN);
-            }}
-            className="btn btn-mango mt-10"
-          >
+          <button type="button" onClick={reiniciar} className="btn btn-mango mt-10">
             Pedir otra cosa
           </button>
           <p className="u-mono mt-6 text-paper/35">Vuelve al inicio en {cuenta}</p>
@@ -241,7 +323,8 @@ export default function KioskOrder({
             ¿A nombre de <span className="u-italic text-mango">quién?</span>
           </h1>
           <p className="mt-3 text-lg text-ink/62">
-            Sólo el nombre, para cantarlo cuando esté listo. Se paga en la barra.
+            Sólo el nombre, para cantarlo cuando esté listo.
+            {pagosEnLinea ? " Abajo eliges si pagas ahora o en caja." : " Se paga en la barra."}
           </p>
 
           <input
@@ -291,12 +374,16 @@ export default function KioskOrder({
             <span className="u-price text-3xl">{money(subtotal)}</span>
           </div>
 
-          {/* Cómo vas a pagar. No hay pasarela: la barra cobra. Esto sólo le
-              avisa a la barra (tarjeta → alistar el datáfono) y queda en el
-              pedido del tablero. */}
+          {/* Cómo vas a pagar. «Pagar ahora» abre el cobro en línea (QR o en
+              pantalla); las otras tres sólo le avisan a la barra (tarjeta →
+              alistar el datáfono) y quedan en el pedido del tablero. */}
           <h2 className="u-display mt-10 text-3xl">¿Cómo pagas?</h2>
-          <div className="mt-4 grid grid-cols-3 gap-3" role="radiogroup" aria-label="Método de pago">
-            {PAGOS.map((m) => (
+          <div
+            className={`mt-4 grid gap-3 ${pagos.length === 4 ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-3"}`}
+            role="radiogroup"
+            aria-label="Método de pago"
+          >
+            {pagos.map((m) => (
               <button
                 key={m.id}
                 type="button"
@@ -305,7 +392,9 @@ export default function KioskOrder({
                 onClick={() => setPago(m.id)}
                 className={`flex min-h-[120px] flex-col items-center justify-center gap-1 rounded-2xl border-[1.5px] p-3 transition-colors ${
                   pago === m.id
-                    ? "border-ink bg-ink text-paper"
+                    ? m.id === "online"
+                      ? "border-ink bg-mango text-white"
+                      : "border-ink bg-ink text-paper"
                     : "border-ink/20 bg-white text-ink"
                 }`}
               >
@@ -316,7 +405,7 @@ export default function KioskOrder({
               </button>
             ))}
           </div>
-          <p className="mt-3 text-ink/60">{PAGOS.find((m) => m.id === pago)?.nota}</p>
+          <p className="mt-3 text-ink/60">{pagos.find((m) => m.id === pago)?.nota}</p>
 
           {error ? (
             <p className="u-mono mt-4 text-mango-deep" role="alert">
@@ -333,8 +422,10 @@ export default function KioskOrder({
             >
               {pendiente ? (
                 <>
-                  <CupLoader /> Enviando…
+                  <CupLoader /> {pago === "online" ? "Abriendo el pago…" : "Enviando…"}
                 </>
+              ) : pago === "online" ? (
+                `Pagar ${money(subtotal)}`
               ) : (
                 `Enviar a la barra · ${money(subtotal)}`
               )}

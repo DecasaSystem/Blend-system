@@ -3,7 +3,13 @@ import "server-only";
 import { and, eq, inArray, lt, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { orders } from "@/db/schema";
-import { amountMatches, PAYMENT_WINDOW_MINUTES, type PaymentLookup } from "@/lib/payments";
+import {
+  amountMatches,
+  lookupPayment,
+  PAYMENT_WINDOW_MINUTES,
+  paymentsEnabled,
+  type PaymentLookup,
+} from "@/lib/payments";
 
 /**
  * Aplicar al pedido lo que Bold dice de un cobro.
@@ -68,6 +74,17 @@ export async function settlePayment(tx: PaymentLookup): Promise<Settlement> {
       .set({ status: "nuevo", statusAt: new Date(), paidAt: new Date(), payment: "tarjeta" })
       .where(and(eq(orders.id, order.id), inArray(orders.status, ["pago", "fallido"])));
 
+    /*
+     * Y si el pedido ya había salido a la barra como «pago en caja» —en el
+     * quiosco se puede cambiar de idea— pero la plata entró igual por el
+     * link (lo pagó desde el celular después), se anota como pagado sin
+     * mover su columna: la barra tiene que saber que no debe cobrarlo.
+     */
+    await db
+      .update(orders)
+      .set({ payment: "tarjeta", paidAt: new Date() })
+      .where(and(eq(orders.id, order.id), eq(orders.payment, "pendiente")));
+
     return "confirmed";
   }
 
@@ -108,4 +125,69 @@ export async function expireIfStale(orderId: string, createdAt: Date) {
     .set({ status: "fallido", statusAt: new Date() })
     .where(and(eq(orders.id, orderId), eq(orders.status, "pago")));
   return true;
+}
+
+/**
+ * Resolver un pedido en el momento en que alguien vuelve a mirarlo: la
+ * página de vuelta de la tienda, el quiosco al volver de Bold, o el quiosco
+ * esperando a que el cliente pague desde su celular.
+ *
+ * Si el pedido sigue en `pago` y tiene link, se le pregunta a Bold y se
+ * aplica lo que diga; si además ya venció, se da por perdido. Devuelve el
+ * estado en términos de la interfaz.
+ */
+export type ReturnState = "confirmed" | "pending" | "open" | "failed" | "waiting";
+
+export async function resolveOrderReturn(orderId: string): Promise<{
+  state: ReturnState;
+  order: { id: string; status: string; total: number; mode: string; customerId: string | null } | null;
+}> {
+  const load = () =>
+    db
+      .select({
+        id: orders.id,
+        status: orders.status,
+        total: orders.total,
+        mode: orders.mode,
+        customerId: orders.customerId,
+        createdAt: orders.createdAt,
+        paymentRef: orders.paymentRef,
+      })
+      .from(orders)
+      .where(eq(orders.id, orderId))
+      .limit(1);
+
+  let [row] = await load();
+  if (!row) return { state: "failed", order: null };
+
+  let state: ReturnState = row.status === "pago" ? "waiting" : "confirmed";
+
+  if (row.status === "pago" && paymentsEnabled()) {
+    if (row.paymentRef) {
+      try {
+        const result = await settlePayment(await lookupPayment(row.paymentRef));
+        if (result === "pending" || result === "open") state = result;
+      } catch (err) {
+        // Bold no respondió: se queda en "esperando" y el webhook remata.
+        console.warn("[bold] no se pudo consultar al volver:", err);
+      }
+    }
+    await expireIfStale(row.id, row.createdAt);
+    [row] = await load();
+    if (!row) return { state: "failed", order: null };
+  }
+
+  if (row.status === "fallido") state = "failed";
+  else if (row.status !== "pago") state = "confirmed";
+
+  return {
+    state,
+    order: {
+      id: row.id,
+      status: row.status,
+      total: row.total,
+      mode: row.mode,
+      customerId: row.customerId,
+    },
+  };
 }

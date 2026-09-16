@@ -545,7 +545,8 @@ export default function HelpPanel({ user }: { user: SessionUser }) {
               Una tablet en la barra donde el cliente arma su pedido solo, de pie. Está en la
               dirección <Mono>/quiosco</Mono>, sin ningún enlace desde la tienda: se llega
               escribiéndola y con una clave. Los pedidos entran al tablero marcados{" "}
-              <b>Mostrador</b>, para recoger y <b>sin cobrar</b>: se cobran en caja.
+              <b>Mostrador</b> y para recoger. Si el cliente eligió <b>Pagar ahora</b>, llegan
+              como <b>Pagado en línea</b>; si eligió caja, llegan <b>Sin pagar</b> y se cobran ahí.
             </P>
             <Steps
               title="Montar una tablet nueva"
@@ -592,13 +593,28 @@ export default function HelpPanel({ user }: { user: SessionUser }) {
                 <P small>
                   La tablet arranca en la <b>pantalla de espera</b>, con el video y el texto que se
                   editan en <b>Contenido → Quiosco</b>. Al tocarla salen las cajas de productos
-                  configuradas ahí. El cliente arma su pedido, escribe su nombre y confirma; el
-                  pedido llega al tablero sin teléfono, así que se le llama por nombre. Al terminar,
-                  la tablet vuelve sola a la espera; si alguien lo deja a medias, el botón
+                  configuradas ahí. El cliente arma su pedido, escribe su nombre y elige cómo paga;
+                  el pedido llega al tablero sin teléfono, así que se le llama por nombre. Al
+                  terminar, la tablet vuelve sola a la espera; si alguien lo deja a medias, el botón
                   <b>Volver</b> también la devuelve.
                 </P>
               </Card>
             </Grid>
+            <Card title="«Pagar ahora» en la tablet">
+              <P small>
+                Si está activo en <b>Contenido → Quiosco</b> (y la pasarela configurada), el
+                cliente puede pagar sin pasar por caja. Como la tablet es de la tienda, lo primero
+                que se le ofrece es un <b>código QR</b>: lo escanea con su celular y paga allí con
+                Nequi, tarjeta o PSE; la tablet se entera sola y enseña el número. También puede
+                tocar «Pagar en esta pantalla», o cambiar de idea con «Mejor pago en caja». Si se va
+                sin pagar, la tablet vuelve al inicio a los cuatro minutos y ese pedido no sale a
+                la barra (y si paga desde el celular más tarde, entra igual).
+              </P>
+              <P small>
+                Para la barra no cambia nada: la tarjeta dice <b>Pagado en línea</b> o{" "}
+                <b>Sin pagar</b>, y siempre <b>Pedido de quiosco</b>.
+              </P>
+            </Card>
           </Section>
 
           {/* ------------------------------------------------ 7. Cuentas */}
