@@ -18,6 +18,7 @@ import {
 import { signOut } from "@/actions/auth";
 import { courierUnread } from "@/actions/chat";
 import DeliveryChat from "./DeliveryChat";
+import { useCourierTracking, type TrackingState } from "./useCourierTracking";
 import PushToggle from "../PushToggle";
 import type { SessionUser } from "@/lib/session";
 import type { Size } from "@/lib/content";
@@ -36,6 +37,10 @@ import type { Size } from "@/lib/content";
  *
  * Se refresca sola cada pocos segundos; cuando aparece un pedido nuevo para
  * mí, suena.
+ *
+ * Mientras tenga algo «en camino», el celular manda su posición para que el
+ * cliente vea venir la moto (ver `useCourierTracking`). Se enciende y se
+ * apaga solo con el estado de los pedidos; aquí sólo se enseña cómo va.
  */
 
 const REFRESH_MS = 5000;
@@ -116,6 +121,7 @@ export default function DeliveryPanel({
 
   const saliendo = board.mine.filter((o) => !o.outAt);
   const enCamino = board.mine.filter((o) => o.outAt);
+  const tracking = useCourierTracking(enCamino.length > 0);
 
   return (
     <main className="min-h-svh bg-paper-2 pb-16">
@@ -159,6 +165,8 @@ export default function DeliveryPanel({
             {error}
           </p>
         ) : null}
+
+        {enCamino.length > 0 ? <TrackingStrip state={tracking} now={now} /> : null}
 
         <Section
           title="En camino"
@@ -278,6 +286,46 @@ export default function DeliveryPanel({
 }
 
 /* ------------------------------------------------------------------ */
+
+/**
+ * Cómo va el envío de la ubicación al cliente. Verde cuando manda; naranja
+ * si falta el permiso o el GPS, con lo que hay que hacer, porque el
+ * repartidor no puede adivinar por qué el cliente no lo ve.
+ */
+function TrackingStrip({ state, now }: { state: TrackingState; now: number }) {
+  const ok = state.kind === "enviando";
+  const text =
+    state.kind === "enviando"
+      ? `El cliente te ve en el mapa · última posición hace ${Math.max(0, Math.round((now - state.at) / 1000))} s`
+      : state.kind === "buscando"
+        ? "Buscando tu ubicación para que el cliente te vea venir…"
+        : state.kind === "sin-permiso"
+          ? "Sin permiso de ubicación: el cliente no te ve. Actívalo en los ajustes del navegador para este sitio."
+          : state.kind === "sin-gps"
+            ? "Este aparato no da la ubicación: el cliente no te verá venir."
+            : state.kind === "error"
+              ? state.message
+              : "";
+  if (!text) return null;
+  return (
+    <p
+      className={`u-mono mb-4 flex items-start gap-2 rounded-2xl border-[1.5px] px-4 py-3 normal-case tracking-[0.01em] ${
+        ok
+          ? "border-matcha-deep/40 bg-matcha/20 text-matcha-deep"
+          : "border-mango-deep bg-mango/10 text-mango-deep"
+      }`}
+      role="status"
+    >
+      <span aria-hidden="true">{ok ? "📡" : "!"}</span>
+      <span>
+        {text}
+        {ok ? (
+          <span className="mt-1 block text-ink/45">Deja esta pantalla abierta hasta entregar.</span>
+        ) : null}
+      </span>
+    </p>
+  );
+}
 
 function Section({
   title,

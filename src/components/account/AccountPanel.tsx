@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState, useTransition } from "react";
+import { useActionState, useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import AccountShell from "./AccountShell";
@@ -10,7 +10,16 @@ import { STATUS_COLOR, displayStatus, formatClock, type Order } from "@/lib/orde
 import { useSite } from "../SiteProvider";
 import InstallApp from "../InstallApp";
 import PushToggle from "../PushToggle";
+import OrderTracker from "./OrderTracker";
 import type { Customer } from "@/lib/customer-session";
+
+/** Mientras haya un pedido vivo, la página se vuelve a pedir sola cada tanto. */
+const ACTIVE_REFRESH_MS = 20000;
+
+/** Un pedido que todavía puede cambiar de estado: vale la pena refrescar. */
+const isActive = (o: Order) => o.status === "nuevo" || o.status === "preparando" || o.status === "listo";
+/** «En camino»: hay repartidor en la calle, así que se enseña el mapa. */
+const isOut = (o: Order) => o.mode === "envio" && o.status === "listo" && !!o.outAt;
 
 type Address = {
   id: string;
@@ -39,6 +48,18 @@ export default function AccountPanel({
     return res;
   }, {});
   const [, startTransition] = useTransition();
+
+  // Con un pedido en marcha, refrescar para que «Listo» o «En camino» (y el
+  // mapa) aparezcan sin recargar. No mientras escribe una dirección: el
+  // refresco le vaciaría el formulario.
+  const hasActive = orders.some(isActive);
+  useEffect(() => {
+    if (!hasActive || adding) return;
+    const t = setInterval(() => {
+      if (document.visibilityState === "visible") router.refresh();
+    }, ACTIVE_REFRESH_MS);
+    return () => clearInterval(t);
+  }, [hasActive, adding, router]);
 
   const goal = Math.max(2, rewards.stamps);
   const colors = ["#FF6A1A", "#7B3FF2", "#8FD14F", "#FFD166", "#F2557A", "#6FA82E"];
@@ -162,6 +183,14 @@ export default function AccountPanel({
                   <p className="u-mono mt-3 border-t-[1.5px] border-ink/10 pt-3 text-base">
                     {money(o.total)}
                   </p>
+
+                  {isOut(o) && store ? (
+                    <OrderTracker
+                      orderId={o.id}
+                      store={{ lat: store.lat, lng: store.lng, name: store.area }}
+                      onGone={() => router.refresh()}
+                    />
+                  ) : null}
                 </li>
               );
             })}

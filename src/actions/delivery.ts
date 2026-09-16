@@ -1,8 +1,8 @@
 "use server";
 
-import { and, desc, eq, gte, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, gte, isNotNull, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { orders, users } from "@/db/schema";
+import { courierPositions, orders, users } from "@/db/schema";
 import { after } from "next/server";
 import { requireStaff, requireUser, type SessionUser } from "@/lib/session";
 import { pushToCustomer, pushToUser } from "@/lib/push";
@@ -85,6 +85,21 @@ async function requireCourier(): Promise<SessionUser> {
     throw new Error("Esta parte es sólo para repartidores.");
   }
   return user;
+}
+
+/**
+ * Si ya no le queda nada en la calle, su posición deja de existir: el
+ * seguimiento sólo dura lo que dura el domicilio.
+ */
+async function forgetPositionIfIdle(courierId: string) {
+  const [live] = await db
+    .select({ id: orders.id })
+    .from(orders)
+    .where(
+      and(eq(orders.courierId, courierId), eq(orders.status, "listo"), isNotNull(orders.outAt)),
+    )
+    .limit(1);
+  if (!live) await db.delete(courierPositions).where(eq(courierPositions.userId, courierId));
 }
 
 export type DeliveryBoard = {
@@ -218,8 +233,8 @@ export async function startDelivery(orderId: string): Promise<{ ok: true } | { e
     after(() =>
       pushToCustomer(o.customerId!, {
         title: `Tu pedido ${o.id} va en camino 🛵`,
-        body: `${me.name} ya salió con él. Si necesitas decirle algo, escríbele desde la tienda.`,
-        url: `/?chat=${o.id}`,
+        body: `${me.name} ya salió con él. Míralo venir en el mapa de tu cuenta.`,
+        url: "/cuenta",
         tag: `pedido-${o.id}`,
       }),
     );
@@ -245,6 +260,7 @@ export async function completeDelivery(
     .returning({ id: orders.id, customerId: orders.customerId });
   if (res.length === 0) return { error: "Ese pedido no es tuyo o ya está cerrado." };
   const [o] = res;
+  after(() => forgetPositionIfIdle(me.id));
   if (o.customerId) {
     after(() =>
       pushToCustomer(o.customerId!, {
@@ -269,5 +285,6 @@ export async function releaseDelivery(
     .where(
       and(eq(orders.id, orderId), eq(orders.courierId, me.id), sql`${orders.status} <> 'entregado'`),
     );
+  after(() => forgetPositionIfIdle(me.id));
   return { ok: true };
 }

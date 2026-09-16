@@ -44,8 +44,23 @@ export function boundsOf(stores: Store[]) {
   };
 }
 
+/** Punto en el mapa. La misma forma que manda el chat y que guarda el reparto. */
+export type LatLng = { lat: number; lng: number };
+
 /** OpenFreeMap: teselas libres, sin clave ni cuota. Atribución obligatoria. */
 export const MAP_STYLE_URL = "https://tiles.openfreemap.org/styles/positron";
 
 /** El worker de MapLibre; lo copia scripts/setup-maplibre.mjs antes de `dev` y de `build`. */
 export const MAP_WORKER_URL = "/maplibre/maplibre-gl-worker.mjs";
+
+/** Metros entre dos puntos (haversine). Suficiente para «¿se movió la moto?». */
+export function distanceMeters(a: LatLng, b: LatLng) {
+  const R = 6371000;
+  const rad = (d: number) => (d * Math.PI) / 180;
+  const dLat = rad(b.lat - a.lat);
+  const dLng = rad(b.lng - a.lng);
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}

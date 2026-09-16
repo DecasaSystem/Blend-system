@@ -1,5 +1,14 @@
 import { sql } from "drizzle-orm";
-import { index, integer, jsonb, pgTable, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
+import {
+  doublePrecision,
+  index,
+  integer,
+  jsonb,
+  pgTable,
+  text,
+  timestamp,
+  uniqueIndex,
+} from "drizzle-orm/pg-core";
 import type { CartLine, DeliveryMode } from "@/lib/cart";
 import type { Customer, OrderStatus, Role } from "@/lib/orders";
 import type { SiteContent } from "@/lib/site";
@@ -143,6 +152,26 @@ export const orders = pgTable(
     index("orders_courier_idx").on(t.courierId),
   ],
 );
+
+/**
+ * Dónde va cada repartidor ahora mismo.
+ *
+ * Una fila por persona, que se sobrescribe: no es un historial de recorridos,
+ * es «el último punto conocido». Sólo se escribe mientras lleva un domicilio
+ * en la calle, y se borra al entregar el último; así el cliente ve la moto
+ * venir y nada más. Si el celular deja de mandar, `updatedAt` se queda quieto
+ * y el cliente ve «hace N min» en vez de un punto que parece vivo.
+ */
+export const courierPositions = pgTable("courier_positions", {
+  userId: text("user_id")
+    .primaryKey()
+    .references(() => users.id, { onDelete: "cascade" }),
+  lat: doublePrecision("lat").notNull(),
+  lng: doublePrecision("lng").notNull(),
+  /** Rumbo en grados (0 = norte), si el GPS lo da; nulo parado o sin dato. */
+  heading: doublePrecision("heading"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
 
 /** Contador de los números de pedido. Una sola fila. */
 export const counters = pgTable("counters", {

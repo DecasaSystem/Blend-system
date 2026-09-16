@@ -517,6 +517,59 @@
   color: var(--color-paper);
 }
 
+/* La moto del repartidor en el mapa del cliente. El halo late para que se
+   vea que es un punto vivo, no un pin más; se queda quieto si el usuario pidió
+   menos movimiento. */
+.blend-courier {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+}
+
+.blend-courier-halo {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: var(--color-mango);
+  opacity: 0.35;
+  animation: blend-courier-pulse 2s ease-out infinite;
+}
+
+.blend-courier-dot {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  border: 1.5px solid var(--color-ink);
+  background: var(--color-paper);
+  box-shadow: 2px 3px 0 0 var(--color-ink);
+  font-size: 18px;
+  line-height: 1;
+}
+
+@keyframes blend-courier-pulse {
+  0% {
+    transform: scale(0.6);
+    opacity: 0.45;
+  }
+  100% {
+    transform: scale(1.4);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .blend-courier-halo {
+    animation: none;
+    transform: scale(0.9);
+    opacity: 0.25;
+  }
+}
+
 /* En móvil las sedes quedan cerca y las etiquetas se pisan entre sí:
    sólo se muestra la de la sede seleccionada. */
 @media (max-width: 639px) {
