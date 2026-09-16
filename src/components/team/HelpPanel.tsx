@@ -22,6 +22,7 @@ type Tone = "mango" | "ube" | "matcha" | "pulp";
 const SECTIONS: { id: string; label: string; tone: Tone; adminOnly?: boolean }[] = [
   { id: "empezar", label: "Empezar", tone: "ube" },
   { id: "pedidos", label: "Pedidos", tone: "mango" },
+  { id: "chat", label: "Chat", tone: "ube" },
   { id: "pagos", label: "Pagos en línea", tone: "matcha" },
   { id: "metricas", label: "Métricas", tone: "ube" },
   { id: "contenido", label: "Contenido", tone: "pulp" },
@@ -148,6 +149,8 @@ export default function HelpPanel({ user }: { user: SessionUser }) {
                 <Dl>
                   <Dt>Pedidos</Dt>
                   <Dd>El tablero de la barra. Lo que hay que preparar ahora.</Dd>
+                  <Dt>Chat</Dt>
+                  <Dd>Los mensajes que escriben los clientes desde la tienda, para contestarles.</Dd>
                   <Dt>Métricas</Dt>
                   <Dd>Cuánto se vendió, qué y a qué hora.</Dd>
                   <Dt>Contenido</Dt>
@@ -307,8 +310,64 @@ export default function HelpPanel({ user }: { user: SessionUser }) {
             </Warn>
           </Section>
 
-          {/* ------------------------------------------------ 3. Pagos */}
-          <Section n={3} id="pagos" tone="matcha" title="Pagos en línea" kicker="Bold">
+          {/* ------------------------------------------------ 3. Chat */}
+          <Section n={3} id="chat" tone="ube" title="Chat" kicker="Hablar con los clientes">
+            <P>
+              En la tienda hay una burbuja abajo a la derecha. Un cliente <b>con cuenta</b> puede
+              escribir desde ahí —una duda del menú, algo de su pedido, una alergia— y alguien de
+              la barra le contesta desde esta pestaña. Es una sola conversación por cliente, como un
+              hilo de WhatsApp: no se abre una nueva por cada pregunta.
+            </P>
+            <Grid>
+              <Card title="Cómo se contesta">
+                <Steps
+                  compact
+                  steps={[
+                    <>
+                      Cuando alguien escribe, la pestaña <b>Chat</b> enseña un número naranja y,
+                      con el <b>Aviso</b> encendido, suena como un pedido nuevo.
+                    </>,
+                    <>
+                      Las conversaciones que esperan respuesta van primero y con borde naranja.
+                      Toca una para abrir el hilo.
+                    </>,
+                    <>
+                      Escribe abajo y pulsa <b>Enviar</b> (o Enter). Tu nombre va con la respuesta:
+                      el cliente ve quién le contestó.
+                    </>,
+                  ]}
+                />
+              </Card>
+              <Card title="Lo que ve el cliente">
+                <Ul>
+                  <li>
+                    Si tiene la página abierta, la respuesta le aparece en segundos. Si la cerró,
+                    la burbuja le enseña un número la próxima vez que entre.
+                  </li>
+                  <li>
+                    Al lado del nombre del cliente está su correo y su teléfono, con botón para
+                    llamar si la cosa es urgente.
+                  </li>
+                  <li>
+                    Sin cuenta no se puede escribir: la burbuja le ofrece entrar o llamar. Así
+                    siempre hay a quién responderle.
+                  </li>
+                </Ul>
+              </Card>
+            </Grid>
+            <Tip>
+              La burbuja dice el horario en que respondéis (el de la primera sede en{" "}
+              <b>Contenido → Tiendas</b>). Fuera de ese horario, contestad al abrir: el cliente lo
+              verá al volver.
+            </Tip>
+            <Warn title="Lo que no es el chat">
+              No sirve para hacer pedidos ni para pagar. Si un cliente pide por chat, mándalo al menú de la
+              tienda: es lo único que recalcula precios, guarda el pedido y cobra.
+            </Warn>
+          </Section>
+
+          {/* ------------------------------------------------ 4. Pagos */}
+          <Section n={4} id="pagos" tone="matcha" title="Pagos en línea" kicker="Bold">
             <P>
               El cliente puede pagar desde la página con tarjeta, PSE, Nequi o Botón Bancolombia.
               Lo cobra <b>Bold</b>, la misma empresa del datáfono, en su propia pantalla segura.
@@ -362,7 +421,7 @@ export default function HelpPanel({ user }: { user: SessionUser }) {
           </Section>
 
           {/* ------------------------------------------------ 4. Métricas */}
-          <Section n={4} id="metricas" tone="ube" title="Métricas" kicker="Lo que se vendió">
+          <Section n={5} id="metricas" tone="ube" title="Métricas" kicker="Lo que se vendió">
             <P>
               Elige arriba el periodo: <b>7, 30 o 90 días</b>. Todo lo demás se recalcula solo.
               Sólo cuentan los pedidos confirmados (los que llegaron al tablero); los que se
@@ -402,7 +461,7 @@ export default function HelpPanel({ user }: { user: SessionUser }) {
 
           {/* ------------------------------------------------ 5. Contenido */}
           <Section
-            n={5}
+            n={6}
             id="contenido"
             tone="pulp"
             title="Contenido"
@@ -546,7 +605,7 @@ export default function HelpPanel({ user }: { user: SessionUser }) {
 
           {/* ------------------------------------------------ 6. Quiosco */}
           <Section
-            n={6}
+            n={7}
             id="quiosco"
             tone="mango"
             title="Quiosco"
@@ -629,7 +688,7 @@ export default function HelpPanel({ user }: { user: SessionUser }) {
           </Section>
 
           {/* ------------------------------------------------ 7. Reparto */}
-          <Section n={7} id="reparto" tone="matcha" title="Reparto" kicker="Los domicilios">
+          <Section n={8} id="reparto" tone="matcha" title="Reparto" kicker="Los domicilios">
             <P>
               Cada repartidor tiene su cuenta (rol <b>Repartidor</b>) y entra con ella en el
               celular, en <Mono>/equipo</Mono>: no ve el tablero, ve <b>su pantalla de reparto</b>{" "}
@@ -706,7 +765,7 @@ export default function HelpPanel({ user }: { user: SessionUser }) {
 
           {/* ------------------------------------------------ 8. Cuentas */}
           <Section
-            n={8}
+            n={9}
             id="cuentas"
             tone="matcha"
             title="Cuentas"
@@ -762,7 +821,7 @@ export default function HelpPanel({ user }: { user: SessionUser }) {
 
           {/* ------------------------------------------------ 9. Clientes */}
           <Section
-            n={9}
+            n={10}
             id="clientes"
             tone="ube"
             title="Clientes y sellos"
@@ -791,7 +850,7 @@ export default function HelpPanel({ user }: { user: SessionUser }) {
           </Section>
 
           {/* ------------------------------------------------ 10. Problemas */}
-          <Section n={10} id="problemas" tone="mango" title="Si algo falla" kicker="Antes de llamar">
+          <Section n={11} id="problemas" tone="mango" title="Si algo falla" kicker="Antes de llamar">
             <div className="grid gap-2">
               <Faq q="No suena cuando entra un pedido">
                 Pulsa <b>Aviso</b> hasta que quede en negro; el navegador pide permiso la primera

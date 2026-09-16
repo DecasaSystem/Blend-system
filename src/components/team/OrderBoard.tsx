@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import Logo from "../Logo";
 import OrderCard from "./OrderCard";
@@ -8,6 +8,8 @@ import ContentEditor from "./editor/ContentEditor";
 import StatsPanel from "./stats/StatsPanel";
 import TeamPanel from "./TeamPanel";
 import HelpPanel from "./HelpPanel";
+import ChatPanel from "./ChatPanel";
+import { chatUnreadTotal } from "@/actions/chat";
 import {
   askForNotifications,
   chime,
@@ -45,9 +47,27 @@ export default function OrderBoard({
   const now = useNow();
   const [sound, setSound] = useState(false);
   const [tab, setTab] = useState<BoardStatus>("nuevo");
-  const [view, setView] = useState<"pedidos" | "metricas" | "contenido" | "cuentas" | "ayuda">(
-    "pedidos",
-  );
+  const [view, setView] = useState<
+    "pedidos" | "chat" | "metricas" | "contenido" | "cuentas" | "ayuda"
+  >("pedidos");
+
+  // Mensajes de clientes sin leer: número en la pestaña y campana al llegar
+  // uno nuevo (si el aviso está encendido), igual que con los pedidos.
+  const [chatUnread, setChatUnread] = useState(0);
+  const chatSeen = useRef(0);
+  useEffect(() => {
+    const tick = () =>
+      chatUnreadTotal()
+        .then((n) => {
+          if (n > chatSeen.current && sound) chime();
+          chatSeen.current = n;
+          setChatUnread(n);
+        })
+        .catch(() => {});
+    tick();
+    const t = setInterval(tick, 8000);
+    return () => clearInterval(t);
+  }, [sound]);
   const arrived = useNewOrderAlert(orders, sound);
   const wide = useMediaQuery("(min-width: 1024px)");
 
@@ -148,6 +168,7 @@ export default function OrderBoard({
             {(
               [
                 { id: "pedidos", label: "Pedidos" },
+                { id: "chat", label: "Chat" },
                 { id: "metricas", label: "Métricas" },
                 { id: "contenido", label: "Contenido" },
                 // Las cuentas sólo las gestiona un administrador; a la barra ni
@@ -170,6 +191,11 @@ export default function OrderBoard({
                 {v.label}
                 {v.id === "pedidos" && today.open > 0 ? (
                   <span className="ml-1.5 opacity-60">{today.open}</span>
+                ) : null}
+                {v.id === "chat" && chatUnread > 0 ? (
+                  <span className="ml-1.5 inline-grid h-5 min-w-5 place-items-center rounded-full bg-mango px-1 text-[0.6rem] text-white">
+                    {chatUnread}
+                  </span>
                 ) : null}
               </button>
             ))}
@@ -221,7 +247,11 @@ export default function OrderBoard({
         </div>
       </header>
 
-      {view === "metricas" ? (
+      {view === "chat" ? (
+        <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
+          <ChatPanel />
+        </div>
+      ) : view === "metricas" ? (
         <div className="mx-auto max-w-[1400px] px-4 py-6 sm:px-6">
           <StatsPanel />
         </div>

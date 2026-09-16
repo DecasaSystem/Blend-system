@@ -10,6 +10,7 @@ import Rewards from "@/components/Rewards";
 import Stores from "@/components/Stores";
 import Contact from "@/components/Contact";
 import InstallApp from "@/components/InstallApp";
+import ChatWidget from "@/components/ChatWidget";
 import Footer from "@/components/Footer";
 import CartDrawer from "@/components/CartDrawer";
 import CartToast from "@/components/CartToast";
@@ -54,6 +55,7 @@ export default async function Home() {
       <ProductSheet />
       <CartDrawer />
       <CartToast />
+      <ChatWidget signedIn={Boolean(customer)} />
       <MobileBar />
     </>
   );

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import AccountPanel from "@/components/account/AccountPanel";
+import ChatWidget from "@/components/ChatWidget";
 import { myAddresses, myOrders, myStamps } from "@/actions/account";
 import { getCustomer } from "@/lib/customer-session";
 
@@ -18,16 +19,20 @@ export default async function CuentaPage() {
   const [orders, addresses, stamps] = await Promise.all([myOrders(), myAddresses(), myStamps()]);
 
   return (
-    <AccountPanel
-      customer={customer}
-      orders={orders}
-      addresses={addresses.map((a) => ({
-        id: a.id,
-        label: a.label,
-        address: a.address,
-        notes: a.notes,
-      }))}
-      stamps={stamps}
-    />
+    <>
+      <AccountPanel
+        customer={customer}
+        orders={orders}
+        addresses={addresses.map((a) => ({
+          id: a.id,
+          label: a.label,
+          address: a.address,
+          notes: a.notes,
+        }))}
+        stamps={stamps}
+      />
+      {/* La misma burbuja de la tienda: aquí ya tiene sesión. */}
+      <ChatWidget signedIn />
+    </>
   );
 }

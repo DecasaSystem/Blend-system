@@ -203,3 +203,54 @@ export const kioskSessions = pgTable(
 export const SITE_ROW_ID = "sitio";
 export const ORDER_COUNTER = "pedidos";
 export const KIOSK_PASSWORD = "kiosk.password";
+
+/**
+ * Chat entre el cliente y la barra.
+ *
+ * Una conversación por cliente, como un hilo de WhatsApp: no hay «tickets»
+ * ni asuntos, sólo la charla con esa persona, en la que contesta quien esté
+ * en la barra. Sólo pueden escribir clientes con cuenta: así el equipo sabe
+ * con quién habla y el cliente recupera la conversación desde cualquier
+ * aparato.
+ *
+ * `customerReadAt` / `staffReadAt`: hasta cuándo leyó cada lado. Lo no leído
+ * son los mensajes del otro posteriores a esa marca; no hace falta un
+ * contador que se pueda desincronizar.
+ */
+export const conversations = pgTable(
+  "conversations",
+  {
+    id: text("id").primaryKey(),
+    customerId: text("customer_id")
+      .notNull()
+      .references(() => customers.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    lastMessageAt: timestamp("last_message_at", { withTimezone: true }).notNull().defaultNow(),
+    customerReadAt: timestamp("customer_read_at", { withTimezone: true }),
+    staffReadAt: timestamp("staff_read_at", { withTimezone: true }),
+    /** El último mensaje recortado, para la lista sin cargar el hilo. */
+    preview: text("preview").notNull().default(""),
+  },
+  (t) => [
+    uniqueIndex("conversations_customer_idx").on(t.customerId),
+    index("conversations_last_idx").on(t.lastMessageAt),
+  ],
+);
+
+export const messages = pgTable(
+  "messages",
+  {
+    id: text("id").primaryKey(),
+    conversationId: text("conversation_id")
+      .notNull()
+      .references(() => conversations.id, { onDelete: "cascade" }),
+    sender: text("sender").$type<"customer" | "staff">().notNull(),
+    /** Quién del equipo contestó; nulo si escribió el cliente. */
+    userId: text("user_id").references(() => users.id, { onDelete: "set null" }),
+    /** El nombre tal como se enseña, congelado al enviar. */
+    senderName: text("sender_name").notNull(),
+    body: text("body").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("messages_conversation_idx").on(t.conversationId, t.createdAt)],
+);
