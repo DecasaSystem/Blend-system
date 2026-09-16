@@ -16,6 +16,9 @@ import {
   type DeliveryBoard,
 } from "@/actions/delivery";
 import { signOut } from "@/actions/auth";
+import { courierUnread } from "@/actions/chat";
+import DeliveryChat from "./DeliveryChat";
+import PushToggle from "../PushToggle";
 import type { SessionUser } from "@/lib/session";
 import type { Size } from "@/lib/content";
 
@@ -52,16 +55,35 @@ export default function DeliveryPanel({
   const now = useNow(10000);
   const known = useRef(new Set(initial.mine.map((o) => o.id)));
   const inFlight = useRef(false);
+  /** Mensajes del cliente sin leer, por pedido. */
+  const [unread, setUnread] = useState<Record<string, number>>({});
+  const unreadSeen = useRef(0);
+  /** El pedido cuyo chat está abierto. */
+  const [chatOrder, setChatOrder] = useState<Order | null>(null);
+
+  // Desde un aviso push: abrir el chat de ese pedido.
+  useEffect(() => {
+    const want = new URLSearchParams(window.location.search).get("chat");
+    if (!want) return;
+    const o = initial.mine.find((x) => x.id === want);
+    if (o) setChatOrder(o);
+    window.history.replaceState(null, "", "/equipo/reparto");
+    // Sólo al montar.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const refresh = useCallback(async () => {
     if (inFlight.current) return;
     inFlight.current = true;
     try {
-      const next = await myDeliveries();
-      // Suena si me asignaron algo que no tenía.
-      if (next.mine.some((o) => !known.current.has(o.id))) chime();
+      const [next, un] = await Promise.all([myDeliveries(), courierUnread().catch(() => ({}))]);
+      // Suena si me asignaron algo que no tenía, o si un cliente me escribió.
+      const total = Object.values(un).reduce((n, v) => n + v, 0);
+      if (next.mine.some((o) => !known.current.has(o.id)) || total > unreadSeen.current) chime();
+      unreadSeen.current = total;
       known.current = new Set(next.mine.map((o) => o.id));
       setBoard(next);
+      setUnread(un);
       setOffline(false);
     } catch {
       setOffline(true);
@@ -105,6 +127,7 @@ export default function DeliveryPanel({
             <p className="u-mono truncate text-ink/45">{user.name}</p>
           </div>
           <div className="ml-auto flex items-center gap-2">
+            <PushToggle compact what="cuando te asignen un domicilio o un cliente te escriba" />
             {user.role === "admin" ? (
               <Link
                 href="/equipo"
@@ -159,6 +182,8 @@ export default function DeliveryPanel({
                   onClick: () => run(o.id, () => completeDelivery(o.id)),
                 },
               ]}
+              unread={unread[o.id] ?? 0}
+              onChat={() => setChatOrder(o)}
             />
           ))}
         </Section>
@@ -191,6 +216,8 @@ export default function DeliveryPanel({
                   : [{ label: "No puedo", onClick: () => run(o.id, () => releaseDelivery(o.id)) }]
               }
               waiting={o.status !== "listo" ? "La barra todavía lo está preparando" : undefined}
+              unread={unread[o.id] ?? 0}
+              onChat={() => setChatOrder(o)}
             />
           ))}
         </Section>
@@ -217,6 +244,8 @@ export default function DeliveryPanel({
             />
           ))}
         </Section>
+
+        {chatOrder ? <DeliveryChat order={chatOrder} onClose={() => setChatOrder(null)} /> : null}
 
         <section className="mt-8 border-t-[1.5px] border-ink/15 pt-6">
           <div className="flex items-baseline gap-3">
@@ -291,6 +320,8 @@ function DeliveryCard({
   actions,
   compact,
   waiting,
+  unread,
+  onChat,
 }: {
   order: Order;
   now: number;
@@ -302,6 +333,9 @@ function DeliveryCard({
   /** En «disponibles» se enseña menos: aún no es suyo. */
   compact?: boolean;
   waiting?: string;
+  /** Mensajes del cliente sin leer, y cómo abrir el chat. */
+  unread?: number;
+  onChat?: () => void;
 }) {
   const address = order.customer.address ?? "";
   const phone = order.customer.phone.replace(/\s/g, "");
@@ -354,7 +388,7 @@ function DeliveryCard({
 
       {!compact ? (
         <>
-          <div className="mt-3 grid grid-cols-2 gap-2">
+          <div className={`mt-3 grid gap-2 ${onChat ? "grid-cols-3" : "grid-cols-2"}`}>
             <a
               href={maps}
               target="_blank"
@@ -369,6 +403,22 @@ function DeliveryCard({
             >
               📞 Llamar
             </a>
+            {onChat ? (
+              <button
+                type="button"
+                onClick={onChat}
+                className={`u-mono relative grid min-h-12 place-items-center rounded-full border-[1.5px] border-ink ${
+                  unread ? "bg-mango text-white" : "bg-paper text-ink"
+                }`}
+              >
+                💬 Chat
+                {unread ? (
+                  <span className="absolute -right-1 -top-1 grid h-6 min-w-6 place-items-center rounded-full border-[1.5px] border-white bg-ink px-1.5 text-[0.6rem] text-paper">
+                    {unread}
+                  </span>
+                ) : null}
+              </button>
+            ) : null}
           </div>
 
           <ul className="mt-3 grid gap-1 border-t-[1.5px] border-ink/10 pt-3">

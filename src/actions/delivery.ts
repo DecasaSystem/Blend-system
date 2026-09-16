@@ -3,7 +3,9 @@
 import { and, desc, eq, gte, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { orders, users } from "@/db/schema";
+import { after } from "next/server";
 import { requireStaff, requireUser, type SessionUser } from "@/lib/session";
+import { pushToCustomer, pushToUser } from "@/lib/push";
 import type { Order } from "@/lib/orders";
 
 /**
@@ -49,7 +51,7 @@ export async function assignCourier(
     if (!c) return { error: "Ese repartidor no existe." };
   }
 
-  await db
+  const [row] = await db
     .update(orders)
     .set({
       courierId,
@@ -57,7 +59,18 @@ export async function assignCourier(
       // Si se cambia de repartidor, el «salí» del anterior ya no vale.
       outAt: null,
     })
-    .where(and(eq(orders.id, orderId), eq(orders.mode, "envio")));
+    .where(and(eq(orders.id, orderId), eq(orders.mode, "envio")))
+    .returning({ id: orders.id, address: sql<string>`${orders.customer}->>'address'` });
+  if (courierId && row) {
+    after(() =>
+      pushToUser(courierId, {
+        title: `Te asignaron el domicilio ${row.id}`,
+        body: row.address ?? "Mira tu pantalla de reparto.",
+        url: "/equipo/reparto",
+        tag: `asignado-${row.id}`,
+      }),
+    );
+  }
   return { ok: true };
 }
 
@@ -198,8 +211,19 @@ export async function startDelivery(orderId: string): Promise<{ ok: true } | { e
     .update(orders)
     .set({ outAt: new Date() })
     .where(and(eq(orders.id, orderId), eq(orders.courierId, me.id), eq(orders.status, "listo")))
-    .returning({ id: orders.id });
+    .returning({ id: orders.id, customerId: orders.customerId });
   if (res.length === 0) return { error: "Ese pedido no está listo o no es tuyo." };
+  const [o] = res;
+  if (o.customerId) {
+    after(() =>
+      pushToCustomer(o.customerId!, {
+        title: `Tu pedido ${o.id} va en camino 🛵`,
+        body: `${me.name} ya salió con él. Si necesitas decirle algo, escríbele desde la tienda.`,
+        url: `/?chat=${o.id}`,
+        tag: `pedido-${o.id}`,
+      }),
+    );
+  }
   return { ok: true };
 }
 
@@ -218,8 +242,19 @@ export async function completeDelivery(
         sql`${orders.status} in ('listo', 'preparando')`,
       ),
     )
-    .returning({ id: orders.id });
+    .returning({ id: orders.id, customerId: orders.customerId });
   if (res.length === 0) return { error: "Ese pedido no es tuyo o ya está cerrado." };
+  const [o] = res;
+  if (o.customerId) {
+    after(() =>
+      pushToCustomer(o.customerId!, {
+        title: `Pedido ${o.id} entregado ✓`,
+        body: "¡Que lo disfrutes! Ya suma un sello en tu cuenta.",
+        url: "/cuenta",
+        tag: `pedido-${o.id}`,
+      }),
+    );
+  }
   return { ok: true };
 }
 

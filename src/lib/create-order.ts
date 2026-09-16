@@ -9,6 +9,8 @@ import { getKioskSession } from "@/lib/kiosk";
 import { getCustomer } from "@/lib/customer-session";
 import type { Customer, Order } from "@/lib/orders";
 import { loadSiteContent } from "@/actions/content";
+import { after } from "next/server";
+import { pushToStaff } from "@/lib/push";
 
 /**
  * El motor de crear un pedido, compartido por la web pública, el pago con
@@ -136,6 +138,20 @@ export async function createOrder(
     channel: input.channel ?? "web",
     status: trusted.awaitingPayment ? "pago" : "nuevo",
   });
+
+  // Si ya sale a la barra, se avisa a quien tenga los avisos en el celular.
+  // Los que esperan pago avisan cuando se confirma (settlePayment).
+  if (!trusted.awaitingPayment) {
+    const nombre = input.customer.name.trim();
+    after(() =>
+      pushToStaff({
+        title: `Pedido nuevo ${id}`,
+        body: `${nombre} · ${input.mode === "envio" ? "domicilio" : "recoger"} · ${t.total.toLocaleString("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 })}`,
+        url: "/equipo",
+        tag: `nuevo-${id}`,
+      }),
+    );
+  }
 
   return { id, total: t.total };
 }

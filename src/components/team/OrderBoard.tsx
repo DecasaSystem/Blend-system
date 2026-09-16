@@ -9,6 +9,7 @@ import StatsPanel from "./stats/StatsPanel";
 import TeamPanel from "./TeamPanel";
 import HelpPanel from "./HelpPanel";
 import ChatPanel from "./ChatPanel";
+import PushToggle from "../PushToggle";
 import { chatUnreadTotal } from "@/actions/chat";
 import {
   askForNotifications,
@@ -50,6 +51,13 @@ export default function OrderBoard({
   const [view, setView] = useState<
     "pedidos" | "chat" | "metricas" | "contenido" | "cuentas" | "ayuda"
   >("pedidos");
+
+  // Desde un aviso push (`/equipo?ver=chat`): abrir esa pestaña directamente.
+  useEffect(() => {
+    const ver = new URLSearchParams(window.location.search).get("ver");
+    if (ver === "chat") setView("chat");
+    if (ver) window.history.replaceState(null, "", "/equipo");
+  }, []);
 
   // Mensajes de clientes sin leer: número en la pestaña y campana al llegar
   // uno nuevo (si el aviso está encendido), igual que con los pedidos.
@@ -204,6 +212,10 @@ export default function OrderBoard({
           <div className="ml-auto flex items-center gap-2">
             {view === "pedidos" ? (
               <>
+                <PushToggle
+                  compact
+                  what="de pedidos nuevos y mensajes, aunque el tablero esté cerrado"
+                />
                 <button
                   type="button"
                   onClick={toggleSound}

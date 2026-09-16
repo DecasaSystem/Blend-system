@@ -1,19 +1,32 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useCart } from "./CartProvider";
 import { useSite } from "./SiteProvider";
-import { myChat, myChatUnread, sendMyMessage, type ChatMessage } from "@/actions/chat";
-import { formatClock } from "@/lib/orders";
+import ChatThread from "./ChatThread";
+import PushToggle from "./PushToggle";
+import {
+  deliveryChat,
+  myChat,
+  myThreads,
+  sendDeliveryMessage,
+  sendMyMessage,
+  type ChatMessage,
+  type DeliveryThread,
+  type Location,
+} from "@/actions/chat";
 
 /**
  * La burbuja de chat de la tienda.
  *
- * Abajo a la derecha, siempre a mano. Abierta, es un hilo con la barra:
- * el cliente escribe, alguien del equipo contesta desde /equipo → Chat, y
- * la ventana se actualiza sola cada pocos segundos. Cerrada, sólo pregunta
- * de vez en cuando si hay respuestas nuevas y enseña el número.
+ * Abajo a la derecha, siempre a mano. Abierta tiene una pestaña por hilo:
+ * «La barra», y una por cada domicilio en marcha con su repartidor. Se
+ * actualiza sola cada pocos segundos; cerrada, sólo pregunta de vez en
+ * cuando cuántos mensajes hay sin leer y enseña el número.
+ *
+ * `?chat=store` o `?chat=B-1043` en la URL la abre directamente en ese hilo:
+ * es a donde llevan los avisos push.
  *
  * Hace falta cuenta: sin ella no hay a quién responderle después. Al que no
  * tiene, se le ofrece entrar o llamar.
@@ -22,68 +35,90 @@ import { formatClock } from "@/lib/orders";
 const OPEN_MS = 4000;
 const CLOSED_MS = 30000;
 
-export default function ChatWidget({
-  signedIn,
-  prefill,
-}: {
-  signedIn: boolean;
-  /** Texto con el que arranca el mensaje: «Sobre mi pedido B-1043: ». */
-  prefill?: string;
-}) {
+type ThreadId = "store" | string;
+
+const QUICK_CUSTOMER = ["Ya bajo", "Timbra, por favor", "Llámame cuando llegues", "Déjalo en portería"];
+
+export default function ChatWidget({ signedIn }: { signedIn: boolean }) {
   const { brand, stores } = useSite();
   const { count, open: cartOpen, sheet } = useCart();
   const [open, setOpen] = useState(false);
-  const [messages, setMessages] = useState<ChatMessage[] | null>(null);
-  const [unread, setUnread] = useState(0);
-  const [draft, setDraft] = useState(prefill ?? "");
-  const [sending, setSending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const bottom = useRef<HTMLDivElement>(null);
+  const [thread, setThread] = useState<ThreadId>("store");
+  const [storeMessages, setStoreMessages] = useState<ChatMessage[] | null>(null);
+  const [deliveryMessages, setDeliveryMessages] = useState<ChatMessage[] | null>(null);
+  const [deliveries, setDeliveries] = useState<DeliveryThread[]>([]);
+  const [storeUnread, setStoreUnread] = useState(0);
   const hours = stores[0]?.hours;
 
-  const load = useCallback(async () => {
-    const res = await myChat(true);
-    if (res) {
-      // Un sondeo que salió antes de enviar puede volver después: nunca deja
-      // menos mensajes de los que ya se ven.
-      setMessages((prev) => (prev && res.messages.length < prev.length ? prev : res.messages));
-      setUnread(0);
+  const totalUnread = storeUnread + deliveries.reduce((n, d) => n + d.unread, 0);
+
+  // Qué hilos hay y cuánto hay sin leer en cada uno.
+  const loadThreads = useCallback(async () => {
+    const t = await myThreads().catch(() => null);
+    if (!t) return;
+    setStoreUnread(t.storeUnread);
+    setDeliveries(t.deliveries);
+  }, []);
+
+  const loadOpen = useCallback(async (id: ThreadId) => {
+    if (id === "store") {
+      const res = await myChat(true).catch(() => null);
+      if (res) {
+        setStoreMessages((prev) => (prev && res.messages.length < prev.length ? prev : res.messages));
+        setStoreUnread(0);
+      }
+    } else {
+      const res = await deliveryChat(id, true).catch(() => null);
+      if (res) {
+        setDeliveryMessages((prev) => (prev && res.messages.length < prev.length ? prev : res.messages));
+        setDeliveries((ds) => ds.map((d) => (d.orderId === id ? { ...d, unread: 0 } : d)));
+      }
     }
   }, []);
 
-  // Abierto: hilo al día. Cerrado: sólo el contador, con calma.
+  // Enlace profundo desde un aviso: abrir en el hilo que toca.
   useEffect(() => {
     if (!signedIn) return;
-    if (open) {
-      load();
-      const t = setInterval(load, OPEN_MS);
-      return () => clearInterval(t);
-    }
-    const tick = () => myChatUnread().then(setUnread).catch(() => {});
-    tick();
-    const t = setInterval(tick, CLOSED_MS);
-    return () => clearInterval(t);
-  }, [open, signedIn, load]);
+    const want = new URLSearchParams(window.location.search).get("chat");
+    if (!want) return;
+    setThread(want === "store" ? "store" : want);
+    setOpen(true);
+    window.history.replaceState(null, "", window.location.pathname);
+  }, [signedIn]);
 
   useEffect(() => {
-    if (open) bottom.current?.scrollIntoView({ block: "end" });
-  }, [messages, open]);
+    if (!signedIn) return;
+    loadThreads();
+    const t = setInterval(loadThreads, open ? OPEN_MS : CLOSED_MS);
+    return () => clearInterval(t);
+  }, [signedIn, open, loadThreads]);
 
-  const send = async () => {
-    const text = draft.trim();
-    if (!text || sending) return;
-    setSending(true);
-    setError(null);
-    const res = await sendMyMessage(text);
-    setSending(false);
-    if ("error" in res) {
-      setError(res.error);
-      return;
-    }
-    setDraft("");
-    setMessages((m) => [...(m ?? []), res.message]);
-    load();
+  useEffect(() => {
+    if (!signedIn || !open) return;
+    setDeliveryMessages(null);
+    loadOpen(thread);
+    const t = setInterval(() => loadOpen(thread), OPEN_MS);
+    return () => clearInterval(t);
+  }, [signedIn, open, thread, loadOpen]);
+
+  const sendStore = async (body: string) => {
+    const res = await sendMyMessage(body);
+    if ("error" in res) return res.error;
+    setStoreMessages((m) => [...(m ?? []), res.message]);
+    loadOpen("store");
+    return null;
   };
+
+  const sendDelivery = async (body: string, location?: Location | null) => {
+    if (thread === "store") return null;
+    const res = await sendDeliveryMessage(thread, body, location);
+    if ("error" in res) return res.error;
+    setDeliveryMessages((m) => [...(m ?? []), res.message]);
+    loadOpen(thread);
+    return null;
+  };
+
+  const active = deliveries.find((d) => d.orderId === thread) ?? null;
 
   // Con el carrito o la hoja abiertos no compite; en móvil, con la barra del
   // pedido abajo, sube para no taparla.
@@ -99,27 +134,61 @@ export default function ChatWidget({
       {open ? (
         <section
           className="mb-3 flex w-[calc(100vw-2rem)] max-w-sm flex-col overflow-hidden rounded-[26px] border-[1.5px] border-ink bg-paper shadow-[6px_8px_0_0_var(--color-ink)]"
-          style={{ height: "min(32rem, calc(100dvh - 8rem))" }}
+          style={{ height: "min(34rem, calc(100dvh - 8rem))" }}
           aria-label="Chat con la barra"
         >
-          <header className="flex items-center gap-3 border-b-[1.5px] border-ink bg-ink px-4 py-3 text-paper">
-            <span className="grid h-9 w-9 place-items-center rounded-full bg-mango text-white" aria-hidden="true">
-              <ChatIcon />
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className="font-semibold leading-tight">La barra de {brand.name}</p>
-              <p className="u-mono text-paper/55">
-                {hours ? `Horario ${hours}` : "Te respondemos en un momento"}
-              </p>
+          <header className="border-b-[1.5px] border-ink bg-ink px-4 py-3 text-paper">
+            <div className="flex items-center gap-3">
+              <span
+                className="grid h-9 w-9 place-items-center rounded-full bg-mango text-white"
+                aria-hidden="true"
+              >
+                {active ? "🛵" : <ChatIcon />}
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-semibold leading-tight">
+                  {active
+                    ? `${active.courierName ?? "Tu repartidor"} · ${active.orderId}`
+                    : `La barra de ${brand.name}`}
+                </p>
+                <p className="u-mono text-paper/55">
+                  {active
+                    ? active.outAt
+                      ? "En camino"
+                      : "Preparando tu pedido"
+                    : hours
+                      ? `Horario ${hours}`
+                      : "Te respondemos en un momento"}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                aria-label="Cerrar el chat"
+                className="grid h-9 w-9 place-items-center rounded-full border-[1.5px] border-paper/30 text-paper"
+              >
+                ✕
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={() => setOpen(false)}
-              aria-label="Cerrar el chat"
-              className="grid h-9 w-9 place-items-center rounded-full border-[1.5px] border-paper/30 text-paper"
-            >
-              ✕
-            </button>
+            {signedIn && deliveries.length > 0 ? (
+              <div className="rail -mx-1 mt-3 px-1 pb-0.5" role="tablist">
+                <Tab
+                  active={thread === "store"}
+                  onClick={() => setThread("store")}
+                  unread={storeUnread}
+                  label="La barra"
+                />
+                {deliveries.map((d) => (
+                  <Tab
+                    key={d.orderId}
+                    active={thread === d.orderId}
+                    onClick={() => setThread(d.orderId)}
+                    unread={d.unread}
+                    label={`🛵 ${d.orderId}`}
+                  />
+                ))}
+              </div>
+            ) : null}
           </header>
 
           {!signedIn ? (
@@ -138,65 +207,39 @@ export default function ChatWidget({
                 </a>
               </div>
             </div>
-          ) : (
+          ) : thread === "store" || !active ? (
             <>
-              <div className="flex-1 overflow-y-auto px-4 py-4">
-                {messages === null ? (
-                  <p className="u-mono py-8 text-center text-ink/40">Cargando…</p>
-                ) : messages.length === 0 ? (
-                  <div className="rounded-2xl border-[1.5px] border-ink/12 bg-white px-4 py-3 text-[0.95rem] leading-relaxed text-ink/65">
+              <div className="border-b-[1.5px] border-ink/10 bg-white px-4 py-2">
+                <PushToggle compact what="cuando te respondan o tu pedido avance" />
+              </div>
+              <ChatThread
+                messages={storeMessages}
+                mine={["customer"]}
+                onSend={sendStore}
+                empty={
+                  <>
                     Hola 👋 Escríbenos lo que necesites: una duda del menú, algo de tu pedido, una
                     alergia. Te contesta alguien de la barra.
-                  </div>
-                ) : (
-                  <ul className="grid gap-2">
-                    {messages.map((m) => (
-                      <Bubble key={m.id} m={m} mine={m.sender === "customer"} />
-                    ))}
-                  </ul>
-                )}
-                <div ref={bottom} />
-              </div>
-
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  send();
-                }}
-                className="border-t-[1.5px] border-ink/12 bg-white p-3"
-              >
-                {error ? (
-                  <p className="u-mono mb-2 text-mango-deep" role="alert">
-                    {error}
-                  </p>
-                ) : null}
-                <div className="flex items-end gap-2">
-                  <textarea
-                    value={draft}
-                    onChange={(e) => setDraft(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && !e.shiftKey) {
-                        e.preventDefault();
-                        send();
-                      }
-                    }}
-                    rows={1}
-                    maxLength={1000}
-                    placeholder="Escribe aquí…"
-                    aria-label="Mensaje"
-                    className="input max-h-32 min-h-11 flex-1 resize-none rounded-2xl py-2.5"
-                  />
-                  <button
-                    type="submit"
-                    disabled={sending || !draft.trim()}
-                    aria-label="Enviar"
-                    className="grid h-11 w-11 shrink-0 place-items-center rounded-full border-[1.5px] border-ink bg-mango text-white disabled:opacity-40"
-                  >
-                    <SendIcon />
-                  </button>
-                </div>
-              </form>
+                  </>
+                }
+              />
             </>
+          ) : (
+            <ChatThread
+              messages={deliveryMessages}
+              mine={["customer"]}
+              onSend={sendDelivery}
+              quickReplies={QUICK_CUSTOMER}
+              allowLocation
+              placeholder="Escríbele aquí…"
+              empty={
+                <>
+                  Este es tu chat con {active.courierName ?? "el repartidor"} para el pedido{" "}
+                  <b>{active.orderId}</b>. Si necesita ayuda para encontrarte, aquí te escribe; con
+                  📍 le mandas tu ubicación exacta.
+                </>
+              }
+            />
           )}
         </section>
       ) : null}
@@ -209,9 +252,9 @@ export default function ChatWidget({
         className="relative ml-auto flex h-14 w-14 items-center justify-center rounded-full border-[1.5px] border-ink bg-ink text-paper shadow-[0_10px_30px_rgba(27,11,46,0.35)] transition-transform active:scale-95"
       >
         {open ? <span className="text-xl">✕</span> : <ChatIcon />}
-        {!open && unread > 0 ? (
+        {!open && totalUnread > 0 ? (
           <span className="u-mono absolute -right-1 -top-1 grid h-6 min-w-6 place-items-center rounded-full border-[1.5px] border-paper bg-mango px-1.5 text-[0.6rem] text-white">
-            {unread}
+            {totalUnread}
           </span>
         ) : null}
       </button>
@@ -219,21 +262,34 @@ export default function ChatWidget({
   );
 }
 
-function Bubble({ m, mine }: { m: ChatMessage; mine: boolean }) {
+function Tab({
+  active,
+  onClick,
+  unread,
+  label,
+}: {
+  active: boolean;
+  onClick: () => void;
+  unread: number;
+  label: string;
+}) {
   return (
-    <li className={`flex flex-col ${mine ? "items-end" : "items-start"}`}>
-      <div
-        className={`max-w-[85%] whitespace-pre-wrap break-words rounded-2xl px-3.5 py-2.5 text-[0.95rem] leading-relaxed ${
-          mine ? "rounded-br-md bg-ink text-paper" : "rounded-bl-md border-[1.5px] border-ink/12 bg-white text-ink"
-        }`}
-      >
-        {m.body}
-      </div>
-      <span className="u-mono mt-1 text-ink/35">
-        {mine ? "" : `${m.senderName} · `}
-        {formatClock(m.createdAt)}
-      </span>
-    </li>
+    <button
+      type="button"
+      role="tab"
+      aria-selected={active}
+      onClick={onClick}
+      className={`u-mono flex min-h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border-[1.5px] px-3 ${
+        active ? "border-paper bg-paper text-ink" : "border-paper/30 text-paper/75"
+      }`}
+    >
+      {label}
+      {unread > 0 ? (
+        <span className="grid h-4 min-w-4 place-items-center rounded-full bg-mango px-1 text-[0.55rem] text-white">
+          {unread}
+        </span>
+      ) : null}
+    </button>
   );
 }
 
@@ -247,19 +303,6 @@ function ChatIcon() {
         strokeLinejoin="round"
       />
       <path d="M8 9h8M8 12.5h5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function SendIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path
-        d="M4 12 20 4l-4 16-4-7-8-1Z"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinejoin="round"
-      />
     </svg>
   );
 }

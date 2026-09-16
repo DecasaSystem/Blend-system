@@ -22,13 +22,15 @@
     "postgres": "^3.4.9",
     "qrcode-generator": "^1.5.2",
     "react": "19.2.8",
-    "react-dom": "19.2.8"
+    "react-dom": "19.2.8",
+    "web-push": "^3.6.7"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/web-push": "^3.6.4",
     "drizzle-kit": "^0.31.10",
     "playwright-core": "^1.62.1",
     "server-only": "^0.0.1",

@@ -6,6 +6,8 @@ import { orders, users } from "@/db/schema";
 import { createOrder, type PlaceOrderInput } from "@/lib/create-order";
 import { expireStalePayments } from "@/lib/settle-payment";
 import { paymentsEnabled } from "@/lib/payments";
+import { after } from "next/server";
+import { pushToCustomer } from "@/lib/push";
 import { requireStaff } from "@/lib/session";
 import { STATUSES, type BoardStatus, type Order } from "@/lib/orders";
 
@@ -79,7 +81,23 @@ export async function updateOrderStatus(id: string, status: BoardStatus) {
   await requireStaff();
   // Sólo las columnas del tablero: a `pago` no se vuelve a mano.
   if (!STATUSES.includes(status)) return { error: "Estado desconocido." };
-  await db.update(orders).set({ status, statusAt: new Date() }).where(eq(orders.id, id));
+  const [o] = await db
+    .update(orders)
+    .set({ status, statusAt: new Date() })
+    .where(eq(orders.id, id))
+    .returning({ id: orders.id, mode: orders.mode, customerId: orders.customerId });
+  // Al cliente con cuenta se le avisa de lo que le importa: que ya puede
+  // pasar a recogerlo. Los domicilios avisan desde el reparto («va en camino»).
+  if (o?.customerId && status === "listo" && o.mode === "recoger") {
+    after(() =>
+      pushToCustomer(o.customerId!, {
+        title: `Tu pedido ${o.id} está listo`,
+        body: "Ya puedes pasar a recogerlo.",
+        url: "/cuenta",
+        tag: `pedido-${o.id}`,
+      }),
+    );
+  }
   return { ok: true };
 }
 

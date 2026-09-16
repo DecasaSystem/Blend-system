@@ -224,6 +224,13 @@ export const conversations = pgTable(
     customerId: text("customer_id")
       .notNull()
       .references(() => customers.id, { onDelete: "cascade" }),
+    /**
+     * `store`: el hilo del cliente con la barra, uno por cliente.
+     * `delivery`: el hilo de un domicilio concreto entre el cliente y su
+     * repartidor, uno por pedido; vive y muere con el pedido.
+     */
+    kind: text("kind").$type<"store" | "delivery">().notNull().default("store"),
+    orderId: text("order_id").references(() => orders.id, { onDelete: "cascade" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     lastMessageAt: timestamp("last_message_at", { withTimezone: true }).notNull().defaultNow(),
     customerReadAt: timestamp("customer_read_at", { withTimezone: true }),
@@ -232,7 +239,12 @@ export const conversations = pgTable(
     preview: text("preview").notNull().default(""),
   },
   (t) => [
-    uniqueIndex("conversations_customer_idx").on(t.customerId),
+    // Un solo hilo de tienda por cliente; los de reparto van por pedido.
+    uniqueIndex("conversations_store_idx")
+      .on(t.customerId)
+      .where(sql`${t.kind} = 'store'`),
+    uniqueIndex("conversations_order_idx").on(t.orderId),
+    index("conversations_customer_idx").on(t.customerId),
     index("conversations_last_idx").on(t.lastMessageAt),
   ],
 );
@@ -244,13 +256,45 @@ export const messages = pgTable(
     conversationId: text("conversation_id")
       .notNull()
       .references(() => conversations.id, { onDelete: "cascade" }),
-    sender: text("sender").$type<"customer" | "staff">().notNull(),
-    /** Quién del equipo contestó; nulo si escribió el cliente. */
+    sender: text("sender").$type<"customer" | "staff" | "courier">().notNull(),
+    /** Quién del equipo (o repartidor) escribió; nulo si fue el cliente. */
     userId: text("user_id").references(() => users.id, { onDelete: "set null" }),
     /** El nombre tal como se enseña, congelado al enviar. */
     senderName: text("sender_name").notNull(),
     body: text("body").notNull(),
+    /** «Aquí estoy»: un punto en el mapa, además del texto. */
+    location: jsonb("location").$type<{ lat: number; lng: number }>(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("messages_conversation_idx").on(t.conversationId, t.createdAt)],
+);
+
+/**
+ * Suscripciones a notificaciones push (Web Push).
+ *
+ * Cada fila es un navegador (un teléfono, un computador) que aceptó recibir
+ * avisos, atado a quien estaba en sesión al aceptar: un cliente o alguien del
+ * equipo. Un mismo aparato puede tener varias filas si entran varias cuentas.
+ * Cuando el servicio de push dice que la suscripción ya no existe (404/410),
+ * la fila se borra.
+ */
+export const pushSubscriptions = pgTable(
+  "push_subscriptions",
+  {
+    id: text("id").primaryKey(),
+    /** La URL única que da el navegador; identifica el aparato. */
+    endpoint: text("endpoint").notNull(),
+    p256dh: text("p256dh").notNull(),
+    auth: text("auth").notNull(),
+    customerId: text("customer_id").references(() => customers.id, { onDelete: "cascade" }),
+    userId: text("user_id").references(() => users.id, { onDelete: "cascade" }),
+    userAgent: text("user_agent"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex("push_endpoint_idx").on(t.endpoint),
+    index("push_customer_idx").on(t.customerId),
+    index("push_user_idx").on(t.userId),
+  ],
 );

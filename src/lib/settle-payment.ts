@@ -1,8 +1,10 @@
 import "server-only";
 
 import { and, eq, inArray, lt, or, sql } from "drizzle-orm";
+import { after } from "next/server";
 import { db } from "@/db";
 import { orders } from "@/db/schema";
+import { pushToStaff } from "@/lib/push";
 import {
   amountMatches,
   lookupPayment,
@@ -69,10 +71,22 @@ export async function settlePayment(tx: PaymentLookup): Promise<Settlement> {
      * es devolver atrás uno que la barra ya empezó a preparar: un reenvío de
      * Bold no encuentra fila en `pago`/`fallido` y no cambia nada.
      */
-    await db
+    const moved = await db
       .update(orders)
       .set({ status: "nuevo", statusAt: new Date(), paidAt: new Date(), payment: "tarjeta" })
-      .where(and(eq(orders.id, order.id), inArray(orders.status, ["pago", "fallido"])));
+      .where(and(eq(orders.id, order.id), inArray(orders.status, ["pago", "fallido"])))
+      .returning({ id: orders.id, mode: orders.mode, total: orders.total });
+    if (moved.length > 0) {
+      const [o] = moved;
+      after(() =>
+        pushToStaff({
+          title: `Pedido nuevo ${o.id} · pagado en línea`,
+          body: `${o.mode === "envio" ? "Domicilio" : "Recoger"} · ${o.total.toLocaleString("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 })}`,
+          url: "/equipo",
+          tag: `nuevo-${o.id}`,
+        }),
+      );
+    }
 
     /*
      * Y si el pedido ya había salido a la barra como «pago en caja» —en el

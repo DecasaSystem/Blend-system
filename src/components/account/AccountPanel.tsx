@@ -9,6 +9,7 @@ import { describe, money } from "@/lib/cart";
 import { STATUS_COLOR, displayStatus, formatClock, type Order } from "@/lib/orders";
 import { useSite } from "../SiteProvider";
 import InstallApp from "../InstallApp";
+import PushToggle from "../PushToggle";
 import type { Customer } from "@/lib/customer-session";
 
 type Address = {
@@ -52,6 +53,18 @@ export default function AccountPanel({
     >
       {/* La app en el teléfono: quien tiene cuenta es quien repite. */}
       <InstallApp variant="card" />
+
+      {/* Avisos: que le llegue al celular cuando su pedido avance o le respondan. */}
+      <section className="mt-6 rounded-[22px] border-[1.5px] border-ink/15 bg-white p-4 sm:p-5">
+        <p className="font-semibold leading-tight">Avisos en este aparato</p>
+        <p className="mt-1 text-[0.95rem] leading-relaxed text-ink/60">
+          Te avisamos cuando tu pedido esté listo o vaya en camino, y cuando la barra o tu
+          repartidor te escriban.
+        </p>
+        <div className="mt-3">
+          <PushToggle what="cuando tu pedido avance o te escriban" />
+        </div>
+      </section>
 
       {/* Sellos */}
       <section className="card-ink mt-8 p-6 hover:translate-x-0 hover:translate-y-0 hover:shadow-[4px_5px_0_0_var(--color-ink)]">

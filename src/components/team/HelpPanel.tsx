@@ -201,6 +201,21 @@ export default function HelpPanel({ user }: { user: SessionUser }) {
               Para salir, el botón <b>Salir</b> de arriba a la derecha. Si el aparato es compartido,
               sal siempre al terminar el turno.
             </Tip>
+            <Card title="Avisos en el celular (🔔 Activar avisos)">
+              <P small>
+                Además de la campana del tablero, cada persona puede activar <b>avisos push</b> en
+                su propio celular o computador: le llegan aunque tenga la página cerrada. La barra
+                recibe «pedido nuevo» y «un cliente escribió»; el repartidor, «te asignaron un
+                domicilio» y los mensajes de sus clientes; el cliente, «tu pedido está listo», «va
+                en camino», «entregado» y las respuestas del chat.
+              </P>
+              <P small>
+                El botón está arriba en Pedidos, en la pantalla de reparto y en la burbuja del
+                chat de la tienda. En <b>iPhone</b> sólo funciona con la tienda instalada en la
+                pantalla de inicio (Compartir → Añadir a pantalla de inicio); en Android y en el
+                computador, con el navegador normal.
+              </P>
+            </Card>
           </Section>
 
           {/* ------------------------------------------------ 2. Pedidos */}
@@ -358,8 +373,16 @@ export default function HelpPanel({ user }: { user: SessionUser }) {
             <Tip>
               La burbuja dice el horario en que respondéis (el de la primera sede en{" "}
               <b>Contenido → Tiendas</b>). Fuera de ese horario, contestad al abrir: el cliente lo
-              verá al volver.
+              verá al volver, y si activó los avisos le llega al celular en el momento.
             </Tip>
+            <Card title="El chat con el repartidor">
+              <P small>
+                Cuando un domicilio tiene repartidor, en la misma burbuja al cliente le aparece una
+                pestaña <b>🛵 B-1043</b>: es un chat directo con quien le lleva el pedido, aparte
+                del de la barra. Los dos pueden mandar su ubicación con 📍. Ese hilo vive con el
+                pedido y se cierra una hora después de entregarlo. La barra no interviene ahí.
+              </P>
+            </Card>
             <Warn title="Lo que no es el chat">
               No sirve para hacer pedidos ni para pagar. Si un cliente pide por chat, mándalo al menú de la
               tienda: es lo único que recalcula precios, guarda el pedido y cobra.
@@ -735,6 +758,12 @@ export default function HelpPanel({ user }: { user: SessionUser }) {
                   <Dd>Abren Google Maps con la dirección y el teléfono del cliente con un toque.</Dd>
                   <Dt>No puedo</Dt>
                   <Dd>Suelta el pedido: vuelve a Disponibles para que otro lo tome.</Dd>
+                  <Dt>💬 Chat</Dt>
+                  <Dd>
+                    Un chat con el cliente de ese domicilio: respuestas rápidas («Ya llegué, estoy
+                    afuera», «No encuentro la dirección») y 📍 para mandarle dónde está. El cliente
+                    lo ve en la burbuja de la tienda y le llega un aviso al celular.
+                  </Dd>
                 </Dl>
               </Card>
             </Grid>
