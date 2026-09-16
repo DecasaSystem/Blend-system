@@ -8,8 +8,13 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-export default async function LoginPage() {
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ next?: string }>;
+}) {
   // Con sesión abierta no tiene sentido pedir la clave otra vez.
   if (await getSessionUser()) redirect("/equipo");
-  return <LoginForm />;
+  const { next } = await searchParams;
+  return <LoginForm next={next} />;
 }

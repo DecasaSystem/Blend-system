@@ -12,9 +12,12 @@ import { signIn, signUp, type AccountState } from "@/actions/account";
 /** Entrar y crear cuenta comparten forma: sólo cambian los campos. */
 export default function AuthForm({
   mode,
+  next,
   googleClientId,
 }: {
   mode: "entrar" | "registro";
+  /** A dónde volver al entrar (lo pone el guardia de rutas). */
+  next?: string;
   /** Vacío si no está configurado: entonces sólo hay correo y contraseña. */
   googleClientId?: string;
 }) {
@@ -35,7 +38,7 @@ export default function AuthForm({
     >
       {googleClientId ? (
         <div className="mt-8">
-          <GoogleButton clientId={googleClientId} oneTap />
+          <GoogleButton clientId={googleClientId} oneTap next={next} />
           <div className="mt-6 flex items-center gap-3" aria-hidden="true">
             <span className="rule flex-1" />
             <span className="u-mono text-ink/35">o con tu correo</span>
@@ -45,6 +48,7 @@ export default function AuthForm({
       ) : null}
 
       <form action={action} onSubmit={clave.hide} className="mt-8 grid gap-4">
+        {next ? <input type="hidden" name="next" value={next} /> : null}
         {isSignUp ? (
           <Field
             label="Nombre"

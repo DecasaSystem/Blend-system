@@ -8,7 +8,18 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-export default async function RegistroPage() {
+export default async function RegistroPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ next?: string }>;
+}) {
   if (await getCustomer()) redirect("/cuenta");
-  return <AuthForm mode="registro" googleClientId={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID} />;
+  const { next } = await searchParams;
+  return (
+    <AuthForm
+      mode="registro"
+      googleClientId={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID}
+      next={next}
+    />
+  );
 }

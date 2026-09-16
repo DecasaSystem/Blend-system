@@ -2,6 +2,7 @@
 
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { safeNext } from "@/lib/safe-next";
 import { eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { users } from "@/db/schema";
@@ -70,7 +71,7 @@ export async function signIn(_prev: SignInState, formData: FormData): Promise<Si
   clearThrottle(key);
   await db.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, user.id));
   await createSession(user.id);
-  redirect("/equipo");
+  redirect(safeNext(formData.get("next"), "/equipo", "/equipo"));
 }
 
 export async function signOut() {

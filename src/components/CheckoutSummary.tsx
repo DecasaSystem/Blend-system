@@ -331,7 +331,7 @@ export default function CheckoutSummary({
               {!customer ? (
                 <p className="u-mono mt-3 normal-case tracking-[0.01em] text-ink/45">
                   Puedes pedir así, sin cuenta.{" "}
-                  <Link href="/cuenta/entrar" className="text-ube underline underline-offset-4">
+                  <Link href="/cuenta/entrar?next=%2Fcheckout" className="text-ube underline underline-offset-4">
                     O entra a la tuya
                   </Link>{" "}
                   para guardar direcciones y acumular sellos.

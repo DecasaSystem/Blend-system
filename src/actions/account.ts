@@ -3,6 +3,7 @@
 import { randomUUID } from "node:crypto";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { safeNext } from "@/lib/safe-next";
 import { revalidatePath } from "next/cache";
 import { desc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
@@ -75,7 +76,7 @@ export async function signUp(_prev: AccountState, formData: FormData): Promise<A
   });
 
   await createCustomerSession(id);
-  redirect("/cuenta");
+  redirect(safeNext(formData.get("next"), "/", "/cuenta"));
 }
 
 export async function signIn(_prev: AccountState, formData: FormData): Promise<AccountState> {
@@ -117,7 +118,7 @@ export async function signIn(_prev: AccountState, formData: FormData): Promise<A
 
   await db.update(customers).set({ lastLoginAt: new Date() }).where(eq(customers.id, customer.id));
   await createCustomerSession(customer.id);
-  redirect("/cuenta");
+  redirect(safeNext(formData.get("next"), "/", "/cuenta"));
 }
 
 export async function signOut() {
@@ -180,7 +181,7 @@ export async function linkGoogleCustomer(profile: GoogleProfile): Promise<string
 }
 
 /** Entrar con Google desde el navegador. */
-export async function signInWithGoogle(credential: string): Promise<AccountState> {
+export async function signInWithGoogle(credential: string, next?: string): Promise<AccountState> {
   let profile;
   try {
     profile = await verifyGoogleCredential(credential);
@@ -191,7 +192,7 @@ export async function signInWithGoogle(credential: string): Promise<AccountState
 
   const id = await linkGoogleCustomer(profile);
   await createCustomerSession(id);
-  redirect("/cuenta");
+  redirect(safeNext(next, "/", "/cuenta"));
 }
 
 /** Los pedidos de quien está en sesión. Nunca los de otra persona. */

@@ -33,10 +33,13 @@ const SCRIPT_SRC = "https://accounts.google.com/gsi/client";
 export default function GoogleButton({
   clientId,
   oneTap = false,
+  next,
 }: {
   clientId: string;
   /** La ventanita que sale sola. Sólo en las pantallas de cuenta. */
   oneTap?: boolean;
+  /** A dónde volver al entrar. */
+  next?: string;
 }) {
   const slot = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
@@ -59,7 +62,7 @@ export default function GoogleButton({
           }
           setError(null);
           startTransition(async () => {
-            const result = await signInWithGoogle(res.credential!);
+            const result = await signInWithGoogle(res.credential!, next);
             // Si todo va bien, la acción redirige y esto no se ejecuta.
             if (result?.error) setError(result.error);
           });

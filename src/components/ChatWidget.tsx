@@ -199,7 +199,7 @@ export default function ChatWidget({ signedIn }: { signedIn: boolean }) {
                 página, y vemos tus pedidos para ayudarte mejor.
               </p>
               <div className="grid gap-2">
-                <Link href="/cuenta/entrar" className="btn btn-mango">
+                <Link href="/cuenta/entrar?next=%2F%3Fchat%3Dstore" className="btn btn-mango">
                   Entrar o crear cuenta
                 </Link>
                 <a href={`tel:${brand.phone.replace(/\s/g, "")}`} className="btn btn-paper">

@@ -8,7 +8,18 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-export default async function EntrarPage() {
+export default async function EntrarPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ next?: string }>;
+}) {
   if (await getCustomer()) redirect("/cuenta");
-  return <AuthForm mode="entrar" googleClientId={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID} />;
+  const { next } = await searchParams;
+  return (
+    <AuthForm
+      mode="entrar"
+      googleClientId={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID}
+      next={next}
+    />
+  );
 }

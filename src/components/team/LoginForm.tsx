@@ -9,7 +9,7 @@ import InkField from "../InkField";
 import { usePasswordEye } from "../PasswordEye";
 import { signIn, type SignInState } from "@/actions/auth";
 
-export default function LoginForm() {
+export default function LoginForm({ next }: { next?: string }) {
   const [state, action] = useActionState<SignInState, FormData>(signIn, {});
   const clave = usePasswordEye();
 
@@ -36,6 +36,8 @@ export default function LoginForm() {
         <p className="mt-4 text-paper/65">Solo para el equipo de tienda.</p>
 
         <form action={action} onSubmit={clave.hide} className="mt-8">
+          {/* A dónde volver al entrar; el servidor sólo acepta rutas de /equipo. */}
+          {next ? <input type="hidden" name="next" value={next} /> : null}
           <label className="u-mono mb-2 block text-paper/50" htmlFor="email">
             Correo
           </label>
