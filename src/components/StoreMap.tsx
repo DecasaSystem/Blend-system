@@ -2,9 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import { CupLoader } from "@/components/CupLoader";
+import { useSite } from "./SiteProvider";
 import type { Map as MapLibreMap, Marker } from "maplibre-gl";
 import IllustratedMap from "./IllustratedMap";
-import { boundsOf, CITY_CENTER } from "@/lib/geo";
+import { boundsOf, CITY_CENTER, MAP_STYLE_URL, MAP_WORKER_URL } from "@/lib/geo";
 import type { Store } from "@/lib/content";
 
 /**
@@ -17,12 +18,6 @@ import type { Store } from "@/lib/content";
  *   las teselas no los toca.
  */
 
-// OpenFreeMap: teselas libres, sin clave ni cuota. Atribución obligatoria.
-const STYLE_URL = "https://tiles.openfreemap.org/styles/positron";
-
-/** Lo copia scripts/setup-maplibre.mjs antes de `dev` y de `build`. */
-const WORKER_URL = "/maplibre/maplibre-gl-worker.mjs";
-
 export default function StoreMap({
   stores,
   activeId,
@@ -32,6 +27,7 @@ export default function StoreMap({
   activeId: string;
   onSelect: (id: string) => void;
 }) {
+  const { brand } = useSite();
   const host = useRef<HTMLDivElement>(null);
   const map = useRef<MapLibreMap | null>(null);
   const markers = useRef<Map<string, Marker>>(new Map());
@@ -83,11 +79,11 @@ export default function StoreMap({
         // Sin esto MapLibre lo busca en `import.meta.url`, que tras el bundler
         // apunta a la propia página: el worker se queda mudo y el mapa nunca
         // termina de cargar, sin dar ningún error.
-        maplibre.setWorkerUrl(WORKER_URL);
+        maplibre.setWorkerUrl(MAP_WORKER_URL);
 
         instance = new maplibre.Map({
           container: host.current,
-          style: STYLE_URL,
+          style: MAP_STYLE_URL,
           center: CITY_CENTER,
           zoom: 11,
           attributionControl: { compact: true },
@@ -145,7 +141,7 @@ export default function StoreMap({
           existing.setLngLat([store.lng, store.lat]);
           continue;
         }
-        const el = pinElement(store);
+        const el = pinElement(store, brand.logo);
         // Marcar aquí también: el efecto de resaltado puede haber corrido antes
         // de que este pin existiera.
         el.dataset.active = String(store.id === activeIdRef.current);
@@ -170,7 +166,7 @@ export default function StoreMap({
     return () => {
       cancelled = true;
     };
-  }, [status, stores]);
+  }, [status, stores, brand.logo]);
 
   // 4. Resaltar la seleccionada y volar hasta ella.
   useEffect(() => {
@@ -223,29 +219,62 @@ export default function StoreMap({
   );
 }
 
-/** Marca del pin. Cadena fija: aquí no entra nada que escriba el equipo. */
-const PIN_SVG = `
+/**
+ * Marca del pin: halo, cola y el aro de tinta. Cadena fija: aquí no entra nada
+ * que escriba el equipo. Las tres tintas van dentro sólo si no hay logo.
+ */
+const PIN_SVG = (inks: boolean) => `
   <svg width="42" height="52" viewBox="0 0 42 52" aria-hidden="true">
     <g class="blend-pin-halo">
       <circle cx="21" cy="19" r="20" fill="#1B0B2E" opacity="0.14" />
     </g>
     <path d="M21 50 L15 39 L27 39 Z" fill="#1B0B2E" />
-    <g style="mix-blend-mode:multiply" transform="translate(21 19)">
+    <circle cx="21" cy="19" r="15.5" fill="#FFFDFB" />
+    ${
+      inks
+        ? `<g style="mix-blend-mode:multiply" transform="translate(21 19)">
       <circle cx="-5" cy="-4" r="9" fill="#FF6A1A" />
       <circle cx="5" cy="-3.5" r="9" fill="#7B3FF2" />
       <circle cx="0" cy="4.5" r="9" fill="#8FD14F" />
-    </g>
+    </g>`
+        : ""
+    }
     <circle cx="21" cy="19" r="15.5" fill="none" stroke="#1B0B2E" stroke-width="2" />
   </svg>
 `;
 
-/** El mismo pin de tres tintas que dibuja el mapa ilustrado. */
-function pinElement(store: Store) {
+/**
+ * El dibujo del pin. Con logo, va el logo recortado en círculo, como en la
+ * cabecera; si no, las tres tintas. La URL del logo la sube el equipo, así
+ * que se pone por atributo y nunca dentro del marcado.
+ */
+export function pinArt(logo: string | null | undefined) {
+  const wrap = document.createElement("span");
+  wrap.innerHTML = PIN_SVG(!logo);
+  const svg = wrap.firstElementChild as SVGSVGElement;
+  if (logo) {
+    const img = document.createElementNS("http://www.w3.org/2000/svg", "image");
+    img.setAttribute("href", logo);
+    // Un poco más grande que el aro: el archivo trae un margen casi blanco.
+    img.setAttribute("x", "5");
+    img.setAttribute("y", "3");
+    img.setAttribute("width", "32");
+    img.setAttribute("height", "32");
+    img.setAttribute("preserveAspectRatio", "xMidYMid slice");
+    img.style.clipPath = "circle(14.5px at 16px 16px)";
+    // Debajo del aro de tinta, que es el último hijo.
+    svg.insertBefore(img, svg.lastElementChild);
+  }
+  return svg;
+}
+
+/** El mismo pin que dibuja el mapa ilustrado. */
+function pinElement(store: Store, logo: string | null | undefined) {
   const el = document.createElement("button");
   el.type = "button";
   el.className = "blend-pin";
   el.setAttribute("aria-label", `Ver ${store.name}`);
-  el.innerHTML = PIN_SVG;
+  el.append(pinArt(logo));
 
   // El nombre de la zona lo escribe el equipo: va por textContent, nunca por
   // innerHTML, para que no pueda inyectar marcado.

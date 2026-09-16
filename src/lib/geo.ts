@@ -43,3 +43,9 @@ export function boundsOf(stores: Store[]) {
     ne: [Math.max(...lngs), Math.max(...lats)] as [number, number],
   };
 }
+
+/** OpenFreeMap: teselas libres, sin clave ni cuota. Atribución obligatoria. */
+export const MAP_STYLE_URL = "https://tiles.openfreemap.org/styles/positron";
+
+/** El worker de MapLibre; lo copia scripts/setup-maplibre.mjs antes de `dev` y de `build`. */
+export const MAP_WORKER_URL = "/maplibre/maplibre-gl-worker.mjs";

@@ -1,6 +1,7 @@
 "use client";
 
 import { project } from "@/lib/geo";
+import { useSite } from "./SiteProvider";
 import type { Store } from "@/lib/content";
 
 /**
@@ -19,6 +20,7 @@ export default function IllustratedMap({
   /** En falso queda de puro fondo: ni foco de teclado ni lectores de pantalla. */
   interactive?: boolean;
 }) {
+  const { brand } = useSite();
   return (
     <svg viewBox="0 0 100 75" className="h-full w-full" role="img" aria-label="Mapa de las tiendas">
       <rect width="100" height="75" fill="#F1E7FF" />
@@ -91,11 +93,26 @@ export default function IllustratedMap({
             <circle r="9" fill="#1B0B2E" opacity="0" />
             {on ? <circle cx="0" cy="-6.4" r="8" fill="#1B0B2E" opacity="0.12" /> : null}
             <path d="M0 0 L-2 -3.6 L2 -3.6 Z" fill="#1B0B2E" transform="translate(0 0.4)" />
-            <g style={{ mixBlendMode: "multiply" }} transform="translate(0 -6.4) scale(0.72)">
-              <circle cx="-1.7" cy="-1.4" r="3.1" fill="#FF6A1A" />
-              <circle cx="1.7" cy="-1.2" r="3.1" fill="#7B3FF2" />
-              <circle cx="0" cy="1.6" r="3.1" fill="#8FD14F" />
-            </g>
+            <circle cx="0" cy="-6.4" r="4.5" fill="#FFFDFB" />
+            {brand.logo ? (
+              // El logo recortado en círculo, como en la cabecera; un poco más
+              // grande que el aro porque el archivo trae margen casi blanco.
+              <image
+                href={brand.logo}
+                x="-4.8"
+                y="-11.2"
+                width="9.6"
+                height="9.6"
+                preserveAspectRatio="xMidYMid slice"
+                style={{ clipPath: "circle(4.4px at 4.8px 4.8px)" }}
+              />
+            ) : (
+              <g style={{ mixBlendMode: "multiply" }} transform="translate(0 -6.4) scale(0.72)">
+                <circle cx="-1.7" cy="-1.4" r="3.1" fill="#FF6A1A" />
+                <circle cx="1.7" cy="-1.2" r="3.1" fill="#7B3FF2" />
+                <circle cx="0" cy="1.6" r="3.1" fill="#8FD14F" />
+              </g>
+            )}
             <circle
               cx="0"
               cy="-6.4"
