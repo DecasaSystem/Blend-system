@@ -1,12 +1,14 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import SectionHead from "./SectionHead";
 import InkField from "./InkField";
 import { useCart } from "./CartProvider";
 import { useSite } from "./SiteProvider";
+import { useCollapsed } from "./useCollapsed";
 import { builderOptions, builderPrice, money, unitPrice } from "@/lib/cart";
 import type { BuilderItem } from "@/lib/content";
+import type { Topping } from "@/lib/site";
 
 const hexToRgb = (hex: string) => {
   const n = parseInt(hex.slice(1), 16);
@@ -45,6 +47,28 @@ const NAMES = [
   "Recién Hecho",
 ];
 
+/** El chip que despliega o recoge el resto de opciones, sobre la tinta. */
+function MoreChip({
+  expanded,
+  hidden,
+  onClick,
+}: {
+  expanded: boolean;
+  hidden: number;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-expanded={expanded}
+      className="rounded-full border-[1.5px] border-dashed border-paper/35 px-3.5 py-2.5 text-[0.85rem] text-paper/60 transition-colors hover:border-paper hover:text-paper"
+    >
+      {expanded ? "Ver menos" : `+${hidden} más`}
+    </button>
+  );
+}
+
 export default function BlendBuilder() {
   const { add } = useCart();
   const { sections, builder, builderBases, builderIngredients, pricing, toppings } = useSite();
@@ -72,6 +96,15 @@ export default function BlendBuilder() {
   const kcal = (base.kcal ?? 0) + chosen.reduce((n, i) => n + (i.kcal ?? 0), 0);
 
   const offerToppings = builder.toppings && toppings.length > 0;
+
+  /*
+   * Con muchas opciones la sección se alargaba sin fin: se enseñan las
+   * primeras y un chip «+N más» despliega el resto. Lo marcado se ve siempre.
+   */
+  const isPicked = useCallback((i: BuilderItem) => picked.includes(i.name), [picked]);
+  const isExtra = useCallback((t: Topping) => extras.includes(t.name), [extras]);
+  const ingredientList = useCollapsed(builderIngredients, isPicked, 8);
+  const toppingList = useCollapsed(toppings, isExtra, 6);
   const options = builderOptions(base.name, offerToppings ? extras : []);
   // Se cotiza lo que existe, igual que hará el servidor al cobrar.
   const basePrice = builderPrice(chosen.length, pricing, builder);
@@ -199,7 +232,7 @@ export default function BlendBuilder() {
             </div>
 
             <div className="mt-3 flex flex-wrap gap-2">
-              {builderIngredients.map((ing) => {
+              {ingredientList.visible.map((ing) => {
                 const on = picked.includes(ing.name);
                 const full = picked.length >= MAX && !on;
                 return (
@@ -222,6 +255,13 @@ export default function BlendBuilder() {
                   </button>
                 );
               })}
+              {ingredientList.collapsible ? (
+                <MoreChip
+                  expanded={ingredientList.expanded}
+                  hidden={ingredientList.hidden}
+                  onClick={ingredientList.toggle}
+                />
+              ) : null}
             </div>
 
             {/* Lo que cuesta pasarse de los incluidos, dicho antes de que pase. */}
@@ -243,7 +283,7 @@ export default function BlendBuilder() {
                   ) : null}
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2">
-                  {toppings.map((t) => {
+                  {toppingList.visible.map((t) => {
                     const on = extras.includes(t.name);
                     return (
                       <button
@@ -264,6 +304,13 @@ export default function BlendBuilder() {
                       </button>
                     );
                   })}
+                  {toppingList.collapsible ? (
+                    <MoreChip
+                      expanded={toppingList.expanded}
+                      hidden={toppingList.hidden}
+                      onClick={toppingList.toggle}
+                    />
+                  ) : null}
                 </div>
               </>
             ) : null}

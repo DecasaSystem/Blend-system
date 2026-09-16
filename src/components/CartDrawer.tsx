@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { useCart } from "./CartProvider";
 import { useSite } from "./SiteProvider";
+import { useCollapsed } from "./useCollapsed";
 import { describe, money, MAX_QTY } from "@/lib/cart";
 
 export default function CartDrawer() {
@@ -27,6 +28,8 @@ export default function CartDrawer() {
     openSheet,
   } = useCart();
   const { stores, toppings, products, sizes, pricing } = useSite();
+  // En el carrito nada está «elegido»: se recortan los primeros seis.
+  const upsell = useCollapsed(toppings, () => false, 6);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
@@ -264,8 +267,12 @@ export default function CartDrawer() {
               </ul>
 
               <p className="u-mono mt-6 text-ink/45">¿Le sumamos algo?</p>
-              <div className="rail mt-2 pb-2">
-                {toppings.slice(0, 4).map((t) => (
+              {/* Envueltos, no en riel: en computador un riel horizontal sin
+                  barra no se puede desplazar con el ratón, y recortado a
+                  cuatro escondía el resto. Los primeros a la vista, y un chip
+                  «+N más» despliega los demás. */}
+              <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                {upsell.visible.map((t) => (
                   <button
                     key={t.name}
                     type="button"
@@ -279,11 +286,24 @@ export default function CartDrawer() {
                         color: "#FFD166",
                       })
                     }
-                    className="u-mono min-h-11 whitespace-nowrap rounded-full border-[1.5px] border-ink/20 bg-white px-3.5 text-ink/70 transition-colors hover:border-ink hover:text-ink"
+                    className="min-h-12 rounded-2xl border-[1.5px] border-ink/20 bg-white px-3.5 py-2 text-left transition-colors hover:border-ink"
                   >
-                    + {t.name} · {money(t.price)}
+                    <span className="block text-[0.9rem] font-medium leading-tight">
+                      + {t.name}
+                    </span>
+                    <span className="u-mono block text-ink/45">{money(t.price)}</span>
                   </button>
                 ))}
+                {upsell.collapsible ? (
+                  <button
+                    type="button"
+                    tabIndex={open ? 0 : -1}
+                    onClick={upsell.toggle}
+                    className="u-mono min-h-12 rounded-2xl border-[1.5px] border-dashed border-ink/25 px-3.5 text-ink/50 transition-colors hover:border-ink hover:text-ink"
+                  >
+                    {upsell.expanded ? "Ver menos" : `+${upsell.hidden} más`}
+                  </button>
+                ) : null}
               </div>
             </div>
 

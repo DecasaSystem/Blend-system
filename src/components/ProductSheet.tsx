@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import VesselArt from "./VesselArt";
 import { useCart } from "./CartProvider";
 import {
@@ -15,6 +15,8 @@ import {
   type LineOptions,
 } from "@/lib/cart";
 import { useSite } from "./SiteProvider";
+import { useCollapsed } from "./useCollapsed";
+import type { Topping } from "@/lib/site";
 
 /**
  * Hoja de personalización. Sirve para agregar y para editar una línea que ya
@@ -72,6 +74,10 @@ export default function ProductSheet() {
   const cap = Math.min(editing?.maxQty ?? offer?.maxQty ?? MAX_QTY, MAX_QTY);
   const set = <K extends keyof LineOptions>(k: K, v: LineOptions[K]) =>
     setOptions((o) => ({ ...o, [k]: v }));
+
+  // Con muchos toppings la hoja se alargaba: primeros seis y «+N más».
+  const isExtra = useCallback((t: Topping) => options.extras.includes(t.name), [options.extras]);
+  const toppingList = useCollapsed(toppings, isExtra, 6);
 
   const toggleExtra = (name: string) =>
     setOptions((o) => ({
@@ -234,7 +240,7 @@ export default function ProductSheet() {
 
             <Field label="Toppings">
               <div className="flex flex-wrap gap-2">
-                {toppings.map((t) => (
+                {toppingList.visible.map((t) => (
                   <Choice
                     key={t.name}
                     active={options.extras.includes(t.name)}
@@ -243,6 +249,16 @@ export default function ProductSheet() {
                     {t.name} <span className="text-ink/40">+{money(t.price)}</span>
                   </Choice>
                 ))}
+                {toppingList.collapsible ? (
+                  <button
+                    type="button"
+                    onClick={toppingList.toggle}
+                    aria-expanded={toppingList.expanded}
+                    className="u-mono min-h-11 rounded-full border-[1.5px] border-dashed border-ink/25 px-3.5 text-ink/50 transition-colors hover:border-ink hover:text-ink"
+                  >
+                    {toppingList.expanded ? "Ver menos" : `+${toppingList.hidden} más`}
+                  </button>
+                ) : null}
               </div>
             </Field>
 
