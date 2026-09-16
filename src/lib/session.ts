@@ -5,6 +5,7 @@ import { cookies } from "next/headers";
 import { and, eq, gt, lt } from "drizzle-orm";
 import { db } from "@/db";
 import { sessions, users } from "@/db/schema";
+import type { Role } from "@/lib/orders";
 
 /**
  * Sesiones.
@@ -24,7 +25,7 @@ export type SessionUser = {
   id: string;
   email: string;
   name: string;
-  role: "admin" | "barra";
+  role: Role;
 };
 
 const hashToken = (token: string) => createHash("sha256").update(token).digest("hex");
@@ -79,6 +80,17 @@ export async function destroySession() {
 export async function requireUser(): Promise<SessionUser> {
   const user = await getSessionUser();
   if (!user) throw new Error("No hay sesión iniciada.");
+  return user;
+}
+
+/**
+ * Sólo quien atiende la tienda: barra o administrador. Un repartidor tiene
+ * sesión, pero no debe ver el tablero completo, editar la página ni las
+ * métricas; lo suyo está en `src/actions/delivery.ts`.
+ */
+export async function requireStaff(): Promise<SessionUser> {
+  const user = await requireUser();
+  if (user.role === "repartidor") throw new Error("Esta parte es sólo para la barra.");
   return user;
 }
 

@@ -17,12 +17,12 @@ const [email, name, role = "barra"] = process.argv.slice(2);
 
 if (!email || !name) {
   console.error(
-    'Uso: node --env-file=.env.local scripts/create-user.mjs correo "Nombre" [admin|barra]',
+    'Uso: node --env-file=.env.local scripts/create-user.mjs correo "Nombre" [admin|barra|repartidor]',
   );
   process.exit(1);
 }
-if (!["admin", "barra"].includes(role)) {
-  console.error("El rol debe ser admin o barra.");
+if (!["admin", "barra", "repartidor"].includes(role)) {
+  console.error("El rol debe ser admin, barra o repartidor.");
   process.exit(1);
 }
 if (!process.env.DATABASE_URL) {

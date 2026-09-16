@@ -26,6 +26,7 @@ const SECTIONS: { id: string; label: string; tone: Tone; adminOnly?: boolean }[]
   { id: "metricas", label: "Métricas", tone: "ube" },
   { id: "contenido", label: "Contenido", tone: "pulp" },
   { id: "quiosco", label: "Quiosco", tone: "mango" },
+  { id: "reparto", label: "Reparto", tone: "matcha" },
   { id: "cuentas", label: "Cuentas", tone: "matcha", adminOnly: true },
   { id: "clientes", label: "Clientes y sellos", tone: "ube" },
   { id: "problemas", label: "Si algo falla", tone: "mango" },
@@ -157,7 +158,7 @@ export default function HelpPanel({ user }: { user: SessionUser }) {
                   <Dd>Esta guía.</Dd>
                 </Dl>
               </Card>
-              <Card title="Dos roles">
+              <Card title="Tres roles">
                 <Dl>
                   <Dt>Barra</Dt>
                   <Dd>
@@ -167,6 +168,11 @@ export default function HelpPanel({ user }: { user: SessionUser }) {
                   <Dd>
                     Todo lo anterior, y además crea y borra cuentas, configura el quiosco y puede
                     borrar el historial de pedidos.
+                  </Dd>
+                  <Dt>Repartidor</Dt>
+                  <Dd>
+                    Sólo ve sus domicilios, en una pantalla aparte pensada para el celular. No
+                    entra al tablero ni al editor.
                   </Dd>
                 </Dl>
               </Card>
@@ -250,7 +256,12 @@ export default function HelpPanel({ user }: { user: SessionUser }) {
                   <Dt>Pagado en línea</Dt>
                   <Dd>Ya está cobrado por Bold. No se le cobra nada al entregar.</Dd>
                   <Dt>Sin pagar</Dt>
-                  <Dd>Se cobra al entregar o al recoger: efectivo o datáfono.</Dd>
+                  <Dd>Se cobra al recoger: efectivo o datáfono. Los domicilios siempre llegan pagados.</Dd>
+                  <Dt>🛵 Repartidor</Dt>
+                  <Dd>
+                    En los domicilios, un desplegable para asignar quién lo lleva. Cuando el
+                    repartidor toca «Salí», la tarjeta dice <b>En camino con…</b>.
+                  </Dd>
                 </Dl>
               </Card>
               <Card title="Avisos que no se pueden pasar por alto">
@@ -617,9 +628,85 @@ export default function HelpPanel({ user }: { user: SessionUser }) {
             </Card>
           </Section>
 
-          {/* ------------------------------------------------ 7. Cuentas */}
+          {/* ------------------------------------------------ 7. Reparto */}
+          <Section n={7} id="reparto" tone="matcha" title="Reparto" kicker="Los domicilios">
+            <P>
+              Cada repartidor tiene su cuenta (rol <b>Repartidor</b>) y entra con ella en el
+              celular, en <Mono>/equipo</Mono>: no ve el tablero, ve <b>su pantalla de reparto</b>{" "}
+              con sus domicilios, la dirección, el teléfono y lo que lleva. Los domicilios se pagan
+              siempre en línea al pedir, así que el repartidor <b>nunca cobra</b>.
+            </P>
+            <Flow
+              steps={[
+                { label: "Asignado", tone: "#FF6A1A", desc: "La barra lo asigna, o él lo toma de «Disponibles»." },
+                { label: "Listo", tone: "#7B3FF2", desc: "La barra lo marca listo; le suena al repartidor." },
+                { label: "En camino", tone: "#8FD14F", desc: "Toca «Salí». La barra y el cliente lo ven." },
+                { label: "Entregado", tone: "#8A7BA0", desc: "Toca «Entregado». Cierra el pedido y suma sello." },
+              ]}
+            />
+            <Grid>
+              <Card title="Lo que hace la barra">
+                <Ul>
+                  <li>
+                    En la tarjeta de cada domicilio hay un desplegable <b>🛵 Sin repartidor</b>:
+                    elige quién lo lleva. Se puede hacer desde que entra, aunque aún se esté
+                    preparando.
+                  </li>
+                  <li>
+                    Si no asignas a nadie, el domicilio aparece en <b>Disponibles</b> de todos los
+                    repartidores cuando esté <b>Listo</b>, y el primero que lo toma se lo lleva.
+                  </li>
+                  <li>
+                    Cuando el repartidor sale, la tarjeta cambia a <b>En camino con Juan</b>. Marcar
+                    «Entregado» lo hace él desde la calle; la barra también puede, si hace falta.
+                  </li>
+                </Ul>
+              </Card>
+              <Card title="Lo que ve el repartidor">
+                <Dl>
+                  <Dt>Mis entregas</Dt>
+                  <Dd>Lo que le asignaron. Si aún se prepara, lo dice; cuando está listo aparece «Salí con el pedido».</Dd>
+                  <Dt>En camino</Dt>
+                  <Dd>Lo que lleva encima, con el botón grande <b>Entregado ✓</b>.</Dd>
+                  <Dt>Disponibles</Dt>
+                  <Dd>Domicilios listos sin repartidor, con botón <b>Tomar</b>.</Dd>
+                  <Dt>Entregados hoy</Dt>
+                  <Dd>Su cuenta del día.</Dd>
+                  <Dt>📍 Mapa · 📞 Llamar</Dt>
+                  <Dd>Abren Google Maps con la dirección y el teléfono del cliente con un toque.</Dd>
+                  <Dt>No puedo</Dt>
+                  <Dd>Suelta el pedido: vuelve a Disponibles para que otro lo tome.</Dd>
+                </Dl>
+              </Card>
+            </Grid>
+            <Steps
+              title="Dar de alta un repartidor"
+              steps={[
+                <>
+                  Un administrador crea su cuenta en <b>Cuentas → + Añadir cuenta</b> con rol{" "}
+                  <b>Repartidor</b>.
+                </>,
+                <>
+                  El repartidor entra desde el celular en la dirección de la tienda seguida de{" "}
+                  <Mono>/equipo</Mono>, con su correo y contraseña. Le abre directo su pantalla.
+                </>,
+                <>
+                  Conviene que la instale como app (Compartir → Añadir a pantalla de inicio) y suba
+                  el volumen: suena cuando le asignan algo.
+                </>,
+              ]}
+            />
+            <Warn title="Si un domicilio dice «Cobrar»">
+              Los domicilios se pagan en línea al pedir, así que casi nunca pasa. Sólo puede
+              ocurrir con un pedido de antes de este cambio o si la pasarela estuvo caída y se
+              aceptó pagar al recibir. En ese caso el repartidor debe cobrar el total que indica la
+              etiqueta naranja y entregarlo en caja.
+            </Warn>
+          </Section>
+
+          {/* ------------------------------------------------ 8. Cuentas */}
           <Section
-            n={7}
+            n={8}
             id="cuentas"
             tone="matcha"
             title="Cuentas"
@@ -644,7 +731,10 @@ export default function HelpPanel({ user }: { user: SessionUser }) {
                       La contraseña se ve mientras la escribes, a propósito: tienes que
                       pasársela a la persona. Pídele que la cambie después… o cámbiasela tú.
                     </>,
-                    <>Empieza siempre con rol <b>Barra</b>; sube a Admin sólo a quien lo necesite.</>,
+                    <>
+                      <b>Barra</b> para quien atiende, <b>Repartidor</b> para quien lleva domicilios;
+                      sube a Admin sólo a quien lo necesite.
+                    </>,
                   ]}
                 />
               </Card>
@@ -670,9 +760,9 @@ export default function HelpPanel({ user }: { user: SessionUser }) {
             </Tip>
           </Section>
 
-          {/* ------------------------------------------------ 8. Clientes */}
+          {/* ------------------------------------------------ 9. Clientes */}
           <Section
-            n={8}
+            n={9}
             id="clientes"
             tone="ube"
             title="Clientes y sellos"
@@ -700,8 +790,8 @@ export default function HelpPanel({ user }: { user: SessionUser }) {
             </Grid>
           </Section>
 
-          {/* ------------------------------------------------ 9. Problemas */}
-          <Section n={9} id="problemas" tone="mango" title="Si algo falla" kicker="Antes de llamar">
+          {/* ------------------------------------------------ 10. Problemas */}
+          <Section n={10} id="problemas" tone="mango" title="Si algo falla" kicker="Antes de llamar">
             <div className="grid gap-2">
               <Faq q="No suena cuando entra un pedido">
                 Pulsa <b>Aviso</b> hasta que quede en negro; el navegador pide permiso la primera

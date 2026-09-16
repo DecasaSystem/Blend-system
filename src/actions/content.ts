@@ -5,7 +5,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { siteContent, SITE_ROW_ID } from "@/db/schema";
 import { defaultSite, normalizeSite, type SiteContent } from "@/lib/site";
-import { requireUser } from "@/lib/session";
+import { requireStaff } from "@/lib/session";
 
 /**
  * Contenido del sitio. Una fila con el objeto entero: la misma forma que tenía
@@ -48,7 +48,7 @@ export async function loadSiteContent(): Promise<SiteContent> {
 }
 
 export async function saveSiteContent(data: SiteContent) {
-  const user = await requireUser();
+  const user = await requireStaff();
   console.log("[saveSiteContent] Guardando contenido, editado por:", user.email);
 
   const written = await db
@@ -72,14 +72,14 @@ export async function saveSiteContent(data: SiteContent) {
 }
 
 export async function resetSiteContent() {
-  await requireUser();
+  await requireStaff();
   await db.delete(siteContent).where(eq(siteContent.id, SITE_ROW_ID));
   revalidatePath("/", "layout");
   return { ok: true };
 }
 
 export async function siteContentMeta() {
-  await requireUser();
+  await requireStaff();
   const [row] = await db
     .select({ updatedAt: siteContent.updatedAt, updatedBy: siteContent.updatedBy })
     .from(siteContent)

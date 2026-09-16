@@ -1,7 +1,7 @@
 "use server";
 
 import { cloudinaryEnabled, signUpload, type UploadTicket } from "@/lib/cloudinary";
-import { requireUser } from "@/lib/session";
+import { requireStaff } from "@/lib/session";
 
 /**
  * Permiso para subir una foto o un video.
@@ -10,7 +10,7 @@ import { requireUser } from "@/lib/session";
  * cuenta de Cloudinary con lo que quisiera.
  */
 export async function requestUploadTicket(): Promise<UploadTicket | { error: string }> {
-  await requireUser();
+  await requireStaff();
 
   if (!cloudinaryEnabled()) {
     return { error: "Cloudinary no está configurado. Pega la URL a mano por ahora." };

@@ -3,7 +3,7 @@
 import { and, gte, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { orders } from "@/db/schema";
-import { requireUser } from "@/lib/session";
+import { requireStaff } from "@/lib/session";
 import { loadSiteContent } from "./content";
 
 /**
@@ -110,7 +110,7 @@ function suma(
 }
 
 export async function loadStats(dias: number): Promise<Stats> {
-  await requireUser();
+  await requireStaff();
 
   const rango = Math.max(1, Math.min(365, Math.floor(dias) || 7));
   const ahora = new Date();

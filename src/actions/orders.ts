@@ -2,10 +2,11 @@
 
 import { desc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { orders } from "@/db/schema";
+import { orders, users } from "@/db/schema";
 import { createOrder, type PlaceOrderInput } from "@/lib/create-order";
 import { expireStalePayments } from "@/lib/settle-payment";
-import { requireUser } from "@/lib/session";
+import { paymentsEnabled } from "@/lib/payments";
+import { requireStaff } from "@/lib/session";
 import { STATUSES, type BoardStatus, type Order } from "@/lib/orders";
 
 /**
@@ -24,7 +25,7 @@ import { STATUSES, type BoardStatus, type Order } from "@/lib/orders";
 
 export type { PlaceOrderInput };
 
-function toOrder(row: typeof orders.$inferSelect): Order {
+function toOrder(row: typeof orders.$inferSelect & { courierName: string | null }): Order {
   return {
     id: row.id,
     createdAt: row.createdAt.getTime(),
@@ -40,6 +41,9 @@ function toOrder(row: typeof orders.$inferSelect): Order {
     payment: row.payment,
     paymentMethod: row.paymentMethod ?? undefined,
     channel: row.channel,
+    courierId: row.courierId,
+    courierName: row.courierName,
+    outAt: row.outAt ? row.outAt.getTime() : null,
   };
 }
 
@@ -47,26 +51,32 @@ function toOrder(row: typeof orders.$inferSelect): Order {
 export async function placeOrder(
   input: PlaceOrderInput,
 ): Promise<{ id: string; total: number } | { error: string }> {
+  // Los domicilios se pagan en línea: el repartidor no cobra. Sin pasarela
+  // configurada no hay alternativa, y se acepta al recibir como siempre.
+  if (input.mode === "envio" && paymentsEnabled()) {
+    return { error: "Los domicilios se pagan en línea al hacer el pedido." };
+  }
   return createOrder(input, { payment: "pendiente" });
 }
 
 /** El tablero: todo menos lo que aún no se ha cobrado o no se llegó a pagar. */
 export async function listOrders(): Promise<Order[]> {
-  await requireUser();
+  await requireStaff();
   // El tablero se consulta cada pocos segundos: buen momento para dar por
   // vencidos los pagos que nadie terminó, sin necesitar un cron aparte.
   await expireStalePayments();
   const rows = await db
-    .select()
+    .select({ order: orders, courierName: users.name })
     .from(orders)
+    .leftJoin(users, eq(orders.courierId, users.id))
     .where(sql`${orders.status} not in ('pago', 'fallido')`)
     .orderBy(desc(orders.createdAt))
     .limit(200);
-  return rows.map(toOrder);
+  return rows.map((r) => toOrder({ ...r.order, courierName: r.courierName }));
 }
 
 export async function updateOrderStatus(id: string, status: BoardStatus) {
-  await requireUser();
+  await requireStaff();
   // Sólo las columnas del tablero: a `pago` no se vuelve a mano.
   if (!STATUSES.includes(status)) return { error: "Estado desconocido." };
   await db.update(orders).set({ status, statusAt: new Date() }).where(eq(orders.id, id));
@@ -74,13 +84,13 @@ export async function updateOrderStatus(id: string, status: BoardStatus) {
 }
 
 export async function deleteOrder(id: string) {
-  await requireUser();
+  await requireStaff();
   await db.delete(orders).where(eq(orders.id, id));
   return { ok: true };
 }
 
 export async function clearAllOrders() {
-  const user = await requireUser();
+  const user = await requireStaff();
   if (user.role !== "admin") return { error: "Sólo un administrador puede borrar el historial." };
   await db.delete(orders);
   return { ok: true };

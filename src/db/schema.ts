@@ -1,7 +1,7 @@
 import { sql } from "drizzle-orm";
 import { index, integer, jsonb, pgTable, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
 import type { CartLine, DeliveryMode } from "@/lib/cart";
-import type { Customer, OrderStatus } from "@/lib/orders";
+import type { Customer, OrderStatus, Role } from "@/lib/orders";
 import type { SiteContent } from "@/lib/site";
 
 /**
@@ -20,7 +20,7 @@ export const users = pgTable(
     name: text("name").notNull(),
     /** scrypt: sal y hash, ambos en hexadecimal. Nunca la contraseña. */
     passwordHash: text("password_hash").notNull(),
-    role: text("role").$type<"admin" | "barra">().notNull().default("barra"),
+    role: text("role").$type<Role>().notNull().default("barra"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
   },
@@ -125,6 +125,14 @@ export const orders = pgTable(
      * Nulo si no se pagó en línea.
      */
     paymentRef: text("payment_ref"),
+    /**
+     * Reparto. Quién lleva el domicilio, desde cuándo lo tiene y cuándo salió
+     * con él. Nulos en los pedidos para recoger y en los de domicilio que
+     * nadie ha tomado todavía.
+     */
+    courierId: text("courier_id").references(() => users.id, { onDelete: "set null" }),
+    assignedAt: timestamp("assigned_at", { withTimezone: true }),
+    outAt: timestamp("out_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
@@ -132,6 +140,7 @@ export const orders = pgTable(
     index("orders_status_idx").on(t.status),
     index("orders_customer_idx").on(t.customerId),
     index("orders_payment_ref_idx").on(t.paymentRef),
+    index("orders_courier_idx").on(t.courierId),
   ],
 );
 

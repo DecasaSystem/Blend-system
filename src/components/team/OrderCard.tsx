@@ -15,6 +15,7 @@ import {
   type Order,
 } from "@/lib/orders";
 import { useSite } from "../SiteProvider";
+import type { Courier } from "@/actions/delivery";
 
 /**
  * Corto a propósito: en la ficha compite con el total. `tarjeta` es lo que
@@ -37,12 +38,17 @@ export default function OrderCard({
   now,
   fresh,
   onMove,
+  couriers = [],
+  onAssign,
 }: {
   order: Order;
   now: number;
   /** Recién llegado: se resalta unos segundos. */
   fresh?: boolean;
   onMove: (id: string, status: BoardStatus) => void;
+  /** Los repartidores, para asignar un domicilio. Vacío si no hay ninguno. */
+  couriers?: Courier[];
+  onAssign?: (id: string, courierId: string | null) => void;
 }) {
   const { stores, sizes } = useSite();
   const store = stores.find((s) => s.id === order.storeId);
@@ -53,6 +59,9 @@ export default function OrderCard({
   const back = prevStatus(order.status);
   const action = STATUS_ACTION[order.status];
   const items = order.lines.reduce((n, l) => n + l.qty, 0);
+  // Reparto: sólo en domicilios que todavía no se entregaron.
+  const reparto = order.mode === "envio" && order.status !== "entregado";
+  const enCamino = reparto && order.status === "listo" && Boolean(order.outAt);
 
   return (
     <article
@@ -118,6 +127,37 @@ export default function OrderCard({
           <p className="u-mono mt-2 normal-case tracking-[0.01em] text-ink/55">
             {order.customer.notes}
           </p>
+        ) : null}
+
+        {/* Quién lo lleva. La barra lo asigna aquí; el repartidor también
+            puede tomarlo desde su pantalla. «En camino» es que ya tocó «Salí». */}
+        {reparto ? (
+          <div className="mt-3 border-t-[1.5px] border-ink/10 pt-2.5">
+            {enCamino ? (
+              <p className="u-mono inline-flex items-center gap-1.5 rounded-full border-[1.5px] border-ink bg-matcha px-3 py-1 text-ink">
+                🛵 En camino con {order.courierName ?? "el repartidor"}
+              </p>
+            ) : couriers.length > 0 && onAssign ? (
+              <label className="flex items-center gap-2">
+                <span className="u-mono shrink-0 text-ink/45">🛵</span>
+                <select
+                  value={order.courierId ?? ""}
+                  onChange={(e) => onAssign(order.id, e.target.value || null)}
+                  aria-label={`Repartidor del pedido ${order.id}`}
+                  className="u-mono min-h-10 min-w-0 flex-1 appearance-none rounded-full border-[1.5px] border-ink/20 bg-white px-3 text-ink/70"
+                >
+                  <option value="">Sin repartidor</option>
+                  {couriers.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : order.courierName ? (
+              <p className="u-mono text-ink/55">🛵 Lo lleva {order.courierName}</p>
+            ) : null}
+          </div>
         ) : null}
       </div>
 

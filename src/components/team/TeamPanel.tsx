@@ -22,6 +22,7 @@ import {
 } from "@/actions/kiosk";
 import type { SessionUser } from "@/lib/session";
 import { useSite } from "../SiteProvider";
+import { ROLE_LABEL, ROLES, type Role } from "@/lib/orders";
 
 /**
  * Cuentas del equipo.
@@ -355,12 +356,12 @@ function Alta({
   onSubmit,
   onCancel,
 }: {
-  onSubmit: (d: { email: string; name: string; role: "admin" | "barra"; password: string }) => void;
+  onSubmit: (d: { email: string; name: string; role: Role; password: string }) => void;
   onCancel: () => void;
 }) {
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
-  const [role, setRole] = useState<"admin" | "barra">("barra");
+  const [role, setRole] = useState<Role>("barra");
   const [password, setPassword] = useState("");
 
   return (
@@ -408,14 +409,20 @@ function Alta({
             className="input rounded-2xl font-mono"
           />
         </Campo>
-        <Campo label="Rol" hint="Barra ve pedidos; admin además gestiona cuentas y contenido.">
+        <Campo
+          label="Rol"
+          hint="Barra ve pedidos y edita la tienda; admin además gestiona cuentas; repartidor sólo ve los domicilios que lleva."
+        >
           <select
             value={role}
-            onChange={(e) => setRole(e.target.value as "admin" | "barra")}
+            onChange={(e) => setRole(e.target.value as Role)}
             className="input appearance-none rounded-2xl"
           >
-            <option value="barra">Barra</option>
-            <option value="admin">Administrador</option>
+            {ROLES.map((r) => (
+              <option key={r} value={r}>
+                {ROLE_LABEL[r]}
+              </option>
+            ))}
           </select>
         </Campo>
       </div>
@@ -446,7 +453,7 @@ function Miembro({
 }: {
   m: TeamMember;
   esYo: boolean;
-  onRol: (r: "admin" | "barra") => void;
+  onRol: (r: Role) => void;
   onClave: (c: string) => void;
   onCerrar: () => void;
   onBorrar: () => void;
@@ -472,13 +479,14 @@ function Miembro({
         <div className="flex flex-wrap items-center gap-2">
           <select
             value={m.role}
-            onChange={(e) => onRol(e.target.value as "admin" | "barra")}
+            onChange={(e) => onRol(e.target.value as Role)}
             disabled={esYo}
             aria-label={`Rol de ${m.name}`}
             className="u-mono min-h-11 appearance-none rounded-full border-[1.5px] border-ink/20 bg-white px-3.5 text-ink/70 disabled:opacity-50"
           >
             <option value="barra">Barra</option>
             <option value="admin">Admin</option>
+            <option value="repartidor">Repartidor</option>
           </select>
 
           <button

@@ -220,6 +220,7 @@ export async function myOrders(): Promise<Order[]> {
     total: row.total,
     payment: row.payment,
     channel: row.channel,
+    outAt: row.outAt ? row.outAt.getTime() : null,
   }));
 }
 

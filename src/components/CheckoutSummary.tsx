@@ -61,6 +61,15 @@ export default function CheckoutSummary({
   const [sent, setSent] = useState<{ id: string; mode: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [method, setMethod] = useState<"tarjeta" | "recibir">(cardPayments ? "tarjeta" : "recibir");
+
+  /*
+   * Los domicilios se pagan siempre en línea: el repartidor sólo entrega, no
+   * cobra ni carga plata. Con la pasarela configurada, «al recibir» sólo
+   * existe para recoger en tienda. Sin pasarela no hay alternativa y se cobra
+   * al recibir, como siempre. El servidor lo exige igual (`placeOrder`).
+   */
+  const onlineOnly = cardPayments && mode === "envio";
+  const payOnline = cardPayments && (onlineOnly || method === "tarjeta");
   const [pending, startTransition] = useTransition();
 
   const store = stores.find((s) => s.id === storeId) ?? stores[0];
@@ -86,7 +95,7 @@ export default function CheckoutSummary({
     };
 
     startTransition(async () => {
-      if (cardPayments && method === "tarjeta") {
+      if (payOnline) {
         const res = await payWithCard(order);
         if ("error" in res) {
           setError(res.error);
@@ -410,7 +419,19 @@ export default function CheckoutSummary({
               </div>
 
               {/* Cómo pagar */}
-              {cardPayments ? (
+              {onlineOnly ? (
+                <div className="mt-8">
+                  <p className="u-mono mb-2.5 text-ink/45">Cómo pagas</p>
+                  <div className="rounded-2xl border-[1.5px] border-ink bg-ink px-4 py-3 text-paper">
+                    <span className="block text-[0.9rem] font-medium">Pagar en línea ahora</span>
+                    <span className="u-mono block opacity-60">Tarjeta, PSE o Nequi</span>
+                  </div>
+                  <p className="u-mono mt-2.5 normal-case tracking-[0.01em] text-ink/45">
+                    Los domicilios se pagan al hacer el pedido: así el repartidor sólo tiene que
+                    entregar. Si prefieres pagar al momento, elige «Recoger».
+                  </p>
+                </div>
+              ) : cardPayments ? (
                 <div className="mt-8">
                   <p className="u-mono mb-2.5 text-ink/45">Cómo pagas</p>
                   <div className="grid gap-2 sm:grid-cols-2">
@@ -461,7 +482,7 @@ export default function CheckoutSummary({
                       <CupLoader /> Un momento…
                     </>
                   )
-                  : cardPayments && method === "tarjeta"
+                  : payOnline
                     ? `Pagar ${money(total)}`
                     : `Enviar el pedido · ${money(total)}`}
               </button>
@@ -473,7 +494,7 @@ export default function CheckoutSummary({
               ) : null}
 
               <p className="u-mono mt-3 text-ink/40">
-                {cardPayments && method === "tarjeta"
+                {payOnline
                   ? "Te llevamos a la página segura de Bold, donde eliges tarjeta de crédito o débito, PSE, Nequi o Botón Bancolombia. La barra ve tu pedido cuando el pago se confirme."
                   : "El pedido llega a la barra marcado como pago pendiente."}
               </p>

@@ -26,6 +26,7 @@ import {
   type Order,
 } from "@/lib/orders";
 import { clearAllOrders, placeOrder, updateOrderStatus } from "@/actions/orders";
+import { assignCourier, listCouriers, type Courier } from "@/actions/delivery";
 import { signOut } from "@/actions/auth";
 import type { SessionUser } from "@/lib/session";
 import { useSite } from "../SiteProvider";
@@ -49,6 +50,23 @@ export default function OrderBoard({
   );
   const arrived = useNewOrderAlert(orders, sound);
   const wide = useMediaQuery("(min-width: 1024px)");
+
+  // Los repartidores, para el desplegable de cada domicilio. Cambian poco:
+  // se cargan una vez y al volver a la pestaña.
+  const [couriers, setCouriers] = useState<Courier[]>([]);
+  useEffect(() => {
+    const load = () => listCouriers().then(setCouriers).catch(() => {});
+    load();
+    const onVisible = () => document.visibilityState === "visible" && load();
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, []);
+
+  const assign = async (id: string, courierId: string | null) => {
+    const res = await assignCourier(id, courierId);
+    if ("error" in res) alert(res.error);
+    await refresh();
+  };
 
   /** Mover un pedido: se pide al servidor y se recarga la lista. */
   const move = async (id: string, status: BoardStatus) => {
@@ -269,6 +287,8 @@ export default function OrderBoard({
                       now={now}
                       fresh={arrived?.id === o.id}
                       onMove={move}
+                    couriers={couriers}
+                    onAssign={assign}
                     />
                   ))
                 )}
@@ -304,6 +324,8 @@ export default function OrderBoard({
                           now={now}
                           fresh={arrived?.id === o.id}
                           onMove={move}
+                        couriers={couriers}
+                        onAssign={assign}
                         />
                       ))
                     )}

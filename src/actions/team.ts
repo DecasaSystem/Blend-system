@@ -7,6 +7,7 @@ import { db } from "@/db";
 import { sessions, users } from "@/db/schema";
 import { checkPasswordStrength, hashPassword } from "@/lib/password";
 import { requireUser, type SessionUser } from "@/lib/session";
+import { ROLES, type Role } from "@/lib/orders";
 
 /**
  * Cuentas del equipo, desde la web.
@@ -23,7 +24,7 @@ export type TeamMember = {
   id: string;
   email: string;
   name: string;
-  role: "admin" | "barra";
+  role: Role;
   createdAt: number;
   lastLoginAt: number | null;
   /** Cuántas sesiones abiertas tiene ahora mismo. */
@@ -68,7 +69,7 @@ export type TeamResult = { ok: true; mensaje: string } | { error: string };
 export async function createMember(
   email: string,
   name: string,
-  role: "admin" | "barra",
+  role: Role,
   password: string,
 ): Promise<TeamResult> {
   await requireAdmin();
@@ -78,7 +79,7 @@ export async function createMember(
 
   if (!correo.includes("@") || correo.length < 5) return { error: "Ese correo no parece válido." };
   if (!nombre) return { error: "Falta el nombre." };
-  if (role !== "admin" && role !== "barra") return { error: "El rol no existe." };
+  if (!ROLES.includes(role)) return { error: "El rol no existe." };
 
   const flojo = checkPasswordStrength(password);
   if (flojo) return { error: flojo };
@@ -133,9 +134,9 @@ export async function resetMemberPassword(id: string, password: string): Promise
   };
 }
 
-export async function changeMemberRole(id: string, role: "admin" | "barra"): Promise<TeamResult> {
+export async function changeMemberRole(id: string, role: Role): Promise<TeamResult> {
   const yo = await requireAdmin();
-  if (role !== "admin" && role !== "barra") return { error: "El rol no existe." };
+  if (!ROLES.includes(role)) return { error: "El rol no existe." };
 
   // Quitarse a uno mismo el rol de admin deja el panel sin quien lo gestione
   // si además es el único; y aunque no lo sea, es casi siempre un descuido.

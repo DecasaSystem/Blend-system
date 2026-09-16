@@ -7,6 +7,19 @@ import type { Product, Size, Store } from "./content";
  * Leer y escribir vive en `src/actions/orders.ts`, contra Postgres.
  */
 
+/**
+ * Los roles del equipo. `barra` atiende pedidos y edita la tienda; `admin`
+ * además gestiona cuentas; `repartidor` sólo ve los domicilios que lleva.
+ */
+export const ROLES = ["admin", "barra", "repartidor"] as const;
+export type Role = (typeof ROLES)[number];
+
+export const ROLE_LABEL: Record<Role, string> = {
+  admin: "Administrador",
+  barra: "Barra",
+  repartidor: "Repartidor",
+};
+
 /** Las cuatro columnas del tablero. */
 export const STATUSES = ["nuevo", "preparando", "listo", "entregado"] as const;
 
@@ -87,7 +100,17 @@ export type Order = {
   payment: "tarjeta" | "efectivo" | "pendiente";
   paymentMethod?: "tarjeta" | "efectivo" | "transferencia";
   channel: "web" | "mostrador";
+  /** Reparto: quién lo lleva y si ya salió. Sólo en domicilios. */
+  courierId?: string | null;
+  courierName?: string | null;
+  outAt?: number | null;
 };
+
+/** Lo que ve el cliente y la barra: «En camino» es «listo» con el repartidor ya en la calle. */
+export function displayStatus(order: Pick<Order, "status" | "mode" | "outAt">): string {
+  if (order.mode === "envio" && order.status === "listo" && order.outAt) return "En camino";
+  return STATUS_LABEL[order.status];
+}
 
 /** Avanzar y retroceder sólo se mueven entre las columnas del tablero. */
 export function nextStatus(status: OrderStatus): BoardStatus | null {

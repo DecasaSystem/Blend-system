@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import AccountShell from "./AccountShell";
 import { addAddress, removeAddress, signOut, type AccountState } from "@/actions/account";
 import { describe, money } from "@/lib/cart";
-import { STATUS_COLOR, STATUS_LABEL, formatClock, type Order } from "@/lib/orders";
+import { STATUS_COLOR, displayStatus, formatClock, type Order } from "@/lib/orders";
 import { useSite } from "../SiteProvider";
 import InstallApp from "../InstallApp";
 import type { Customer } from "@/lib/customer-session";
@@ -112,7 +112,7 @@ export default function AccountPanel({
                       className="u-mono rounded-full px-2.5 py-1 text-[0.58rem] text-white"
                       style={{ background: STATUS_COLOR[o.status] }}
                     >
-                      {STATUS_LABEL[o.status]}
+                      {displayStatus(o)}
                     </span>
                   </div>
                   <p className="u-mono mt-1 text-ink/40">
