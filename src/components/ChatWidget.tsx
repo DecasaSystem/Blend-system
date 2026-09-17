@@ -6,6 +6,7 @@ import { useCart } from "./CartProvider";
 import { useSite } from "./SiteProvider";
 import ChatThread from "./ChatThread";
 import AssistantThread from "./AssistantThread";
+import AssistantFace from "./AssistantFace";
 import PushToggle from "./PushToggle";
 import { REOPEN_KEY, usePendingAssistantAction } from "./useAssistantActions";
 import {
@@ -38,6 +39,9 @@ import {
 
 const OPEN_MS = 4000;
 const CLOSED_MS = 30000;
+/** El «¿te ayudo?» junto a la burbuja: una vez por sesión, y sólo si no la abren. */
+const TEASE_KEY = "blend.chat.tease";
+const TEASE_AFTER_MS = 2500;
 
 type ThreadId = "asistente" | "store" | string;
 
@@ -52,7 +56,32 @@ export default function ChatWidget({ signedIn }: { signedIn: boolean }) {
   const [deliveryMessages, setDeliveryMessages] = useState<ChatMessage[] | null>(null);
   const [deliveries, setDeliveries] = useState<DeliveryThread[]>([]);
   const [storeUnread, setStoreUnread] = useState(0);
+  const [tease, setTease] = useState(false);
   const hours = stores[0]?.hours;
+
+  // La invitación aparece a los pocos segundos la primera vez en la sesión
+  // y se va sola al abrir el chat (o al tocar su ✕).
+  useEffect(() => {
+    if (open) {
+      setTease(false);
+      return;
+    }
+    try {
+      if (sessionStorage.getItem(TEASE_KEY)) return;
+    } catch {
+      return;
+    }
+    const t = setTimeout(() => setTease(true), TEASE_AFTER_MS);
+    return () => clearTimeout(t);
+  }, [open]);
+  const dismissTease = () => {
+    setTease(false);
+    try {
+      sessionStorage.setItem(TEASE_KEY, "1");
+    } catch {
+      // Sin sessionStorage volverá a salir en la próxima página; no pasa nada.
+    }
+  };
 
   const totalUnread = storeUnread + deliveries.reduce((n, d) => n + d.unread, 0);
 
@@ -159,12 +188,16 @@ export default function ChatWidget({ signedIn }: { signedIn: boolean }) {
         >
           <header className="border-b-[1.5px] border-ink bg-ink px-4 py-3 text-paper">
             <div className="flex items-center gap-3">
-              <span
-                className="grid h-9 w-9 place-items-center rounded-full bg-mango text-white"
-                aria-hidden="true"
-              >
-                {asistente ? "✦" : active ? "🛵" : <ChatIcon />}
-              </span>
+              {asistente ? (
+                <AssistantFace size={36} className="border-[1.5px] border-paper/40" />
+              ) : (
+                <span
+                  className="grid h-9 w-9 place-items-center rounded-full bg-mango text-white"
+                  aria-hidden="true"
+                >
+                  {active ? "🛵" : <ChatIcon />}
+                </span>
+              )}
               <div className="min-w-0 flex-1">
                 <p className="truncate font-semibold leading-tight">
                   {asistente
@@ -274,20 +307,54 @@ export default function ChatWidget({ signedIn }: { signedIn: boolean }) {
         </section>
       ) : null}
 
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-        aria-label={open ? "Cerrar el chat" : "Abrir el chat"}
-        className="relative ml-auto flex h-14 w-14 items-center justify-center rounded-full border-[1.5px] border-ink bg-ink text-paper shadow-[0_10px_30px_rgba(27,11,46,0.35)] transition-transform active:scale-95"
-      >
-        {open ? <span className="text-xl">✕</span> : <ChatIcon />}
-        {!open && totalUnread > 0 ? (
-          <span className="u-mono absolute -right-1 -top-1 grid h-6 min-w-6 place-items-center rounded-full border-[1.5px] border-paper bg-mango px-1.5 text-[0.6rem] text-white">
-            {totalUnread}
-          </span>
+      <div className="flex items-center justify-end gap-2.5">
+        {tease && !open ? (
+          <div
+            role="status"
+            className="flex items-center gap-1 rounded-full border-[1.5px] border-ink bg-paper py-1.5 pl-3.5 pr-1.5 shadow-[3px_4px_0_0_var(--color-ink)]"
+          >
+            <button
+              type="button"
+              onClick={() => {
+                dismissTease();
+                setThread("asistente");
+                setOpen(true);
+              }}
+              className="text-[0.9rem] font-medium leading-none text-ink"
+            >
+              ¿Te ayudo a elegir?
+            </button>
+            <button
+              type="button"
+              onClick={dismissTease}
+              aria-label="Cerrar la invitación"
+              className="grid h-7 w-7 place-items-center rounded-full text-ink/45 hover:text-ink"
+            >
+              ✕
+            </button>
+          </div>
         ) : null}
-      </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            if (!open) dismissTease();
+            setOpen((v) => !v);
+          }}
+          aria-expanded={open}
+          aria-label={open ? "Cerrar el chat" : "Abrir el chat"}
+          className={`relative flex h-14 w-14 items-center justify-center rounded-full border-[1.5px] border-ink shadow-[4px_5px_0_0_var(--color-ink)] transition-transform active:scale-95 ${
+            open ? "bg-paper text-ink" : "bg-mango text-white"
+          }`}
+        >
+          {open ? <span className="text-xl">✕</span> : <AssistantFace size={54} />}
+          {!open && totalUnread > 0 ? (
+            <span className="u-mono absolute -right-1 -top-1 grid h-6 min-w-6 place-items-center rounded-full border-[1.5px] border-paper bg-ink px-1.5 text-[0.6rem] text-paper">
+              {totalUnread}
+            </span>
+          ) : null}
+        </button>
+      </div>
     </div>
   );
 }
