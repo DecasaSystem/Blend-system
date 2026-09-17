@@ -69,15 +69,17 @@ export default function ProductSheet() {
     [basePrice, options, toppings],
   );
 
+  // Con muchos toppings la hoja se alargaba: primeros seis y «+N más».
+  // Va antes del `return null`: los hooks tienen que correr en cada render,
+  // también con la hoja cerrada, o React se pierde al abrirla.
+  const isExtra = useCallback((t: Topping) => options.extras.includes(t.name), [options.extras]);
+  const toppingList = useCollapsed(toppings, isExtra, 6);
+
   if (!product) return null;
 
   const cap = Math.min(editing?.maxQty ?? offer?.maxQty ?? MAX_QTY, MAX_QTY);
   const set = <K extends keyof LineOptions>(k: K, v: LineOptions[K]) =>
     setOptions((o) => ({ ...o, [k]: v }));
-
-  // Con muchos toppings la hoja se alargaba: primeros seis y «+N más».
-  const isExtra = useCallback((t: Topping) => options.extras.includes(t.name), [options.extras]);
-  const toppingList = useCollapsed(toppings, isExtra, 6);
 
   const toggleExtra = (name: string) =>
     setOptions((o) => ({
