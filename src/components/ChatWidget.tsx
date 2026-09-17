@@ -5,7 +5,9 @@ import Link from "next/link";
 import { useCart } from "./CartProvider";
 import { useSite } from "./SiteProvider";
 import ChatThread from "./ChatThread";
+import AssistantThread from "./AssistantThread";
 import PushToggle from "./PushToggle";
+import { REOPEN_KEY, usePendingAssistantAction } from "./useAssistantActions";
 import {
   deliveryChat,
   myChat,
@@ -21,21 +23,23 @@ import {
  * La burbuja de chat de la tienda.
  *
  * Abajo a la derecha, siempre a mano. Abierta tiene una pestaña por hilo:
- * «La barra», y una por cada domicilio en marcha con su repartidor. Se
- * actualiza sola cada pocos segundos; cerrada, sólo pregunta de vez en
- * cuando cuántos mensajes hay sin leer y enseña el número.
+ * «Asistente» (responde al instante, con IA, y puede mover la página),
+ * «La barra» (una persona), y una por cada domicilio en marcha con su
+ * repartidor. Los hilos humanos se actualizan solos cada pocos segundos;
+ * cerrada, sólo pregunta de vez en cuando cuántos mensajes hay sin leer.
  *
  * `?chat=store` o `?chat=B-1043` en la URL la abre directamente en ese hilo:
  * es a donde llevan los avisos push.
  *
- * Hace falta cuenta: sin ella no hay a quién responderle después. Al que no
- * tiene, se le ofrece entrar o llamar.
+ * El asistente funciona sin cuenta. Para escribirle a la barra sí hace
+ * falta: sin ella no hay a quién responderle después. Al que no tiene, se
+ * le ofrece entrar o llamar.
  */
 
 const OPEN_MS = 4000;
 const CLOSED_MS = 30000;
 
-type ThreadId = "store" | string;
+type ThreadId = "asistente" | "store" | string;
 
 const QUICK_CUSTOMER = ["Ya bajo", "Timbra, por favor", "Llámame cuando llegues", "Déjalo en portería"];
 
@@ -43,7 +47,7 @@ export default function ChatWidget({ signedIn }: { signedIn: boolean }) {
   const { brand, stores } = useSite();
   const { count, open: cartOpen, sheet } = useCart();
   const [open, setOpen] = useState(false);
-  const [thread, setThread] = useState<ThreadId>("store");
+  const [thread, setThread] = useState<ThreadId>("asistente");
   const [storeMessages, setStoreMessages] = useState<ChatMessage[] | null>(null);
   const [deliveryMessages, setDeliveryMessages] = useState<ChatMessage[] | null>(null);
   const [deliveries, setDeliveries] = useState<DeliveryThread[]>([]);
@@ -76,6 +80,21 @@ export default function ChatWidget({ signedIn }: { signedIn: boolean }) {
     }
   }, []);
 
+  // Si el asistente mandó al cliente a otra página o a una ficha en la
+  // portada, aquí se termina de hacer y el chat vuelve a abrirse.
+  usePendingAssistantAction();
+  useEffect(() => {
+    try {
+      if (sessionStorage.getItem(REOPEN_KEY)) {
+        sessionStorage.removeItem(REOPEN_KEY);
+        setThread("asistente");
+        setOpen(true);
+      }
+    } catch {
+      // Sin sessionStorage no hay nada que reabrir.
+    }
+  }, []);
+
   // Enlace profundo desde un aviso: abrir en el hilo que toca.
   useEffect(() => {
     if (!signedIn) return;
@@ -94,7 +113,7 @@ export default function ChatWidget({ signedIn }: { signedIn: boolean }) {
   }, [signedIn, open, loadThreads]);
 
   useEffect(() => {
-    if (!signedIn || !open) return;
+    if (!signedIn || !open || thread === "asistente") return;
     setDeliveryMessages(null);
     loadOpen(thread);
     const t = setInterval(() => loadOpen(thread), OPEN_MS);
@@ -119,6 +138,7 @@ export default function ChatWidget({ signedIn }: { signedIn: boolean }) {
   };
 
   const active = deliveries.find((d) => d.orderId === thread) ?? null;
+  const asistente = thread === "asistente";
 
   // Con el carrito o la hoja abiertos no compite; en móvil, con la barra del
   // pedido abajo, sube para no taparla.
@@ -135,7 +155,7 @@ export default function ChatWidget({ signedIn }: { signedIn: boolean }) {
         <section
           className="mb-3 flex w-[calc(100vw-2rem)] max-w-sm flex-col overflow-hidden rounded-[26px] border-[1.5px] border-ink bg-paper shadow-[6px_8px_0_0_var(--color-ink)]"
           style={{ height: "min(34rem, calc(100dvh - 8rem))" }}
-          aria-label="Chat con la barra"
+          aria-label={asistente ? "Asistente de la tienda" : "Chat con la barra"}
         >
           <header className="border-b-[1.5px] border-ink bg-ink px-4 py-3 text-paper">
             <div className="flex items-center gap-3">
@@ -143,22 +163,26 @@ export default function ChatWidget({ signedIn }: { signedIn: boolean }) {
                 className="grid h-9 w-9 place-items-center rounded-full bg-mango text-white"
                 aria-hidden="true"
               >
-                {active ? "🛵" : <ChatIcon />}
+                {asistente ? "✦" : active ? "🛵" : <ChatIcon />}
               </span>
               <div className="min-w-0 flex-1">
                 <p className="truncate font-semibold leading-tight">
-                  {active
-                    ? `${active.courierName ?? "Tu repartidor"} · ${active.orderId}`
-                    : `La barra de ${brand.name}`}
+                  {asistente
+                    ? `Asistente de ${brand.name}`
+                    : active
+                      ? `${active.courierName ?? "Tu repartidor"} · ${active.orderId}`
+                      : `La barra de ${brand.name}`}
                 </p>
                 <p className="u-mono text-paper/55">
-                  {active
-                    ? active.outAt
-                      ? "En camino"
-                      : "Preparando tu pedido"
-                    : hours
-                      ? `Horario ${hours}`
-                      : "Te respondemos en un momento"}
+                  {asistente
+                    ? "Con IA · al instante"
+                    : active
+                      ? active.outAt
+                        ? "En camino"
+                        : "Preparando tu pedido"
+                      : hours
+                        ? `Horario ${hours}`
+                        : "Te respondemos en un momento"}
                 </p>
               </div>
               <button
@@ -170,28 +194,34 @@ export default function ChatWidget({ signedIn }: { signedIn: boolean }) {
                 ✕
               </button>
             </div>
-            {signedIn && deliveries.length > 0 ? (
-              <div className="rail -mx-1 mt-3 px-1 pb-0.5" role="tablist">
-                <Tab
+            <div className="rail -mx-1 mt-3 px-1 pb-0.5" role="tablist">
+              <Tab
+                active={asistente}
+                onClick={() => setThread("asistente")}
+                unread={0}
+                label="✦ Asistente"
+              />
+              <Tab
                   active={thread === "store"}
                   onClick={() => setThread("store")}
-                  unread={storeUnread}
-                  label="La barra"
+                unread={storeUnread}
+                label="La barra"
+              />
+              {deliveries.map((d) => (
+                <Tab
+                  key={d.orderId}
+                  active={thread === d.orderId}
+                  onClick={() => setThread(d.orderId)}
+                  unread={d.unread}
+                  label={`🛵 ${d.orderId}`}
                 />
-                {deliveries.map((d) => (
-                  <Tab
-                    key={d.orderId}
-                    active={thread === d.orderId}
-                    onClick={() => setThread(d.orderId)}
-                    unread={d.unread}
-                    label={`🛵 ${d.orderId}`}
-                  />
-                ))}
-              </div>
-            ) : null}
+              ))}
+            </div>
           </header>
 
-          {!signedIn ? (
+          {asistente ? (
+            <AssistantThread signedIn={signedIn} />
+          ) : !signedIn ? (
             <div className="flex flex-1 flex-col justify-center gap-4 px-5 py-6 text-center">
               <p className="u-display text-2xl leading-tight">¿Tienes una pregunta?</p>
               <p className="text-ink/65">
@@ -248,7 +278,7 @@ export default function ChatWidget({ signedIn }: { signedIn: boolean }) {
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        aria-label={open ? "Cerrar el chat" : "Abrir el chat con la barra"}
+        aria-label={open ? "Cerrar el chat" : "Abrir el chat"}
         className="relative ml-auto flex h-14 w-14 items-center justify-center rounded-full border-[1.5px] border-ink bg-ink text-paper shadow-[0_10px_30px_rgba(27,11,46,0.35)] transition-transform active:scale-95"
       >
         {open ? <span className="text-xl">✕</span> : <ChatIcon />}
