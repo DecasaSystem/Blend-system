@@ -8,7 +8,7 @@
     "start": "next start",
     "setup:maplibre": "node scripts/setup-maplibre.mjs",
     "predev": "node scripts/setup-maplibre.mjs",
-    "prebuild": "node scripts/setup-maplibre.mjs",
+    "prebuild": "node scripts/setup-maplibre.mjs && node scripts/db-sync.mjs",
     "db:push": "node --env-file=.env.local node_modules/drizzle-kit/bin.cjs push",
     "db:studio": "node --env-file=.env.local node_modules/drizzle-kit/bin.cjs studio",
     "db:check": "node --env-file=.env.local scripts/db-check.mjs"
