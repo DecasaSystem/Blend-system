@@ -2,6 +2,7 @@ import "server-only";
 
 import { createHash, randomBytes } from "node:crypto";
 import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 import { and, eq, gt, lt } from "drizzle-orm";
 import { db } from "@/db";
 import { customers, customerSessions } from "@/db/schema";
@@ -43,25 +44,30 @@ export async function createCustomerSession(customerId: string) {
   await db.delete(customerSessions).where(lt(customerSessions.expiresAt, new Date()));
 }
 
-export async function getCustomer(): Promise<Customer | null> {
+/** El cliente de la cookie, o null si no hay o ya no vale. Si la base falla, lanza. */
+async function lookupCustomer(): Promise<Customer | null> {
   const token = (await cookies()).get(COOKIE)?.value;
   if (!token) return null;
 
+  const rows = await db
+    .select({
+      id: customers.id,
+      email: customers.email,
+      name: customers.name,
+      phone: customers.phone,
+    })
+    .from(customerSessions)
+    .innerJoin(customers, eq(customers.id, customerSessions.customerId))
+    .where(
+      and(eq(customerSessions.id, hashToken(token)), gt(customerSessions.expiresAt, new Date())),
+    )
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+export async function getCustomer(): Promise<Customer | null> {
   try {
-    const rows = await db
-      .select({
-        id: customers.id,
-        email: customers.email,
-        name: customers.name,
-        phone: customers.phone,
-      })
-      .from(customerSessions)
-      .innerJoin(customers, eq(customers.id, customerSessions.customerId))
-      .where(
-        and(eq(customerSessions.id, hashToken(token)), gt(customerSessions.expiresAt, new Date())),
-      )
-      .limit(1);
-    return rows[0] ?? null;
+    return await lookupCustomer();
   } catch {
     // Si la base no responde, la tienda sigue funcionando sin cuenta.
     return null;
@@ -75,8 +81,23 @@ export async function destroyCustomerSession() {
   jar.delete(COOKIE);
 }
 
+/**
+ * Para las acciones de servidor: o hay cliente, o se vuelve a entrar.
+ *
+ * Una sesión vencida con la página abierta ya no rompe la pantalla (en
+ * producción salía «Minified React error #441»): se borra la cookie vieja,
+ * para que el proxy no rebote entre /cuenta/entrar y /cuenta, y se manda a
+ * entrar. Si lo que falla es la base, eso sí es un error y se lanza.
+ */
 export async function requireCustomer(): Promise<Customer> {
-  const customer = await getCustomer();
-  if (!customer) throw new Error("Inicia sesión para continuar.");
+  const customer = await lookupCustomer();
+  if (!customer) {
+    try {
+      (await cookies()).delete(COOKIE);
+    } catch {
+      // Al renderizar una página no se pueden tocar cookies; ahí basta redirigir.
+    }
+    redirect("/cuenta/entrar");
+  }
   return customer;
 }

@@ -2,6 +2,7 @@ import "server-only";
 
 import { createHash, randomBytes } from "node:crypto";
 import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 import { and, eq, gt, lt } from "drizzle-orm";
 import { db } from "@/db";
 import { sessions, users } from "@/db/schema";
@@ -76,10 +77,25 @@ export async function destroySession() {
   jar.delete(COOKIE);
 }
 
-/** Para las acciones de servidor: o hay sesión, o se corta. */
+/**
+ * Para las acciones de servidor: o hay sesión, o se vuelve a entrar.
+ *
+ * Si la sesión venció con la pantalla abierta, lanzar un error dejaba la
+ * página rota (en producción, «Minified React error #441»). Redirigir al
+ * login es lo que la persona necesita. La cookie vieja se borra antes, si
+ * se puede: el proxy sólo mira si existe y, si quedara, rebotaría de
+ * /equipo/login a /equipo y de vuelta.
+ */
 export async function requireUser(): Promise<SessionUser> {
   const user = await getSessionUser();
-  if (!user) throw new Error("No hay sesión iniciada.");
+  if (!user) {
+    try {
+      (await cookies()).delete(COOKIE);
+    } catch {
+      // Al renderizar una página no se pueden tocar cookies; ahí basta redirigir.
+    }
+    redirect("/equipo/login");
+  }
   return user;
 }
 
