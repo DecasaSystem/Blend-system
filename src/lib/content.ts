@@ -61,6 +61,12 @@ export type Slide = {
    */
   art?: string;
   /**
+   * Tamaño de la foto principal, en % del tamaño normal (100). Cada foto viene
+   * con su propio recorte y margen, así que el equipo la ajusta a ojo desde
+   * /equipo. Ver `ART_SCALE` para el rango.
+   */
+  artScale?: number;
+  /**
    * Cuánto se ve el fondo, de 0 a 100. Por debajo de 100 la tinta oscura lo
    * apaga para que el texto siga legible. Editable desde /equipo.
    */
@@ -79,6 +85,16 @@ export type Store = {
   lng: number;
   services: string[];
 };
+
+/** Rango del tamaño de la foto principal del carrusel, en %. */
+export const ART_SCALE = { min: 50, max: 180, default: 100 } as const;
+
+/** El tamaño guardado, dentro del rango: un valor raro en la base no rompe la portada. */
+export function artScaleOf(slide: Pick<Slide, "artScale">): number {
+  const v = slide.artScale;
+  if (typeof v !== "number" || !Number.isFinite(v)) return ART_SCALE.default;
+  return Math.min(ART_SCALE.max, Math.max(ART_SCALE.min, v));
+}
 
 export const brand = {
   name: "BLEND",

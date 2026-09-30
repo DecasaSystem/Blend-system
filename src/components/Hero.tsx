@@ -5,6 +5,7 @@ import InkField from "./InkField";
 import VesselArt from "./VesselArt";
 import { useSite } from "./SiteProvider";
 import { isVideoUrl, mediaSrcSet, mediaUrl } from "@/lib/media";
+import { artScaleOf } from "@/lib/content";
 
 const DURATION = 7200;
 
@@ -163,7 +164,14 @@ export default function Hero() {
 
         {/* Foto del equipo o, si no la han subido, el recipiente ilustrado */}
         <div className="relative order-1 flex justify-center lg:order-2 lg:justify-end">
-          <div className="bob w-[42%] max-w-[190px] sm:w-[38%] sm:max-w-[260px] lg:w-full lg:max-w-[400px]">
+          {/* `--art`: el tamaño que el equipo le da a la foto (1 = normal).
+              Cambia el ancho real de la caja, no un `scale` encima: así el
+              texto se reacomoda en vez de quedar tapado. En PC no pasa del
+              ancho de la columna (`lg:w-full`). */}
+          <div
+            className="bob w-[calc(42%*var(--art))] max-w-[calc(190px*var(--art))] sm:w-[calc(38%*var(--art))] sm:max-w-[calc(260px*var(--art))] lg:w-full lg:max-w-[calc(400px*var(--art))]"
+            style={{ "--art": slide.art ? artScaleOf(slide) / 100 : 1 } as React.CSSProperties}
+          >
             {slide.art ? (
               // eslint-disable-next-line @next/next/no-img-element
               /* Sin marco ni recorte: la foto flota igual que la ilustración
@@ -178,7 +186,7 @@ export default function Hero() {
                 srcSet={mediaSrcSet(slide.art, 800)}
                 alt=""
                 fetchPriority="high"
-                className="h-auto max-h-[60vh] w-full rounded-[32px] object-contain drop-shadow-[0_24px_40px_rgba(0,0,0,0.45)]"
+                className="h-auto max-h-[calc(60vh*var(--art))] w-full rounded-[32px] object-contain drop-shadow-[0_24px_40px_rgba(0,0,0,0.45)]"
               />
             ) : (
               <VesselArt

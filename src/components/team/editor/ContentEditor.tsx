@@ -31,7 +31,8 @@ import {
 import { resetSiteContent, saveSiteContent } from "@/actions/content";
 import { useSite } from "@/components/SiteProvider";
 import type { BuilderItem, SectionKey, Vessel } from "@/lib/content";
-import { KIOSK_FLAT } from "@/lib/content";
+import { ART_SCALE, artScaleOf, KIOSK_FLAT } from "@/lib/content";
+import { mediaUrl } from "@/lib/media";
 
 const TABS = [
   { id: "carrusel", label: "Carrusel" },
@@ -297,6 +298,14 @@ export default function ContentEditor() {
                         value={s.art}
                         onChange={(v) => upd({ art: v })}
                       />
+                      {s.art ? (
+                        <ArtSizer
+                          art={s.art}
+                          tone={s.tone}
+                          value={artScaleOf(s)}
+                          onChange={(v) => upd({ artScale: v })}
+                        />
+                      ) : null}
                       {s.art ? null : (
                         <Select
                           label="Recipiente ilustrado (se usa mientras no haya foto)"
@@ -1772,5 +1781,74 @@ function ListButton({
     >
       {children}
     </button>
+  );
+}
+
+/**
+ * Tamaño de la foto principal del carrusel, con una vista previa a escala
+ * de cómo queda en la portada de un computador: el texto a la izquierda y
+ * la foto a la derecha, sobre el fondo oscuro. En la portada el ancho es
+ * `400px × tamaño` y nunca más que la columna; aquí, lo mismo a un cuarto
+ * (la caja mide 320 px, un cuarto de una pantalla de 1280).
+ */
+function ArtSizer({
+  art,
+  tone,
+  value,
+  onChange,
+}: {
+  art: string;
+  tone: string;
+  value: number;
+  onChange: (v: number) => void;
+}) {
+  const width = `min(100%, ${100 * (value / 100)}px)`;
+  return (
+    <div className="grid gap-3">
+      <Range
+        label="Tamaño de la foto principal"
+        value={value}
+        onChange={onChange}
+        min={ART_SCALE.min}
+        max={ART_SCALE.max}
+        step={5}
+        hint="Si la foto trae mucho borde vacío, súbelo; si tapa el texto, bájalo."
+      />
+      <div
+        className="relative grid w-full max-w-[320px] grid-cols-2 items-center gap-3 overflow-hidden rounded-2xl border-[1.5px] border-ink bg-ink p-4"
+        aria-hidden="true"
+      >
+        <div
+          className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full opacity-40 blur-2xl"
+          style={{ background: tone }}
+        />
+        <div className="relative grid gap-1.5">
+          <span className="h-1.5 w-10 rounded-full" style={{ background: tone }} />
+          <span className="h-3 w-24 rounded-full bg-paper/80" />
+          <span className="h-3 w-20 rounded-full" style={{ background: tone }} />
+          <span className="mt-1 h-1.5 w-28 rounded-full bg-paper/30" />
+          <span className="h-1.5 w-24 rounded-full bg-paper/30" />
+          <span className="mt-2 h-4 w-14 rounded-full bg-mango" />
+        </div>
+        <div className="relative flex min-h-28 items-center justify-end">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={mediaUrl(art, { width: 400 })}
+            alt=""
+            className="h-auto rounded-lg object-contain drop-shadow-[0_8px_12px_rgba(0,0,0,0.45)] transition-[width] duration-150"
+            style={{ width }}
+          />
+        </div>
+      </div>
+      {value !== ART_SCALE.default ? (
+        <button
+          type="button"
+          onClick={() => onChange(ART_SCALE.default)}
+          className="u-mono justify-self-start text-ink/50 underline-offset-4 hover:text-ink hover:underline"
+        >
+          Volver al tamaño normal
+        </button>
+      ) : null}
+    </div>
   );
 }
