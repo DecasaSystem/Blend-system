@@ -179,14 +179,19 @@ export default function Hero() {
                  un PNG recortado enseñaba el fondo oscuro del carrusel dentro
                  de la caja y parecía un rectángulo negro. Las esquinas
                  redondeadas se quedan: en un recorte no se ven —no hay nada
-                 que redondear— y en una foto rectangular sientan bien. */
+                 que redondear— y en una foto rectangular sientan bien.
+                 El alto crece con el tamaño que elija el equipo, pero con
+                 tope en la pantalla: a 180 % una foto alta sacaba de la vista
+                 el titular. Teléfono vertical, media pantalla; tablet y
+                 teléfono acostado (foto encima del texto), el 60 % de siempre;
+                 PC (foto al lado), tres cuartos. A 100 % el tope no la toca. */
               <img
                 key={`art-${slide.id}`}
                 src={mediaUrl(slide.art, { width: 800 })}
                 srcSet={mediaSrcSet(slide.art, 800)}
                 alt=""
                 fetchPriority="high"
-                className="h-auto max-h-[calc(60vh*var(--art))] w-full rounded-[32px] object-contain drop-shadow-[0_24px_40px_rgba(0,0,0,0.45)]"
+                className="h-auto max-h-[min(calc(60vh*var(--art)),50svh)] sm:max-h-[min(calc(60vh*var(--art)),60vh)] lg:max-h-[min(calc(60vh*var(--art)),75svh)] w-full rounded-[32px] object-contain drop-shadow-[0_24px_40px_rgba(0,0,0,0.45)]"
               />
             ) : (
               <VesselArt
