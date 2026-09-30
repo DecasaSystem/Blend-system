@@ -1,28 +1,58 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import SectionHead from "./SectionHead";
 import VesselArt from "./VesselArt";
 import { useCart } from "./CartProvider";
 import { useSite } from "./SiteProvider";
 import { defaultOptions, fromPrice, money, priceOf } from "@/lib/cart";
 
+/**
+ * Productos por página. Doce se reparte parejo en las rejillas de 2, 3 y 4
+ * columnas: ninguna página termina con una fila coja.
+ */
+const PAGE_SIZE = 12;
+
 export default function MenuSection() {
-  const [cat, setCat] = useState("todo");
+  const [cat, setCatState] = useState("todo");
+  const [page, setPage] = useState(1);
   const { add, openSheet } = useCart();
   const { sections, categories, products, builderBases, sizes } = useSite();
+  /** Marca fija justo antes de los filtros: a dónde se vuelve al cambiar de página. */
+  const topRef = useRef<HTMLDivElement>(null);
 
-  const list = cat === "todo" ? products : products.filter((p) => p.category === cat);
+  const all = cat === "todo" ? products : products.filter((p) => p.category === cat);
   const active = categories.find((c) => c.id === cat);
+  const pages = Math.max(1, Math.ceil(all.length / PAGE_SIZE));
+  // Si el equipo quita productos con la página abierta, no quedarse en una página vacía.
+  const current = Math.min(page, pages);
+  const list = all.slice((current - 1) * PAGE_SIZE, current * PAGE_SIZE);
+
+  const setCat = (id: string) => {
+    setCatState(id);
+    setPage(1);
+  };
+
+  const goTo = (n: number) => {
+    setPage(n);
+    const el = topRef.current;
+    if (!el) return;
+    // Bajo la barra de navegación, que es fija (4.25rem en móvil, algo más en PC).
+    const nav = window.matchMedia("(min-width: 1024px)").matches ? 96 : 76;
+    const top = el.getBoundingClientRect().top + window.scrollY - nav;
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    window.scrollTo({ top, behavior: reduce ? "auto" : "smooth" });
+  };
 
   return (
     <section id="menu" className="scroll-mt-[-4.5rem] lg:scroll-mt-[-6.5rem] relative bg-paper py-20 lg:py-28">
       <div className="mx-auto max-w-[1400px] px-4 sm:px-6 lg:px-10">
         <SectionHead copy={sections.menu} tone="#8FD14F" />
 
+        <div ref={topRef} aria-hidden="true" />
         {/* Filtros. Pegajosos bajo la barra en móvil: la lista es larga. */}
         <div className="sticky top-[4.25rem] z-30 -mx-4 mt-10 border-b-[1.5px] border-ink/10 bg-paper/95 px-4 py-2 backdrop-blur lg:static lg:mx-0 lg:border-0 lg:bg-transparent lg:px-0 lg:py-0 lg:backdrop-blur-none">
-          <div className="rail">
+          <CategoryRail activeKey={cat}>
             <FilterPill active={cat === "todo"} onClick={() => setCat("todo")}>
               Todo <span className="opacity-45">{products.length}</span>
             </FilterPill>
@@ -34,10 +64,18 @@ export default function MenuSection() {
                 </FilterPill>
               );
             })}
-          </div>
+          </CategoryRail>
         </div>
 
-        <p className="u-mono mt-4 text-ink/40">{active?.note ?? "Fruta congelada, nunca hielo"}</p>
+        <div className="mt-4 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+          <p className="u-mono text-ink/40">{active?.note ?? "Fruta congelada, nunca hielo"}</p>
+          {pages > 1 ? (
+            <p className="u-mono text-ink/40">
+              {(current - 1) * PAGE_SIZE + 1}–{(current - 1) * PAGE_SIZE + list.length} de{" "}
+              {all.length}
+            </p>
+          ) : null}
+        </div>
 
         {/* Rejilla. Cuatro columnas sólo desde xl: en un portátil de 1024–1280 px
             la carta quedaba en 180–245 px de contenido y el pie (precio + Editar
@@ -170,8 +208,307 @@ export default function MenuSection() {
             </article>
           ))}
         </div>
+
+        {pages > 1 ? <Pagination page={current} pages={pages} onChange={goTo} /> : null}
       </div>
     </section>
+  );
+}
+
+/**
+ * El riel de categorías. En móvil se desliza con el dedo; en PC no hay
+ * barra de scroll ni gesto, así que las que no caben quedaban inalcanzables.
+ * Ahora hay flechas a los lados (sólo cuando queda algo por ese lado), un
+ * desvanecido que avisa que la fila sigue, y la categoría elegida se trae a
+ * la vista.
+ */
+function CategoryRail({ activeKey, children }: { activeKey: string; children: React.ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [edges, setEdges] = useState({ left: false, right: false });
+
+  const measure = useCallback(() => {
+    const el = ref.current;
+    if (!el) return;
+    const left = el.scrollLeft > 4;
+    const right = el.scrollLeft + el.clientWidth < el.scrollWidth - 4;
+    setEdges((e) => (e.left === left && e.right === right ? e : { left, right }));
+  }, []);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    measure();
+    el.addEventListener("scroll", measure, { passive: true });
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => {
+      el.removeEventListener("scroll", measure);
+      ro.disconnect();
+    };
+  }, [measure]);
+
+  // La categoría elegida, siempre entera a la vista.
+  useEffect(() => {
+    const el = ref.current;
+    const pill = el?.querySelector<HTMLElement>('[aria-pressed="true"]');
+    if (!el || !pill) return;
+    const pad = 48;
+    if (pill.offsetLeft < el.scrollLeft + pad) {
+      el.scrollTo({ left: pill.offsetLeft - pad, behavior: "smooth" });
+    } else if (pill.offsetLeft + pill.offsetWidth > el.scrollLeft + el.clientWidth - pad) {
+      el.scrollTo({ left: pill.offsetLeft + pill.offsetWidth - el.clientWidth + pad, behavior: "smooth" });
+    }
+  }, [activeKey]);
+
+  const nudge = (dir: -1 | 1) => {
+    const el = ref.current;
+    if (el) el.scrollBy({ left: dir * el.clientWidth * 0.7, behavior: "smooth" });
+  };
+
+  /*
+   * Con el mouse, sin tener que atinarle a nada:
+   * - Acercarse a un borde desliza la fila hacia ese lado, más rápido cuanto
+   *   más cerca del borde (zona de 96 px).
+   * - Arrastrar con el botón apretado la mueve como con el dedo; si hubo
+   *   arrastre, el clic de soltar no cambia de categoría.
+   * - La rueda vertical la mueve en horizontal mientras quede fila por ese
+   *   lado; al llegar al final, la rueda vuelve a mover la página.
+   * En pantallas táctiles nada de esto aplica: ahí se desliza con el dedo.
+   */
+  const glide = useRef<{ speed: number; raf: number }>({ speed: 0, raf: 0 });
+  const drag = useRef<{ x: number; left: number; moved: boolean } | null>(null);
+
+  const stopGlide = () => {
+    cancelAnimationFrame(glide.current.raf);
+    glide.current = { speed: 0, raf: 0 };
+  };
+  useEffect(() => stopGlide, []);
+
+  const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const el = ref.current;
+    if (!el || e.pointerType !== "mouse") return;
+
+    if (drag.current) {
+      const dx = e.clientX - drag.current.x;
+      if (Math.abs(dx) > 5) drag.current.moved = true;
+      el.scrollLeft = drag.current.left - dx;
+      return;
+    }
+
+    const box = el.getBoundingClientRect();
+    const zone = 96;
+    const fromLeft = e.clientX - box.left;
+    const fromRight = box.right - e.clientX;
+    const speed =
+      fromLeft < zone && edges.left
+        ? -((zone - fromLeft) / zone) * 9
+        : fromRight < zone && edges.right
+          ? ((zone - fromRight) / zone) * 9
+          : 0;
+    glide.current.speed = speed;
+    if (speed && !glide.current.raf) {
+      const tick = () => {
+        const r = ref.current;
+        if (!r || !glide.current.speed) {
+          glide.current.raf = 0;
+          return;
+        }
+        r.scrollLeft += glide.current.speed;
+        glide.current.raf = requestAnimationFrame(tick);
+      };
+      glide.current.raf = requestAnimationFrame(tick);
+    }
+  };
+
+  const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    const el = ref.current;
+    if (!el || e.pointerType !== "mouse" || e.button !== 0) return;
+    stopGlide();
+    drag.current = { x: e.clientX, left: el.scrollLeft, moved: false };
+  };
+
+  const endDrag = () => {
+    // Se suelta un momento después: el `click` que sigue todavía debe saber si hubo arrastre.
+    setTimeout(() => {
+      drag.current = null;
+    }, 0);
+  };
+
+  const onClickCapture = (e: React.MouseEvent) => {
+    if (drag.current?.moved) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  };
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
+      const canGo =
+        e.deltaY > 0
+          ? el.scrollLeft + el.clientWidth < el.scrollWidth - 1
+          : el.scrollLeft > 0;
+      if (!canGo) return;
+      e.preventDefault();
+      el.scrollLeft += e.deltaY;
+    };
+    // `passive: false`: si no, el navegador no deja frenar el scroll de la página.
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, []);
+
+  const fade = `linear-gradient(to right, ${edges.left ? "transparent, #000 3rem" : "#000"}, ${
+    edges.right ? "#000 calc(100% - 3rem), transparent" : "#000"
+  })`;
+
+  return (
+    // Los eventos del mouse van en el contenedor, no en la fila: así el
+    // deslizamiento sigue mientras el cursor está sobre las flechas.
+    <div
+      className="relative"
+      onPointerMove={onPointerMove}
+      onPointerDown={onPointerDown}
+      onPointerUp={endDrag}
+      onPointerLeave={() => {
+        stopGlide();
+        if (drag.current) endDrag();
+      }}
+      onClickCapture={onClickCapture}
+      onDragStart={(e) => e.preventDefault()}
+    >
+      {/* `md:snap-none`: con el imán de `.rail` el deslizamiento de a pocos
+          píxeles volvería siempre a la píldora de antes. */}
+      <div
+        ref={ref}
+        className="rail relative select-none md:snap-none"
+        style={{ maskImage: fade, WebkitMaskImage: fade }}
+        role="group"
+        aria-label="Categorías del menú"
+      >
+        {children}
+      </div>
+      <RailArrow dir={-1} show={edges.left} onClick={() => nudge(-1)} />
+      <RailArrow dir={1} show={edges.right} onClick={() => nudge(1)} />
+    </div>
+  );
+}
+
+function RailArrow({ dir, show, onClick }: { dir: -1 | 1; show: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      tabIndex={show ? 0 : -1}
+      aria-hidden={!show}
+      aria-label={dir < 0 ? "Ver categorías anteriores" : "Ver más categorías"}
+      className={`absolute top-0 z-10 hidden h-11 w-11 place-items-center rounded-full border-[1.5px] border-ink bg-white text-ink shadow-[2px_3px_0_0_var(--color-ink)] transition-[opacity,transform] duration-200 hover:-translate-y-px hover:bg-pulp active:translate-y-px active:shadow-none md:grid ${
+        dir < 0 ? "left-0" : "right-0"
+      } ${show ? "opacity-100" : "pointer-events-none opacity-0"}`}
+    >
+      <Chevron dir={dir} />
+    </button>
+  );
+}
+
+function Chevron({ dir }: { dir: -1 | 1 }) {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+      <path
+        d={dir < 0 ? "M9 2 4 7l5 5" : "M5 2l5 5-5 5"}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+/** Números a mostrar: siempre la primera, la última y las vecinas de la actual. */
+function pageItems(page: number, pages: number): (number | "…")[] {
+  if (pages <= 7) return Array.from({ length: pages }, (_, i) => i + 1);
+  const out: (number | "…")[] = [1];
+  const from = Math.max(2, Math.min(page - 1, pages - 4));
+  const to = Math.min(pages - 1, Math.max(page + 1, 5));
+  if (from > 2) out.push("…");
+  for (let n = from; n <= to; n++) out.push(n);
+  if (to < pages - 1) out.push("…");
+  out.push(pages);
+  return out;
+}
+
+function Pagination({
+  page,
+  pages,
+  onChange,
+}: {
+  page: number;
+  pages: number;
+  onChange: (n: number) => void;
+}) {
+  const step =
+    "flex min-h-11 items-center gap-2 rounded-full border-[1.5px] border-ink px-4 shadow-[2px_3px_0_0_var(--color-ink)] transition-transform hover:-translate-y-px active:translate-y-px active:shadow-none disabled:pointer-events-none disabled:border-ink/15 disabled:text-ink/30 disabled:shadow-none";
+
+  return (
+    <nav aria-label="Páginas del menú" className="mt-12 flex flex-col items-center gap-4">
+      <div className="flex w-full items-center justify-between gap-3 sm:w-auto sm:justify-center">
+        <button
+          type="button"
+          onClick={() => onChange(page - 1)}
+          disabled={page <= 1}
+          aria-label="Página anterior"
+          className={`u-mono ${step} bg-white text-ink hover:bg-pulp`}
+        >
+          <Chevron dir={-1} />
+          <span className="hidden sm:inline">Anterior</span>
+        </button>
+
+        {/* En teléfonos pequeños los números no caben: «3 / 7» en su lugar. */}
+        <span className="u-mono text-ink/60 sm:hidden">
+          {page} / {pages}
+        </span>
+
+        <ol className="hidden items-center gap-1.5 sm:flex">
+          {pageItems(page, pages).map((n, i) =>
+            n === "…" ? (
+              <li key={`gap-${i}`} className="u-mono w-6 text-center text-ink/35" aria-hidden="true">
+                …
+              </li>
+            ) : (
+              <li key={n}>
+                <button
+                  type="button"
+                  onClick={() => onChange(n)}
+                  aria-current={n === page ? "page" : undefined}
+                  aria-label={`Página ${n}`}
+                  className={`u-mono grid h-11 min-w-11 place-items-center rounded-full border-[1.5px] px-2 transition-colors ${
+                    n === page
+                      ? "border-ink bg-ink text-paper"
+                      : "border-ink/20 bg-white text-ink/70 hover:border-ink hover:text-ink"
+                  }`}
+                >
+                  {n}
+                </button>
+              </li>
+            ),
+          )}
+        </ol>
+
+        <button
+          type="button"
+          onClick={() => onChange(page + 1)}
+          disabled={page >= pages}
+          aria-label="Página siguiente"
+          className={`u-mono ${step} bg-mango text-white hover:bg-mango-deep disabled:bg-white`}
+        >
+          <span className="hidden sm:inline">Siguiente</span>
+          <Chevron dir={1} />
+        </button>
+      </div>
+    </nav>
   );
 }
 
