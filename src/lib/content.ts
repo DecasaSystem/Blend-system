@@ -41,6 +41,12 @@ export type Product = {
   ingredients: Ingredient[];
   badge?: string;
   media?: string;
+  /**
+   * Zoom de la foto del producto dentro de su caja, en % (100 = tal cual).
+   * La caja no cambia de medida, así que las cartas siguen parejas en
+   * cualquier pantalla. Ver `PHOTO_SCALE` para el rango.
+   */
+  mediaScale?: number;
   soldOut?: boolean;
 };
 
@@ -55,6 +61,11 @@ export type Slide = {
   vessel: Vessel;
   /** Video o foto de fondo del carrusel. Editable desde /equipo. */
   media?: string;
+  /**
+   * Fondo para pantallas verticales (teléfono, tablet de pie). Opcional: sin
+   * él, se usa `media` recortado al centro. Ver `PORTRAIT_QUERY`.
+   */
+  mediaMobile?: string;
   /**
    * Foto grande que va encima del carrusel, al lado del texto. Si está vacía se
    * dibuja el recipiente ilustrado (`vessel`). Editable desde /equipo.
@@ -88,6 +99,19 @@ export type Store = {
 
 /** Rango del tamaño de la foto principal del carrusel, en %. */
 export const ART_SCALE = { min: 50, max: 180, default: 100 } as const;
+
+/** Cuándo se usa el fondo vertical del carrusel: pantalla de pie y sin llegar a PC. */
+export const PORTRAIT_QUERY = "(orientation: portrait) and (max-width: 1023px)";
+
+/** Rango del zoom de la foto de un producto, en %. */
+export const PHOTO_SCALE = { min: 60, max: 160, default: 100 } as const;
+
+/** El zoom guardado, dentro del rango. */
+export function photoScaleOf(product: Pick<Product, "mediaScale">): number {
+  const v = product.mediaScale;
+  if (typeof v !== "number" || !Number.isFinite(v)) return PHOTO_SCALE.default;
+  return Math.min(PHOTO_SCALE.max, Math.max(PHOTO_SCALE.min, v));
+}
 
 /** El tamaño guardado, dentro del rango: un valor raro en la base no rompe la portada. */
 export function artScaleOf(slide: Pick<Slide, "artScale">): number {

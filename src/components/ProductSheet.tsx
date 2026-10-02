@@ -148,6 +148,7 @@ export default function ProductSheet() {
                 color={product.color}
                 ingredients={product.ingredients}
                 media={product.media}
+                mediaScale={product.mediaScale}
                 width={600}
                 className="h-auto w-full"
                 alt={product.name}

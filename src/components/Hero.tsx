@@ -5,7 +5,7 @@ import InkField from "./InkField";
 import VesselArt from "./VesselArt";
 import { useSite } from "./SiteProvider";
 import { isVideoUrl, mediaSrcSet, mediaUrl } from "@/lib/media";
-import { artScaleOf } from "@/lib/content";
+import { artScaleOf, PORTRAIT_QUERY } from "@/lib/content";
 
 const DURATION = 7200;
 
@@ -36,11 +36,30 @@ export default function Hero() {
     if (mq.matches) setPaused(true);
   }, []);
 
+  // ¿Pantalla de pie? Sólo decide cuando hay un video de por medio; con dos
+  // fotos manda `<picture>`. Empieza en falso: el servidor no sabe la pantalla.
+  const [portrait, setPortrait] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia(PORTRAIT_QUERY);
+    const sync = () => setPortrait(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
+
   // Sin slides no hay carrusel: mejor nada que una pantalla rota.
   if (!slide) return null;
 
   // Cuánto se ve el fondo. Por defecto apagado a la mitad para que el texto lea.
   const mediaOpacity = Math.min(100, Math.max(0, slide.mediaOpacity ?? 55)) / 100;
+
+  // Fondo vertical: sólo si hay fondo principal (el campo vive debajo de él).
+  // Con dos fotos lo resuelve `<picture>`; si hay un video de por medio, se
+  // elige aquí según la pantalla.
+  const mobileBg = slide.media ? slide.mediaMobile : undefined;
+  const anyVideo =
+    (slide.media ? isVideoUrl(slide.media) : false) || (mobileBg ? isVideoUrl(mobileBg) : false);
+  const bg = portrait && mobileBg ? mobileBg : slide.media;
 
   return (
     <section
@@ -67,11 +86,31 @@ export default function Hero() {
     >
       {/* Fondo: video del equipo o composición de tintas */}
       <div className="absolute inset-0 -z-10">
-        {slide.media ? (
-          isVideoUrl(slide.media) ? (
-            <video
-              key={slide.id}
+        {slide.media && slide.mediaMobile && !anyVideo ? (
+          /* Dos fotos: `<picture>` deja que el navegador baje sólo la que va
+             con la pantalla, desde el HTML y sin esperar a JavaScript. */
+          <picture key={slide.id} className="block h-full w-full">
+            <source
+              media={PORTRAIT_QUERY}
+              srcSet={
+                mediaSrcSet(slide.mediaMobile, 1080) ?? mediaUrl(slide.mediaMobile, { width: 1080 })
+              }
+            />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
               src={mediaUrl(slide.media, { width: 1600 })}
+              srcSet={mediaSrcSet(slide.media, 1600)}
+              alt=""
+              fetchPriority="high"
+              className="h-full w-full object-cover"
+              style={{ opacity: mediaOpacity }}
+            />
+          </picture>
+        ) : bg ? (
+          isVideoUrl(bg) ? (
+            <video
+              key={`${slide.id}-${bg}`}
+              src={mediaUrl(bg, { width: 1600 })}
               autoPlay
               muted
               loop
@@ -84,9 +123,9 @@ export default function Hero() {
           ) : (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              key={slide.id}
-              src={mediaUrl(slide.media, { width: 1600 })}
-              srcSet={mediaSrcSet(slide.media, 1600)}
+              key={`${slide.id}-${bg}`}
+              src={mediaUrl(bg, { width: 1600 })}
+              srcSet={mediaSrcSet(bg, 1600)}
               alt=""
               // Es lo primero que se ve: se pide con prioridad, no en diferido.
               fetchPriority="high"

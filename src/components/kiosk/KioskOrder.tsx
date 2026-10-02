@@ -506,6 +506,7 @@ export default function KioskOrder({
                     color={p.color}
                     ingredients={p.ingredients}
                     media={p.media}
+                    mediaScale={p.mediaScale}
                     className="h-auto w-full"
                     alt={p.name}
                   />

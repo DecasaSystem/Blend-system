@@ -1,4 +1,5 @@
 import type { Ingredient, Vessel } from "@/lib/content";
+import { photoScaleOf } from "@/lib/content";
 import { mediaSrcSet, mediaUrl } from "@/lib/media";
 
 /**
@@ -62,6 +63,7 @@ export default function VesselArt({
   color,
   ingredients,
   media,
+  mediaScale,
   width = 400,
   className = "",
   alt,
@@ -73,6 +75,8 @@ export default function VesselArt({
   color: string;
   ingredients: Ingredient[];
   media?: string;
+  /** Zoom de la foto en % (ver `PHOTO_SCALE`). La caja no cambia de medida. */
+  mediaScale?: number;
   /** A cuántos píxeles se va a ver, para no bajar una foto más grande que eso. */
   width?: number;
   className?: string;
@@ -83,6 +87,7 @@ export default function VesselArt({
   empty?: string;
 }) {
   if (media) {
+    const zoom = photoScaleOf({ mediaScale }) / 100;
     return (
       /* La foto va dentro de una caja con la misma proporción que la
          ilustración (viewBox 200×268). Así todas las cartas miden igual sin
@@ -90,14 +95,20 @@ export default function VesselArt({
          antes el alto lo dictaba cada foto y una carta quedaba más alta que
          la de al lado.
          `object-contain`, no `cover`: la foto de un producto es el producto
-         entero. Recortarla para llenar la caja le corta la tapa o el popote. */
-      <div className={`aspect-[200/268] ${className}`}>
+         entero. Recortarla para llenar la caja le corta la tapa o el popote.
+         El zoom (`mediaScale`) agranda o achica la foto dentro de la caja,
+         que no cambia: así una foto con mucho borde vacío se acerca sin que
+         ninguna carta crezca, en ninguna pantalla. Si se agranda, lo que
+         sobre se recorta en el borde de la caja en vez de montarse sobre el
+         nombre. */
+      <div className={`aspect-[200/268] ${zoom > 1 ? "overflow-hidden" : ""} ${className}`}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={mediaUrl(media, { width })}
           srcSet={mediaSrcSet(media, width)}
           alt={alt ?? ""}
           className="h-full w-full object-contain"
+          style={zoom === 1 ? undefined : { transform: `scale(${zoom})` }}
           loading="lazy"
           decoding="async"
         />

@@ -31,7 +31,8 @@ import {
 import { resetSiteContent, saveSiteContent } from "@/actions/content";
 import { useSite } from "@/components/SiteProvider";
 import type { BuilderItem, SectionKey, Vessel } from "@/lib/content";
-import { ART_SCALE, artScaleOf, KIOSK_FLAT } from "@/lib/content";
+import { ART_SCALE, artScaleOf, KIOSK_FLAT, PHOTO_SCALE, photoScaleOf, type Product } from "@/lib/content";
+import VesselArt from "@/components/VesselArt";
 import { mediaUrl } from "@/lib/media";
 
 const TABS = [
@@ -316,11 +317,27 @@ export default function ContentEditor() {
                       )}
 
                       <Media
-                        label="Fondo: video o foto"
+                        label="Fondo para PC: video o foto horizontal (1920 × 1080)"
                         value={s.media}
                         onChange={(v) => upd({ media: v })}
                         allowVideo
                       />
+                      {s.media ? (
+                        <>
+                          <Media
+                            label="Fondo para celular: vertical (1080 × 1920), opcional"
+                            value={s.mediaMobile}
+                            onChange={(v) => upd({ mediaMobile: v })}
+                            allowVideo
+                          />
+                          {s.mediaMobile ? null : (
+                            <p className="u-mono -mt-1 text-ink/45">
+                              Sin fondo para celular, el teléfono muestra el de PC recortado
+                              al centro.
+                            </p>
+                          )}
+                        </>
+                      ) : null}
                       {s.media ? (
                         <Range
                           label="Cuánto se ve el fondo"
@@ -598,6 +615,9 @@ export default function ContentEditor() {
                             value={p.media}
                             onChange={(v) => upd({ media: v })}
                           />
+                          {p.media ? (
+                            <PhotoSizer product={p} onChange={(v) => upd({ mediaScale: v })} />
+                          ) : null}
                         </Panel>
                       );
                     })}
@@ -1844,6 +1864,58 @@ function ArtSizer({
         <button
           type="button"
           onClick={() => onChange(ART_SCALE.default)}
+          className="u-mono justify-self-start text-ink/50 underline-offset-4 hover:text-ink hover:underline"
+        >
+          Volver al tamaño normal
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * Zoom de la foto de un producto, con la carta del menú en miniatura. Es el
+ * mismo `VesselArt` que pinta el menú, «Del día», la ficha y el quiosco, así
+ * que lo que se ve aquí es lo que sale allá: la caja no cambia, la foto se
+ * acerca o se aleja dentro de ella.
+ */
+function PhotoSizer({
+  product,
+  onChange,
+}: {
+  product: Product;
+  onChange: (v: number) => void;
+}) {
+  const value = photoScaleOf(product);
+  return (
+    <div className="grid gap-3">
+      <Range
+        label="Tamaño de la foto en la carta"
+        value={value}
+        onChange={onChange}
+        min={PHOTO_SCALE.min}
+        max={PHOTO_SCALE.max}
+        step={5}
+        hint="Si la foto trae mucho borde vacío, súbelo. Si se corta el vaso o el popote, bájalo."
+      />
+      <div className="card-ink pointer-events-none w-full max-w-[220px] p-4" aria-hidden="true">
+        <div className="mx-auto w-[72%]">
+          <VesselArt
+            uid={`editor-${product.id}`}
+            vessel={product.vessel}
+            color={product.color}
+            ingredients={product.ingredients}
+            media={product.media}
+            mediaScale={value}
+            className="h-auto w-full"
+          />
+        </div>
+        <p className="u-display mt-2 text-xl leading-none">{product.name}</p>
+      </div>
+      {value !== PHOTO_SCALE.default ? (
+        <button
+          type="button"
+          onClick={() => onChange(PHOTO_SCALE.default)}
           className="u-mono justify-self-start text-ink/50 underline-offset-4 hover:text-ink hover:underline"
         >
           Volver al tamaño normal
