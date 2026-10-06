@@ -106,6 +106,43 @@ export function Num({
   );
 }
 
+/**
+ * Un número que puede quedar vacío: vacío no es cero, es «no aplica». Lo usan
+ * los precios por tamaño, donde un tamaño sin precio es uno que no se vende.
+ */
+export function MaybeNum({
+  label,
+  value,
+  onChange,
+  step = 1,
+  placeholder = "No se vende",
+}: {
+  label: string;
+  value: number | undefined;
+  onChange: (v: number | undefined) => void;
+  step?: number;
+  placeholder?: string;
+}) {
+  return (
+    <label className="block">
+      <span className="u-mono mb-1.5 block text-ink/45">{label}</span>
+      <input
+        type="number"
+        inputMode="numeric"
+        value={typeof value === "number" && Number.isFinite(value) ? value : ""}
+        min={0}
+        step={step}
+        placeholder={placeholder}
+        onChange={(e) => {
+          const raw = e.target.value.trim();
+          onChange(raw === "" ? undefined : Math.max(0, Number(raw) || 0));
+        }}
+        className="input rounded-2xl placeholder:text-ink/30"
+      />
+    </label>
+  );
+}
+
 /** Deslizador con el valor a la vista. Para cosas que se ajustan mirando. */
 export function Range({
   label,

@@ -1,7 +1,7 @@
 import "server-only";
 import type { FunctionTool } from "openai/resources/responses/responses";
 import type { SiteContent } from "./site";
-import { money, priceOf } from "./cart";
+import { firstSizeId, money, priceOf, sizePrice, sizesFor } from "./cart";
 
 /**
  * El asistente de la tienda: lo que sabe y lo que puede hacer.
@@ -53,8 +53,9 @@ export function buildInstructions(site: SiteContent, ctx: AssistantContext): str
 
   const menu = products
     .map((p) => {
-      const prices = sizes
-        .map((s) => `${s.label.toLowerCase()} ${money(priceOf(p, s.id, sizes))}`)
+      // Sólo los tamaños en que se vende, con su precio (de la categoría o propio).
+      const prices = sizesFor(p, site)
+        .map((s) => `${s.label.toLowerCase()} (${s.volume}) ${money(priceOf(p, s.id, site))}`)
         .join(" / ");
       const bits = [
         `id=${p.id}`,
@@ -69,7 +70,7 @@ export function buildInstructions(site: SiteContent, ctx: AssistantContext): str
       const oferta = dailyIds.includes(p.id) ? dailyOffer[p.id] : null;
       if (oferta) {
         bits.push(
-          `DEL DÍA: ${money(oferta.price)} el ${sizes[0]?.label.toLowerCase() ?? "chico"}, quedan ${oferta.left}${oferta.why ? ` (${oferta.why})` : ""}`,
+          `DEL DÍA: ${money(oferta.price)} el ${sizesFor(p, site)[0]?.label.toLowerCase() ?? "pequeño"}, quedan ${oferta.left}${oferta.why ? ` (${oferta.why})` : ""}`,
         );
       }
       return `- ${bits.join(" · ")}`;
@@ -142,7 +143,7 @@ ${sedes}
 - Se pide en línea desde la portada: se agrega al carrito, y en «Pagar» se elige recoger en una sede o domicilio.
 - Domicilio en ${brand.city}: cuesta ${money(pricing.delivery.fee)} y es gratis desde ${money(pricing.delivery.freeFrom)} de pedido. Los domicilios se pagan en línea.
 - Pago en línea por Bold: tarjeta de crédito o débito, PSE, Nequi o Botón Bancolombia. Para recoger también se puede pagar en la sede.
-- Tamaños: ${sizeLabels}. Adicionales: ${extras || "ninguno"}.
+- Tamaños de vaso: ${sizeLabels}. El precio de cada tamaño depende de la bebida (va en el menú de arriba); no todas se venden en todos los tamaños. Adicionales: ${extras || "ninguno"}.
 - Cuando el pedido va en camino, el cliente con cuenta ve al repartidor moverse en el mapa desde /cuenta y puede escribirle desde este chat.
 - Sellos: ${site.rewards.body} Cada ${site.rewards.stamps} pedidos entregados, uno va por la casa.
 
@@ -212,7 +213,7 @@ export function buildTools(site: SiteContent): FunctionTool[] {
           sizeId: {
             type: ["string", "null"],
             enum: [...sizeIds, null],
-            description: "Tamaño. Null para el más pequeño.",
+            description: "Tamaño. Null para el primero en que se vende esa bebida.",
           },
           qty: { type: ["integer", "null"], description: "Cuántas. Null para una." },
         },
@@ -299,15 +300,15 @@ export function resolveCall(
       const p = product(a.productId);
       if (!p) return { action: null, output: "No existe una bebida con ese id." };
       if (p.soldOut) return { action: null, output: `${p.name} está agotada hoy; no se agregó.` };
-      const sizeId =
-        typeof a.sizeId === "string" && site.sizes.some((s) => s.id === a.sizeId)
-          ? a.sizeId
-          : (site.sizes[0]?.id ?? null);
+      // Sólo un tamaño en que se venda esta bebida; si pidió otro, el primero que sí.
+      const asked = typeof a.sizeId === "string" ? a.sizeId : undefined;
+      const sizeId = sizePrice(p, asked, site) !== null ? (asked ?? null) : firstSizeId(p, site) || null;
+      if (!sizeId) return { action: null, output: `${p.name} no tiene precio publicado; no se agregó.` };
       const qty = Math.min(10, Math.max(1, Math.floor(Number(a.qty) || 1)));
       const size = site.sizes.find((s) => s.id === sizeId);
       return {
         action: { name, productId: p.id, sizeId, qty },
-        output: `Hecho: ${qty}× ${p.name}${size ? ` ${size.label.toLowerCase()}` : ""} en el carrito, a ${money(priceOf(p, sizeId ?? undefined, site.sizes))} cada una.${
+        output: `Hecho: ${qty}× ${p.name}${size ? ` ${size.label.toLowerCase()}` : ""} en el carrito, a ${money(priceOf(p, sizeId, site))} cada una.${
           home ? "" : " El cliente estaba en otra página; se le llevó a la portada."
         }`,
       };

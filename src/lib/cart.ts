@@ -1,4 +1,4 @@
-import type { BuilderConfig, Pricing, Size } from "./content";
+import type { BuilderConfig, Category, Pricing, Size } from "./content";
 import type { SiteContent, Topping } from "./site";
 
 /**
@@ -76,38 +76,80 @@ export function toppingPrice(name: string, toppings: Topping[]) {
   return toppings.find((t) => t.name === name)?.price ?? 0;
 }
 
-/** Lo que suma el tamaño elegido. Un tamaño que ya no existe no cobra de más. */
-export function sizeDelta(id: string | undefined, sizes: Size[]) {
-  return sizes.find((s) => s.id === id)?.delta ?? 0;
+/*
+ * Precios por tamaño.
+ *
+ * El vaso no cuesta: es sólo un tamaño (12 oz, 16 oz…) que comparte todo el
+ * menú. Lo que cuesta es la bebida en ese tamaño, y normalmente lo decide su
+ * categoría: todas las limonadas de 12 oz valen lo mismo, y una granola de
+ * 12 oz vale otra cosa. Por eso el precio se busca en este orden:
+ *
+ *   1. La bebida, si tiene «precio propio» (`ownPrices`): una excepción a su
+ *      categoría.
+ *   2. Su categoría, si tiene precios: manda en todos los tamaños, y uno que
+ *      deje vacío no se vende en esa categoría.
+ *   3. La bebida, aunque no tenga la marca, sólo si su categoría no tiene
+ *      ningún precio: así estaban todos antes de que existieran los de
+ *      categoría, y siguen valiendo hasta que el equipo los ponga.
+ *
+ * Si no hay precio en ninguno, esa bebida no se vende en ese tamaño: no se
+ * ofrece en la ficha y el servidor no lo cobra. Antes se inventaba con un
+ * «recargo» del vaso, y eso podía cobrar un precio que nadie decidió.
+ */
+
+/** Lo que hace falta para poner precio: los tamaños y las categorías publicadas. */
+export type PriceCtx = { sizes: Size[]; categories: Category[] };
+
+type Priced = {
+  category: string;
+  prices?: Record<string, number>;
+  price?: number;
+  ownPrices?: boolean;
+};
+
+const isPrice = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v) && v >= 0;
+
+/** El precio de una bebida en un tamaño, o null si no se vende en ese tamaño. */
+export function sizePrice(product: Priced, sizeId: string | undefined, ctx: PriceCtx): number | null {
+  if (!sizeId || !ctx.sizes.some((s) => s.id === sizeId)) return null;
+  const own = product.prices?.[sizeId];
+  if (product.ownPrices) return isPrice(own) ? own : null;
+  // Si la categoría tiene precios, manda en todos los tamaños: uno vacío es
+  // uno que esa categoría no vende, no un hueco para colar el precio viejo.
+  const cat = ctx.categories.find((c) => c.id === product.category)?.prices;
+  if (cat && Object.values(cat).some(isPrice)) {
+    const v = cat[sizeId];
+    return isPrice(v) ? v : null;
+  }
+  if (isPrice(own)) return own;
+  // Bebidas de antes de los precios por tamaño: un precio único, sólo en el primer vaso.
+  if (!product.prices && isPrice(product.price) && sizeId === ctx.sizes[0]?.id) return product.price;
+  return null;
+}
+
+/** Los tamaños en que se vende una bebida, en el orden del equipo. */
+export function sizesFor(product: Priced, ctx: PriceCtx): Size[] {
+  return ctx.sizes.filter((s) => sizePrice(product, s.id, ctx) !== null);
+}
+
+/** El tamaño que viene marcado al pedir: el primero en que se vende. */
+export function firstSizeId(product: Priced, ctx: PriceCtx): string {
+  return sizesFor(product, ctx)[0]?.id ?? "";
 }
 
 /**
- * Lo que cuesta una bebida en un vaso concreto.
- *
- * El precio vive en la bebida, por tamaño. El recargo global de `sizes` sólo
- * entra como respaldo: cuando el equipo crea un tamaño nuevo, ninguna bebida
- * tiene precio para él todavía, y sin este respaldo el menú entero se quedaría
- * a cero hasta rellenarlas una a una.
+ * Lo que cuesta una bebida en un tamaño. Si no se vende en ese, el del
+ * primer tamaño en que sí: para pintar algo razonable mientras se elige.
+ * Para cobrar, el servidor usa `sizePrice` y rechaza el tamaño sin precio.
  */
-export function priceOf(
-  product: { prices?: Record<string, number>; price?: number },
-  sizeId: string | undefined,
-  sizes: Size[],
-) {
-  const propio = sizeId ? product.prices?.[sizeId] : undefined;
-  if (typeof propio === "number") return propio;
-
-  // Sin precio para ese vaso: se parte del primero que tenga y se le aplica la
-  // diferencia de recargos entre los dos tamaños.
-  const base = product.prices?.[sizes[0]?.id ?? ""] ?? product.price ?? 0;
-  return base + sizeDelta(sizeId, sizes) - sizeDelta(sizes[0]?.id, sizes);
+export function priceOf(product: Priced, sizeId: string | undefined, ctx: PriceCtx): number {
+  return sizePrice(product, sizeId, ctx) ?? sizePrice(product, firstSizeId(product, ctx), ctx) ?? 0;
 }
 
-/** El precio con el que se anuncia en el menú: el del vaso más barato. */
-export function fromPrice(product: { prices?: Record<string, number>; price?: number }) {
-  const valores = Object.values(product.prices ?? {});
-  if (valores.length > 0) return Math.min(...valores);
-  return product.price ?? 0;
+/** El precio con el que se anuncia en el menú: el del tamaño más barato. */
+export function fromPrice(product: Priced, ctx: PriceCtx): number {
+  const all = sizesFor(product, ctx).map((s) => sizePrice(product, s.id, ctx) as number);
+  return all.length > 0 ? Math.min(...all) : 0;
 }
 
 /**
@@ -129,17 +171,17 @@ export function unitPrice(
 /**
  * El precio del día en un vaso concreto.
  *
- * La oferta se fija sobre el vaso más pequeño; los demás mantienen la misma
- * diferencia que tienen a precio de lista. Así rebajar el chico no regala el
- * grande ni al revés.
+ * La oferta se fija sobre el primer tamaño en que se vende la bebida; los
+ * demás mantienen la misma diferencia que tienen a precio de lista. Así
+ * rebajar el pequeño no regala el grande ni al revés.
  */
 export function offerPriceOf(
-  product: { prices?: Record<string, number>; price?: number },
+  product: Priced,
   offerBase: number,
   sizeId: string | undefined,
-  sizes: Size[],
+  ctx: PriceCtx,
 ) {
-  return offerBase + priceOf(product, sizeId, sizes) - priceOf(product, sizes[0]?.id, sizes);
+  return offerBase + priceOf(product, sizeId, ctx) - priceOf(product, firstSizeId(product, ctx), ctx);
 }
 
 /**
@@ -291,11 +333,13 @@ export function repriceLines(
         }
       : undefined;
 
-    // El precio sale del vaso pedido, no de un precio único del producto.
-    const lista = priceOf(product, options?.size, site.sizes);
-    const basePrice = offerValid
-      ? offerPriceOf(product, offer.price, options?.size, site.sizes)
-      : lista;
+    // El precio sale del tamaño pedido, según la categoría o la bebida. Un
+    // tamaño sin precio para esta bebida no se cobra con uno inventado.
+    const lista = sizePrice(product, options?.size, site);
+    if (lista === null) {
+      return { error: `«${product.name}» ya no se vende en ese tamaño. Elígelo de nuevo.` };
+    }
+    const basePrice = offerValid ? offerPriceOf(product, offer.price, options?.size, site) : lista;
 
     out.push({
       ...line,

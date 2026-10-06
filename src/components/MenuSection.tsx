@@ -5,7 +5,7 @@ import SectionHead from "./SectionHead";
 import VesselArt from "./VesselArt";
 import { useCart } from "./CartProvider";
 import { useSite } from "./SiteProvider";
-import { defaultOptions, fromPrice, money, priceOf } from "@/lib/cart";
+import { defaultOptions, firstSizeId, fromPrice, money, priceOf, sizesFor } from "@/lib/cart";
 
 /**
  * Productos por página. Doce se reparte parejo en las rejillas de 2, 3 y 4
@@ -17,7 +17,8 @@ export default function MenuSection() {
   const [cat, setCatState] = useState("todo");
   const [page, setPage] = useState(1);
   const { add, openSheet } = useCart();
-  const { sections, categories, products, builderBases, sizes } = useSite();
+  const site = useSite();
+  const { sections, categories, products, builderBases } = site;
   /** Marca fija justo antes de los filtros: a dónde se vuelve al cambiar de página. */
   const topRef = useRef<HTMLDivElement>(null);
 
@@ -161,12 +162,12 @@ export default function MenuSection() {
                     el botón de agregar se le montaba encima. Si aun así no cabe,
                     el botón baja a su propia línea (`flex-wrap` + `ml-auto`). */}
                 <span className="u-price min-w-0 text-[0.95rem] @[14rem]:text-lg @[18rem]:text-xl">
-                  {sizes.length > 1 ? (
+                  {sizesFor(p, site).length > 1 ? (
                     <span className="u-mono block text-[0.55rem] leading-none text-ink/40">
                       desde
                     </span>
                   ) : null}
-                  {money(fromPrice(p))}
+                  {money(fromPrice(p, site))}
                 </span>
                 <div className="ml-auto flex shrink-0 items-center gap-1.5">
                   {/* Sólo si la carta tiene ≥ 16rem de contenido, que es lo que
@@ -188,8 +189,8 @@ export default function MenuSection() {
                         productId: p.id,
                         name: p.name,
                         color: p.color,
-                        basePrice: priceOf(p, sizes[0]?.id, sizes),
-                        options: defaultOptions(builderBases[0]?.name ?? "", sizes[0]?.id ?? ""),
+                        basePrice: priceOf(p, firstSizeId(p, site), site),
+                        options: defaultOptions(builderBases[0]?.name ?? "", firstSizeId(p, site)),
                       })
                     }
                     className="grid h-10 w-10 place-items-center rounded-full border-[1.5px] border-ink bg-mango text-white transition-transform active:scale-95 disabled:bg-ink/20 disabled:text-ink/40 @[14rem]:h-11 @[14rem]:w-11"

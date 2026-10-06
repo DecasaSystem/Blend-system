@@ -11,7 +11,7 @@ import KioskHome from "./KioskHome";
 import KioskPay from "./KioskPay";
 import { useCart } from "../CartProvider";
 import { useSite } from "../SiteProvider";
-import { describe, defaultOptions, fromPrice, money, priceOf } from "@/lib/cart";
+import { describe, defaultOptions, firstSizeId, fromPrice, money, priceOf, sizesFor } from "@/lib/cart";
 import { lockKiosk, placeKioskOrder, startKioskPayment } from "@/actions/kiosk";
 import type { ReturnState } from "@/lib/settle-payment";
 import type { KioskConfig } from "@/lib/content";
@@ -516,12 +516,12 @@ export default function KioskOrder({
                   {p.tagline}
                 </p>
                 <span className="u-price mt-3 text-lg">
-                  {site.sizes.length > 1 ? (
+                  {sizesFor(p, site).length > 1 ? (
                     <span className="u-mono block text-[0.55rem] leading-none text-ink/40">
                       desde
                     </span>
                   ) : null}
-                  {money(fromPrice(p))}
+                  {money(fromPrice(p, site))}
                 </span>
               </button>
 
@@ -529,18 +529,15 @@ export default function KioskOrder({
                 type="button"
                 disabled={p.soldOut}
                 onClick={() => {
-                  // Las crispetas tienen precio único ("unica"); priceOf no lo
-                  // encuentra entre los vasos de la tienda y daría cero.
-                  const base = priceOf(p, site.sizes[0]?.id, site.sizes) || fromPrice(p);
+                  // El primer tamaño en que se vende esta bebida (los que no
+                  // tienen precio en su categoría no se ofrecen).
+                  const size = firstSizeId(p, site);
                   add({
                     productId: p.id,
                     name: p.name,
                     color: p.color,
-                    basePrice: base,
-                    options: defaultOptions(
-                      site.builderBases[0]?.name ?? "",
-                      site.sizes[0]?.id ?? "unica",
-                    ),
+                    basePrice: priceOf(p, size, site),
+                    options: defaultOptions(site.builderBases[0]?.name ?? "", size),
                   });
                 }}
                 className="btn btn-mango mt-4 w-full py-4 disabled:bg-ink/20 disabled:text-ink/40"

@@ -15,6 +15,12 @@ export type Category = {
   id: string;
   name: string;
   note: string;
+  /**
+   * Precio de cada tamaño para todas las bebidas de la categoría:
+   * `{ "12oz": 12000, "16oz": 15000 }`. Una bebida con `ownPrices` lo ignora.
+   * Ver `sizePrice` en `src/lib/cart.ts`.
+   */
+  prices?: Record<string, number>;
 };
 
 export type Product = {
@@ -28,11 +34,16 @@ export type Product = {
    * único más un recargo global por tamaño, y eso obligaba a que la diferencia
    * entre chico y grande fuera la misma en un batido que en un bowl.
    *
-   * Si falta el tamaño que se pide, se cae al recargo global (ver
-   * `priceOf` en `src/lib/cart.ts`): así añadir un tamaño nuevo no deja el
-   * menú entero sin precio hasta que se rellene bebida por bebida.
+   * Normalmente manda el precio de la categoría y esto sólo cuenta si la
+   * bebida tiene `ownPrices` o si su categoría no tiene precio para ese
+   * tamaño (ver `sizePrice` en `src/lib/cart.ts`).
    */
   prices: Record<string, number>;
+  /**
+   * Esta bebida no sigue el precio de su categoría: cobra `prices`. Sin la
+   * marca, manda la categoría si tiene precio para ese tamaño.
+   */
+  ownPrices?: boolean;
   /** Lo que costaba antes de tener precio por vaso. Sólo es red de seguridad. */
   price?: number;
   category: string;
@@ -479,8 +490,13 @@ export const toppings = [
   { name: "Proteína de guisante", price: 7500 },
 ];
 
-/** Un tamaño de la hoja de personalización. `delta` es lo que suma al precio. */
-export type Size = { id: string; label: string; volume: string; delta: number };
+/**
+ * Un tamaño (un vaso): nombre y volumen, compartido por todo el menú. No
+ * tiene precio: lo que cuesta cada bebida en él lo dice su categoría o la
+ * propia bebida. `delta` es un recargo de antes que ya no se usa; se deja en
+ * el tipo para leer contenido guardado con él.
+ */
+export type Size = { id: string; label: string; volume: string; delta?: number };
 
 export const sizes: Size[] = [
   { id: "chico", label: "Chico", volume: "350 ml", delta: 0 },

@@ -4,7 +4,7 @@ import { useCallback, useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useCart } from "./CartProvider";
 import { useSite } from "./SiteProvider";
-import { defaultOptions, offerPriceOf, priceOf } from "@/lib/cart";
+import { defaultOptions, firstSizeId, offerPriceOf, priceOf, sizePrice } from "@/lib/cart";
 import type { AssistantAction } from "@/lib/assistant";
 
 /**
@@ -33,7 +33,8 @@ export function useAssistantActions() {
   const router = useRouter();
   const pathname = usePathname();
   const { add, openSheet, setOpen } = useCart();
-  const { products, sizes, builderBases, dailyIds, dailyOffer } = useSite();
+  const site = useSite();
+  const { products, builderBases, dailyIds, dailyOffer } = site;
 
   const run = useCallback(
     (action: AssistantAction) => {
@@ -64,7 +65,11 @@ export function useAssistantActions() {
           if (!home) return goHome();
           const p = products.find((x) => x.id === action.productId);
           if (!p || p.soldOut) return;
-          const sizeId = action.sizeId ?? sizes[0]?.id ?? "";
+          // El tamaño que pidió, si esta bebida se vende en él; si no, el primero que sí.
+          const sizeId =
+            action.sizeId && sizePrice(p, action.sizeId, site) !== null
+              ? action.sizeId
+              : firstSizeId(p, site);
           const options = defaultOptions(builderBases[0]?.name ?? "", sizeId);
           // Si es la del día y quedan, va con su precio, como desde la tarjeta.
           const offer = dailyIds.includes(p.id) ? dailyOffer[p.id] : null;
@@ -74,8 +79,8 @@ export function useAssistantActions() {
               keySuffix: "dia",
               name: p.name,
               color: p.color,
-              basePrice: offerPriceOf(p, offer.price, sizeId, sizes),
-              listPrice: priceOf(p, sizeId, sizes),
+              basePrice: offerPriceOf(p, offer.price, sizeId, site),
+              listPrice: priceOf(p, sizeId, site),
               offerLabel: "Precio del día",
               maxQty: offer.left,
               qty: Math.min(action.qty, offer.left),
@@ -86,7 +91,7 @@ export function useAssistantActions() {
               productId: p.id,
               name: p.name,
               color: p.color,
-              basePrice: priceOf(p, sizeId, sizes),
+              basePrice: priceOf(p, sizeId, site),
               qty: action.qty,
               options,
             });
@@ -106,7 +111,7 @@ export function useAssistantActions() {
         }
       }
     },
-    [pathname, router, add, openSheet, setOpen, products, sizes, builderBases, dailyIds, dailyOffer],
+    [pathname, router, add, openSheet, setOpen, products, site, builderBases, dailyIds, dailyOffer],
   );
 
   return run;

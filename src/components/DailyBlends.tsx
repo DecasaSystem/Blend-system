@@ -5,11 +5,12 @@ import VesselArt from "./VesselArt";
 import InkField from "./InkField";
 import { useCart } from "./CartProvider";
 import { useSite } from "./SiteProvider";
-import { defaultOptions, money, offerPriceOf, priceOf } from "@/lib/cart";
+import { defaultOptions, firstSizeId, money, offerPriceOf, priceOf } from "@/lib/cart";
 
 export default function DailyBlends() {
   const { add, openSheet } = useCart();
-  const { sections, dailyIds, dailyOffer, products, builderBases, sizes } = useSite();
+  const site = useSite();
+  const { sections, dailyIds, dailyOffer, products, builderBases } = site;
 
   const today = new Intl.DateTimeFormat("es-CO", {
     weekday: "long",
@@ -55,12 +56,12 @@ export default function DailyBlends() {
 
             /* Lo que hay que arrastrar para que personalizarla no le quite el
                precio del día. */
-            // La oferta se fija sobre el vaso base; los demás guardan su
-            // diferencia. `chico` es el que se anuncia en la tarjeta.
-            const vasoBase = sizes[0]?.id;
-            const lista = priceOf(p, vasoBase, sizes);
+            // La oferta se fija sobre el primer tamaño en que se vende la
+            // bebida; los demás guardan su diferencia. Ése es el que se anuncia.
+            const vasoBase = firstSizeId(p, site);
+            const lista = priceOf(p, vasoBase, site);
             const oferta = {
-              basePrice: offerPriceOf(p, offer.price, vasoBase, sizes),
+              basePrice: offerPriceOf(p, offer.price, vasoBase, site),
               listPrice: lista,
               offerLabel: "Precio del día",
               maxQty: offer.left,
@@ -163,7 +164,7 @@ export default function DailyBlends() {
                         listPrice: lista,
                         offerLabel: "Precio del día",
                         maxQty: offer.left,
-                        options: defaultOptions(builderBases[0]?.name ?? "", sizes[0]?.id ?? ""),
+                        options: defaultOptions(builderBases[0]?.name ?? "", vasoBase),
                       })
                     }
                     className="btn btn-ube min-w-0 flex-1 disabled:cursor-not-allowed disabled:opacity-40"

@@ -10,6 +10,7 @@ import {
   money,
   offerPriceOf,
   priceOf,
+  sizesFor,
   toppingPrice,
   unitPrice,
   type LineOptions,
@@ -24,20 +25,29 @@ import type { Topping } from "@/lib/site";
  */
 export default function ProductSheet() {
   const { sheet, closeSheet, add, replaceLine, lineByKey } = useCart();
-  const { toppings, sizes, builderBases } = useSite();
+  const site = useSite();
+  const { toppings, builderBases } = site;
   const product = sheet?.product ?? null;
   const editing = sheet?.lineKey ? lineByKey(sheet.lineKey) : undefined;
 
+  // Sólo los tamaños en que se vende esta bebida (los que tienen precio).
+  const productSizes = product ? sizesFor(product, site) : [];
+  const firstSize = productSizes[0]?.id ?? "";
+
   // El equipo puede quedarse sin bases o sin tamaños; la hoja no debe romperse.
-  const blank = defaultOptions(builderBases[0]?.name ?? "", sizes[0]?.id ?? "");
+  const blank = defaultOptions(builderBases[0]?.name ?? "", firstSize);
 
   const [options, setOptions] = useState<LineOptions>(blank);
   const [qty, setQty] = useState(1);
 
-  // Al abrir: opciones de la línea que se edita, o valores por defecto.
+  // Al abrir: opciones de la línea que se edita, o valores por defecto. Si la
+  // línea traía un tamaño que esta bebida ya no vende, pasa al primero que sí.
   useEffect(() => {
     if (!product) return;
-    setOptions(editing?.options ?? blank);
+    const start = editing?.options ?? blank;
+    setOptions(
+      productSizes.some((s) => s.id === start.size) ? start : { ...start, size: firstSize },
+    );
     setQty(editing?.qty ?? 1);
     // La identidad de la hoja es el producto y la línea, no el objeto `editing`.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -59,11 +69,11 @@ export default function ProductSheet() {
   const offer = sheet?.offer;
   const basePrice = product
     ? offer
-      ? offerPriceOf(product, offer.basePrice, options.size, sizes)
-      : priceOf(product, options.size, sizes)
+      ? offerPriceOf(product, offer.basePrice, options.size, site)
+      : priceOf(product, options.size, site)
     : 0;
   const offerLabel = editing?.offerLabel ?? offer?.offerLabel;
-  const listPrice = product && offerLabel ? priceOf(product, options.size, sizes) : undefined;
+  const listPrice = product && offerLabel ? priceOf(product, options.size, site) : undefined;
   const unit = useMemo(
     () => unitPrice(basePrice, options, toppings),
     [basePrice, options, toppings],
@@ -184,10 +194,11 @@ export default function ProductSheet() {
               </p>
             ) : null}
 
-            {sizes.length > 0 ? (
+            {/* Con un solo tamaño no hay nada que elegir (crispetas, combos…). */}
+            {productSizes.length > 1 ? (
               <Field label="Tamaño">
                 <div className="grid grid-cols-2 gap-2">
-                  {sizes.map((s) => (
+                  {productSizes.map((s) => (
                     <Choice
                       key={s.id}
                       active={options.size === s.id}
@@ -199,8 +210,8 @@ export default function ProductSheet() {
                       <span className="u-mono mt-0.5 block opacity-70">
                         {money(
                           offer
-                            ? offerPriceOf(product, offer.basePrice, s.id, sizes)
-                            : priceOf(product, s.id, sizes),
+                            ? offerPriceOf(product, offer.basePrice, s.id, site)
+                            : priceOf(product, s.id, site),
                         )}
                       </span>
                     </Choice>

@@ -232,7 +232,7 @@ export default function OrderBoard({
                   onClick={async () => {
                     try {
                       const res = await placeOrder(
-                        demoOrder(site.products, site.stores, site.sizes),
+                        demoOrder(site.products, site.stores, site),
                       );
                       if ("error" in res) alert(res.error);
                       await refresh();

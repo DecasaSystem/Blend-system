@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import {
   Area,
   Color,
+  MaybeNum,
   Media,
   Num,
   Panel,
@@ -16,7 +17,7 @@ import {
   Text,
   Toggle,
 } from "./fields";
-import { builderPrice, fromPrice, money, priceOf } from "@/lib/cart";
+import { builderPrice, fromPrice, money, sizePrice, type PriceCtx } from "@/lib/cart";
 import {
   BUILDER_MAX_LIMIT,
   blankBuilderItem,
@@ -423,7 +424,7 @@ export default function ContentEditor() {
                           value={offer.price}
                           step={100}
                           onChange={(v) => setOffer({ price: v })}
-                          suffix={`normal ${money(fromPrice(product))}`}
+                          suffix={`normal ${money(fromPrice(product, draft))}`}
                         />
                         <Num
                           label="Unidades que quedan"
@@ -474,6 +475,38 @@ export default function ContentEditor() {
                         hint="Sale bajo los filtros del menú"
                       />
                     </Row>
+                    {/* El precio vive aquí: todas las bebidas de la categoría
+                        cuestan lo mismo en cada tamaño, salvo las que tengan
+                        «precio propio». El vaso no cuesta: sólo es el tamaño. */}
+                    {draft.sizes.length > 0 ? (
+                      <div>
+                        <span className="u-mono mb-1.5 block text-ink/45">
+                          Precio por tamaño para toda la categoría
+                        </span>
+                        <Row cols={draft.sizes.length > 2 ? 3 : 2}>
+                          {draft.sizes.map((t) => (
+                            <MaybeNum
+                              key={t.id}
+                              label={`${t.label} · ${t.volume}`}
+                              value={c.prices?.[t.id]}
+                              step={100}
+                              placeholder={c.prices ? "No se vende" : "Sin definir"}
+                              onChange={(v) => {
+                                const next = { ...(c.prices ?? {}) };
+                                if (v === undefined) delete next[t.id];
+                                else next[t.id] = v;
+                                upd({ prices: Object.keys(next).length ? next : undefined });
+                              }}
+                            />
+                          ))}
+                        </Row>
+                        <p className="u-mono mt-1.5 normal-case tracking-[0.01em] text-ink/40">
+                          {c.prices
+                            ? "Vacío = esta categoría no se vende en ese tamaño. Una bebida puede tener precio propio."
+                            : "Sin precios aquí, cada bebida usa el suyo. Ponlos para no repetirlos bebida por bebida."}
+                        </p>
+                      </div>
+                    ) : null}
                     {/* Borrar una categoría con bebidas dentro las dejaría invisibles
                         en el menú, así que primero hay que vaciarla o moverlas. */}
                     <button
@@ -514,7 +547,7 @@ export default function ContentEditor() {
                         <Panel
                           key={p.id}
                           title={p.name}
-                          meta={`desde ${money(fromPrice(p))}${p.soldOut ? " · agotado" : ""}`}
+                          meta={`desde ${money(fromPrice(p, draft))}${p.soldOut ? " · agotado" : ""}`}
                           onRemove={() => {
                             set(
                               "products",
@@ -528,32 +561,12 @@ export default function ContentEditor() {
                         >
                           <Text label="Nombre" value={p.name} onChange={(v) => upd({ name: v })} />
 
-                          {/* Un precio por vaso. Una bebida no cuesta lo mismo
-                              chica que grande, y la diferencia no tiene por qué
-                              ser la misma en un batido que en un bowl. */}
-                          <div>
-                            <span className="u-mono mb-1.5 block text-ink/45">
-                              Precio de cada vaso
-                            </span>
-                            <Row cols={draft.sizes.length > 2 ? 3 : 2}>
-                              {draft.sizes.map((t) => (
-                                <Num
-                                  key={t.id}
-                                  label={`${t.label} · ${t.volume}`}
-                                  value={p.prices?.[t.id] ?? priceOf(p, t.id, draft.sizes)}
-                                  step={100}
-                                  onChange={(v) =>
-                                    upd({ prices: { ...(p.prices ?? {}), [t.id]: v } })
-                                  }
-                                />
-                              ))}
-                            </Row>
-                            {draft.sizes.length === 0 ? (
-                              <p className="u-mono mt-1 normal-case tracking-[0.01em] text-ink/35">
-                                No hay tamaños. Créalos en «Precios y adicionales».
-                              </p>
-                            ) : null}
-                          </div>
+                          <ProductPrices
+                            product={p}
+                            category={c}
+                            site={draft}
+                            onChange={upd}
+                          />
 
                           <Area
                             label="Descripción"
@@ -871,6 +884,7 @@ export default function ContentEditor() {
                       box={box}
                       categories={draft.categories}
                       products={draft.products}
+                      sizes={draft.sizes}
                       onChange={updBox}
                     />
                   )}
@@ -963,20 +977,15 @@ export default function ContentEditor() {
                     key={s.id}
                     className="grid gap-3 border-t-[1.5px] border-ink/10 pt-3 first:border-0 first:pt-0"
                   >
-                    <Row cols={3}>
+                    {/* Un tamaño no tiene precio: lo pone la categoría (o la
+                        bebida). Aquí sólo cómo se llama y cuánto le cabe. */}
+                    <Row>
                       <Text label="Nombre" value={s.label} onChange={(v) => upd({ label: v })} />
                       <Text
                         label="Volumen"
                         value={s.volume}
                         onChange={(v) => upd({ volume: v })}
-                        hint="350 ml, 16 oz…"
-                      />
-                      <Num
-                        label="Recargo de respaldo"
-                        value={s.delta}
-                        step={100}
-                        onChange={(v) => upd({ delta: v })}
-                        suffix="sólo si falta el precio"
+                        hint="12 oz, 16 oz, 350 ml…"
                       />
                     </Row>
                     {draft.sizes.length > 1 ? (
@@ -999,33 +1008,21 @@ export default function ContentEditor() {
               <AddButton
                 label="Añadir tamaño"
                 onClick={() => {
-                  const nuevo = {
-                    id: `tam-${Date.now().toString(36)}`,
-                    label: "Tamaño nuevo",
-                    volume: "700 ml",
-                    delta: 6000,
-                  };
-                  // Se le pone precio a todas las bebidas de una vez, partiendo
-                  // del vaso base. Sin esto habría que entrar bebida por bebida
-                  // antes de que el tamaño nuevo sirviera de algo.
-                  const base = draft.sizes[0]?.id;
-                  setDraft((d) => ({
-                    ...d,
-                    sizes: [...d.sizes, nuevo],
-                    products: d.products.map((p) => ({
-                      ...p,
-                      prices: {
-                        ...(p.prices ?? {}),
-                        [nuevo.id]: (p.prices?.[base ?? ""] ?? p.price ?? 0) + nuevo.delta,
-                      },
-                    })),
-                  }));
+                  // Nace sin precio en ninguna parte: no se vende hasta que una
+                  // categoría (o una bebida) le ponga uno. Así nunca se cobra
+                  // un precio que nadie decidió.
+                  set("sizes", [
+                    ...draft.sizes,
+                    { id: `tam-${Date.now().toString(36)}`, label: "Tamaño nuevo", volume: "20 oz" },
+                  ]);
                 }}
               />
               <p className="u-mono normal-case tracking-[0.01em] text-ink/35">
-                El primero de la lista es el que viene marcado por defecto y el que se anuncia en el
-                menú. El precio de cada vaso se pone en cada bebida, dentro de «Menú»; al crear un
-                tamaño aquí se rellenan todas de golpe y luego las ajustas una a una.
+                Los vasos son los mismos para todo el menú y no tienen precio: lo que cuesta cada
+                bebida en cada tamaño se pone en su categoría, dentro de «Menú → Categorías» (o en la
+                bebida, si tiene precio propio). Un tamaño sin precio en una categoría no se ofrece
+                para esas bebidas. Ordénalos del más pequeño al más grande: el primero en que se vende
+                cada bebida es el que viene marcado y el que se anuncia en el menú.
               </p>
             </Panel>
 
@@ -1454,13 +1451,16 @@ function KioskBoxEditor({
   box,
   categories,
   products,
+  sizes,
   onChange,
 }: {
   box: SiteContent["kiosk"]["categories"][number];
   categories: SiteContent["categories"];
   products: SiteContent["products"];
+  sizes: SiteContent["sizes"];
   onChange: (patch: Partial<typeof box>) => void;
 }) {
+  const priceCtx = { sizes, categories };
   const setFor = (key: string, v: string[]) =>
     onChange({ productsByCategory: { ...box.productsByCategory, [key]: v } });
 
@@ -1468,6 +1468,7 @@ function KioskBoxEditor({
     return (
       <ProductPicker
         products={products}
+        priceCtx={priceCtx}
         pool={products}
         label="Productos de esta caja"
         emptyHint="Vacía. Elige abajo los productos del menú que van aquí."
@@ -1495,6 +1496,7 @@ function KioskBoxEditor({
             ) : (
               <ProductPicker
                 products={products}
+                priceCtx={priceCtx}
                 pool={pool}
                 label={`Productos de ${cat?.name ?? catId}`}
                 emptyHint="Sin elegir: salen todos los de esta categoría."
@@ -1594,8 +1596,10 @@ function ProductPicker({
   emptyHint,
   selected,
   onChange,
+  priceCtx,
 }: {
   products: SiteContent["products"];
+  priceCtx: PriceCtx;
   /** De dónde se puede elegir (toda la carta o una sola categoría). */
   pool: SiteContent["products"];
   label: string;
@@ -1632,7 +1636,7 @@ function ProductPicker({
               <span className="min-w-0 flex-1">
                 <span className="block truncate font-medium">{p.name}</span>
                 <span className="u-mono block text-ink/45">
-                  desde {money(fromPrice(p))}
+                  desde {money(fromPrice(p, priceCtx))}
                   {p.soldOut ? " · agotado" : ""}
                 </span>
               </span>
@@ -1661,7 +1665,7 @@ function ProductPicker({
                 { value: "", label: "— Elige uno —" },
                 ...rest.map((p) => ({
                   value: p.id,
-                  label: `${p.name} · desde ${money(fromPrice(p))}`,
+                  label: `${p.name} · desde ${money(fromPrice(p, priceCtx))}`,
                 })),
               ]}
             />
@@ -1921,6 +1925,114 @@ function PhotoSizer({
           Volver al tamaño normal
         </button>
       ) : null}
+    </div>
+  );
+}
+
+/**
+ * Los precios de una bebida en el editor.
+ *
+ * Lo normal es que mande su categoría: aquí sólo se ve el resumen. Con
+ * «Precio propio» la bebida se sale de la regla y se le ponen precios a
+ * mano. Si la categoría todavía no tiene precios, la bebida usa los suyos
+ * (como antes de que existieran los de categoría) y se pueden editar igual.
+ */
+function ProductPrices({
+  product,
+  category,
+  site,
+  onChange,
+}: {
+  product: SiteContent["products"][number];
+  category: SiteContent["categories"][number];
+  site: SiteContent;
+  onChange: (patch: Partial<SiteContent["products"][number]>) => void;
+}) {
+  const { sizes } = site;
+  const catHasPrices = !!category.prices && Object.keys(category.prices).length > 0;
+  const own = !!product.ownPrices || !catHasPrices;
+
+  if (sizes.length === 0) {
+    return (
+      <p className="u-mono normal-case tracking-[0.01em] text-ink/35">
+        No hay tamaños. Créalos en «Precios y adicionales».
+      </p>
+    );
+  }
+
+  return (
+    <div className="grid gap-2.5">
+      {catHasPrices ? (
+        <Toggle
+          label="Precio propio para esta bebida"
+          value={!!product.ownPrices}
+          onChange={(v) =>
+            onChange({
+              ownPrices: v || undefined,
+              // Al activarlo se parte de lo que cuesta ahora (lo de la categoría),
+              // para ajustar sólo lo distinto. Los precios viejos de la bebida no.
+              prices: v
+                ? Object.fromEntries(
+                    sizes
+                      .map((s) => [s.id, sizePrice(product, s.id, site)] as const)
+                      .filter((e): e is readonly [string, number] => typeof e[1] === "number"),
+                  )
+                : product.prices,
+            })
+          }
+          hint={
+            product.ownPrices
+              ? "No sigue el precio de la categoría"
+              : `Cuesta lo de «${category.name}»`
+          }
+        />
+      ) : null}
+
+      {own ? (
+        <div>
+          <span className="u-mono mb-1.5 block text-ink/45">
+            {catHasPrices ? "Precios de esta bebida" : "Precio por tamaño"}
+          </span>
+          <Row cols={sizes.length > 2 ? 3 : 2}>
+            {sizes.map((t) => (
+              <MaybeNum
+                key={t.id}
+                label={`${t.label} · ${t.volume}`}
+                value={product.prices?.[t.id]}
+                step={100}
+                onChange={(v) => {
+                  const next = { ...(product.prices ?? {}) };
+                  if (v === undefined) delete next[t.id];
+                  else next[t.id] = v;
+                  onChange({ prices: next });
+                }}
+              />
+            ))}
+          </Row>
+          <p className="u-mono mt-1.5 normal-case tracking-[0.01em] text-ink/40">
+            {catHasPrices
+              ? "Vacío = esta bebida no se vende en ese tamaño."
+              : `«${category.name}» no tiene precios todavía. Ponlos en la categoría y todas sus bebidas los usarán.`}
+          </p>
+        </div>
+      ) : (
+        // Resumen de lo que cobra, tal como lo verá el cliente.
+        <div className="flex flex-wrap gap-1.5">
+          {sizes.map((t) => {
+            const v = sizePrice(product, t.id, site);
+            return (
+              <span
+                key={t.id}
+                className={`u-mono rounded-full border-[1.5px] px-3 py-1.5 ${
+                  v === null ? "border-ink/10 text-ink/30 line-through" : "border-ink/20 text-ink/70"
+                }`}
+              >
+                {t.volume} · {v === null ? "no se vende" : money(v)}
+              </span>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
