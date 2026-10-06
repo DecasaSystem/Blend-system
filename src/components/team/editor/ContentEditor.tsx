@@ -6,7 +6,8 @@ import { useRouter } from "next/navigation";
 import {
   Area,
   Color,
-  MaybeNum,
+  MaybeMoney,
+  Money,
   Media,
   Num,
   Panel,
@@ -419,10 +420,9 @@ export default function ContentEditor() {
                   {product ? (
                     <>
                       <Row>
-                        <Num
+                        <Money
                           label="Precio del día"
                           value={offer.price}
-                          step={100}
                           onChange={(v) => setOffer({ price: v })}
                           suffix={`normal ${money(fromPrice(product, draft))}`}
                         />
@@ -485,11 +485,10 @@ export default function ContentEditor() {
                         </span>
                         <Row cols={draft.sizes.length > 2 ? 3 : 2}>
                           {draft.sizes.map((t) => (
-                            <MaybeNum
+                            <MaybeMoney
                               key={t.id}
                               label={`${t.label} · ${t.volume}`}
                               value={c.prices?.[t.id]}
-                              step={100}
                               placeholder={c.prices ? "No se vende" : "Sin definir"}
                               onChange={(v) => {
                                 const next = { ...(c.prices ?? {}) };
@@ -736,10 +735,9 @@ export default function ContentEditor() {
               defaultOpen
             >
               <Row>
-                <Num
+                <Money
                   label={`Precio base (hasta ${rules.included} ingredientes)`}
                   value={draft.pricing.builder.base}
-                  step={100}
                   onChange={(v) =>
                     set("pricing", {
                       ...draft.pricing,
@@ -747,10 +745,9 @@ export default function ContentEditor() {
                     })
                   }
                 />
-                <Num
+                <Money
                   label="Recargo por cada ingrediente extra"
                   value={draft.pricing.builder.perExtra}
-                  step={100}
                   onChange={(v) =>
                     set("pricing", {
                       ...draft.pricing,
@@ -921,10 +918,9 @@ export default function ContentEditor() {
                     />
                   </div>
                   <div className="w-32 shrink-0">
-                    <Num
+                    <Money
                       label="Precio"
                       value={t.price}
-                      step={100}
                       onChange={(v) =>
                         set(
                           "toppings",
@@ -1032,10 +1028,9 @@ export default function ContentEditor() {
               defaultOpen
             >
               <Row>
-                <Num
+                <Money
                   label="Costo del domicilio"
                   value={draft.pricing.delivery.fee}
-                  step={100}
                   onChange={(v) =>
                     set("pricing", {
                       ...draft.pricing,
@@ -1043,10 +1038,9 @@ export default function ContentEditor() {
                     })
                   }
                 />
-                <Num
+                <Money
                   label="Gratis a partir de"
                   value={draft.pricing.delivery.freeFrom}
-                  step={1000}
                   onChange={(v) =>
                     set("pricing", {
                       ...draft.pricing,
@@ -1995,11 +1989,10 @@ function ProductPrices({
           </span>
           <Row cols={sizes.length > 2 ? 3 : 2}>
             {sizes.map((t) => (
-              <MaybeNum
+              <MaybeMoney
                 key={t.id}
                 label={`${t.label} · ${t.volume}`}
                 value={product.prices?.[t.id]}
-                step={100}
                 onChange={(v) => {
                   const next = { ...(product.prices ?? {}) };
                   if (v === undefined) delete next[t.id];

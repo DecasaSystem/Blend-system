@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { mediaUploadsAvailable, requestUploadTicket } from "@/actions/media";
 import { isVideoUrl, mediaUrl } from "@/lib/media";
 
@@ -106,39 +106,117 @@ export function Num({
   );
 }
 
+/** 20000 → «20.000», como se escriben los pesos en Colombia. */
+const thousands = (n: number) => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+
+/** Tope para que un dedo pegado al cero no publique un precio absurdo. */
+const MAX_MONEY = 99_999_999;
+
 /**
- * Un número que puede quedar vacío: vacío no es cero, es «no aplica». Lo usan
- * los precios por tamaño, donde un tamaño sin precio es uno que no se vende.
+ * La caja de un precio en pesos: se ve «$ 20.000» mientras se escribe.
+ *
+ * Un `type="number"` no admite los puntos de miles, así que es texto con
+ * teclado numérico: se queda sólo con los dígitos, guarda el número y lo
+ * vuelve a pintar con puntos. El cursor se mantiene donde estaba contando
+ * los dígitos que tiene a la derecha; si no, saltaría al final cada vez que
+ * aparece o desaparece un punto.
  */
-export function MaybeNum({
+function MoneyInput({
+  value,
+  onChange,
+  placeholder,
+}: {
+  value: number | undefined;
+  /** `undefined` cuando se borra todo. */
+  onChange: (v: number | undefined) => void;
+  placeholder?: string;
+}) {
+  const ref = useRef<HTMLInputElement>(null);
+  const digitsRight = useRef<number | null>(null);
+  const shown = typeof value === "number" && Number.isFinite(value) ? thousands(value) : "";
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    const right = digitsRight.current;
+    digitsRight.current = null;
+    if (!el || right === null || document.activeElement !== el) return;
+    let pos = el.value.length;
+    for (let seen = 0; pos > 0 && seen < right; pos--) {
+      if (/\d/.test(el.value[pos - 1])) seen++;
+    }
+    el.setSelectionRange(pos, pos);
+  }, [shown]);
+
+  return (
+    <span className="relative block">
+      <span
+        className="u-mono pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-ink/40"
+        aria-hidden="true"
+      >
+        $
+      </span>
+      <input
+        ref={ref}
+        type="text"
+        inputMode="numeric"
+        autoComplete="off"
+        value={shown}
+        placeholder={placeholder}
+        onChange={(e) => {
+          const el = e.target;
+          const at = el.selectionStart ?? el.value.length;
+          digitsRight.current = el.value.slice(at).replace(/\D/g, "").length;
+          const digits = el.value.replace(/\D/g, "");
+          onChange(digits ? Math.min(Number(digits), MAX_MONEY) : undefined);
+        }}
+        className="input rounded-2xl pl-8 tabular-nums placeholder:text-ink/30"
+      />
+    </span>
+  );
+}
+
+/** Un precio en pesos. Vacío cuenta como cero. */
+export function Money({
   label,
   value,
   onChange,
-  step = 1,
+  suffix,
+}: {
+  label: string;
+  value: number;
+  onChange: (v: number) => void;
+  suffix?: string;
+}) {
+  return (
+    <label className="block">
+      <span className="u-mono mb-1.5 block text-ink/45">
+        {label}
+        {suffix ? ` (${suffix})` : ""}
+      </span>
+      <MoneyInput value={value} onChange={(v) => onChange(v ?? 0)} placeholder="0" />
+    </label>
+  );
+}
+
+/**
+ * Un precio que puede quedar vacío: vacío no es cero, es «no aplica». Lo usan
+ * los precios por tamaño, donde un tamaño sin precio es uno que no se vende.
+ */
+export function MaybeMoney({
+  label,
+  value,
+  onChange,
   placeholder = "No se vende",
 }: {
   label: string;
   value: number | undefined;
   onChange: (v: number | undefined) => void;
-  step?: number;
   placeholder?: string;
 }) {
   return (
     <label className="block">
       <span className="u-mono mb-1.5 block text-ink/45">{label}</span>
-      <input
-        type="number"
-        inputMode="numeric"
-        value={typeof value === "number" && Number.isFinite(value) ? value : ""}
-        min={0}
-        step={step}
-        placeholder={placeholder}
-        onChange={(e) => {
-          const raw = e.target.value.trim();
-          onChange(raw === "" ? undefined : Math.max(0, Number(raw) || 0));
-        }}
-        className="input rounded-2xl placeholder:text-ink/30"
-      />
+      <MoneyInput value={value} onChange={onChange} placeholder={placeholder} />
     </label>
   );
 }
