@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { ChatMessage, Location, Sender } from "@/actions/chat";
 import { formatClock } from "@/lib/orders";
+import RichText from "./RichText";
 
 /**
  * Un hilo de chat: los mensajes y la caja para escribir.
@@ -24,6 +25,10 @@ export default function ChatThread({
   placeholder = "Escribe aquí…",
   empty,
   dark = false,
+  rich = false,
+  avatar,
+  suggestions = [],
+  linkFor,
 }: {
   messages: ChatMessage[] | null;
   /** Qué remitentes se pintan a la derecha, como propios. */
@@ -34,28 +39,57 @@ export default function ChatThread({
   placeholder?: string;
   empty?: React.ReactNode;
   dark?: boolean;
+  /** Los mensajes del otro lado traen formato (el asistente): se pintan con `RichText`. */
+  rich?: boolean;
+  /** Cara junto a los mensajes del otro lado. Con ella sobra repetir su nombre. */
+  avatar?: React.ReactNode;
+  /** Con el hilo vacío: preguntas para empezar, en tarjetas bajo la bienvenida. */
+  suggestions?: string[];
+  /** Con `rich`: qué negritas son enlaces (p. ej. el nombre de una bebida abre su ficha). */
+  linkFor?: (bold: string) => (() => void) | null;
 }) {
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const bottom = useRef<HTMLDivElement>(null);
+  const scroller = useRef<HTMLDivElement>(null);
+  const field = useRef<HTMLTextAreaElement>(null);
+  /** Si quien lee está al fondo. Si subió a releer algo, no se le arrastra abajo. */
+  const pinned = useRef(true);
 
-  useEffect(() => {
-    bottom.current?.scrollIntoView({ block: "end" });
+  // Bajar dentro del hilo, no con `scrollIntoView`: ese también movía la
+  // página entera en el teléfono cada vez que llegaba un trozo de respuesta.
+  useLayoutEffect(() => {
+    const el = scroller.current;
+    if (!el) return;
+    // Hilo vacío: la bienvenida se lee desde arriba.
+    if (!messages?.length) el.scrollTop = 0;
+    else if (pinned.current) el.scrollTop = el.scrollHeight;
   }, [messages]);
+
+  // La caja crece con lo que se escribe, hasta el tope de `max-h-32`.
+  useLayoutEffect(() => {
+    const el = field.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [draft]);
 
   const send = async (text: string, location?: Location | null) => {
     if (sending) return;
     if (!text.trim() && !location) return;
     setSending(true);
     setError(null);
+    pinned.current = true;
+    // La caja se vacía al enviar, no al terminar la respuesta (el asistente
+    // tarda lo que tarde en escribir). Si falla, el texto vuelve.
+    const kept = draft;
+    setDraft("");
     const err = await onSend(text.trim(), location ?? null);
     setSending(false);
     if (err) {
       setError(err);
-      return;
+      setDraft(kept);
     }
-    setDraft("");
   };
 
   const shareLocation = () => {
@@ -79,21 +113,64 @@ export default function ChatThread({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className={`flex-1 overflow-y-auto px-4 py-4 ${dark ? "" : "bg-paper"}`}>
+      <div
+        ref={scroller}
+        onScroll={(e) => {
+          const el = e.currentTarget;
+          pinned.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48;
+        }}
+        className={`flex-1 overflow-y-auto overscroll-contain px-4 py-4 ${dark ? "" : "bg-paper"}`}
+      >
         {messages === null ? (
           <p className="u-mono py-8 text-center text-ink/40">Cargando…</p>
-        ) : messages.length === 0 && empty ? (
-          <div className="rounded-2xl border-[1.5px] border-ink/12 bg-white px-4 py-3 text-[0.95rem] leading-relaxed text-ink/65">
-            {empty}
+        ) : messages.length === 0 && (empty || suggestions.length > 0) ? (
+          <div className="grid gap-3">
+            {empty ? (
+              <div className="rounded-2xl border-[1.5px] border-ink/12 bg-white px-4 py-3 text-[0.95rem] leading-relaxed text-ink/65">
+                {empty}
+              </div>
+            ) : null}
+            {suggestions.length > 0 ? (
+              <div className="grid gap-2">
+                <p className="u-mono px-1 text-ink/40">Puedes empezar por</p>
+                {suggestions.map((q) => (
+                  <button
+                    key={q}
+                    type="button"
+                    disabled={sending}
+                    onClick={() => send(q)}
+                    className="group flex min-h-12 items-center justify-between gap-3 rounded-2xl border-[1.5px] border-ink/15 bg-white px-4 py-2.5 text-left text-[0.92rem] text-ink transition-[border-color,transform,box-shadow] hover:-translate-y-px hover:border-ink hover:shadow-[2px_3px_0_0_var(--color-ink)] disabled:opacity-50"
+                  >
+                    <span>{q}</span>
+                    <span className="text-mango transition-transform group-hover:translate-x-0.5" aria-hidden="true">
+                      →
+                    </span>
+                  </button>
+                ))}
+              </div>
+            ) : null}
           </div>
         ) : (
-          <ul className="grid gap-2">
-            {messages.map((m) => (
-              <Bubble key={m.id} m={m} own={mine.includes(m.sender)} />
-            ))}
+          <ul className="grid gap-3">
+            {messages.map((m, idx) => {
+              const own = mine.includes(m.sender);
+              const next = messages[idx + 1];
+              // La cara y la hora van sólo en el último de una racha seguida del mismo lado.
+              const last = !next || mine.includes(next.sender) !== own;
+              return (
+                <Bubble
+                  key={m.id}
+                  m={m}
+                  own={own}
+                  rich={rich && !own}
+                  linkFor={linkFor}
+                  avatar={own ? undefined : avatar}
+                  showMeta={last}
+                />
+              );
+            })}
           </ul>
         )}
-        <div ref={bottom} />
       </div>
 
       <form
@@ -137,6 +214,7 @@ export default function ChatThread({
             </button>
           ) : null}
           <textarea
+            ref={field}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => {
@@ -165,36 +243,86 @@ export default function ChatThread({
   );
 }
 
-function Bubble({ m, own }: { m: ChatMessage; own: boolean }) {
+function Bubble({
+  m,
+  own,
+  rich,
+  avatar,
+  showMeta,
+  linkFor,
+}: {
+  m: ChatMessage;
+  own: boolean;
+  rich: boolean;
+  avatar?: React.ReactNode;
+  showMeta: boolean;
+  linkFor?: (bold: string) => (() => void) | null;
+}) {
   const maps = m.location
     ? `https://www.google.com/maps/search/?api=1&query=${m.location.lat},${m.location.lng}`
     : null;
+  // Un mensaje del otro lado sin texto todavía es una respuesta que se está escribiendo.
+  const typing = !own && !m.body && !maps;
   return (
-    <li className={`flex flex-col ${own ? "items-end" : "items-start"}`}>
-      <div
-        className={`max-w-[85%] whitespace-pre-wrap break-words rounded-2xl px-3.5 py-2.5 text-[0.95rem] leading-relaxed ${
-          own ? "rounded-br-md bg-ink text-paper" : "rounded-bl-md border-[1.5px] border-ink/12 bg-white text-ink"
-        }`}
-      >
-        {m.body}
-        {maps ? (
-          <a
-            href={maps}
-            target="_blank"
-            rel="noopener"
-            className={`u-mono mt-2 block rounded-xl border-[1.5px] px-3 py-2 text-center normal-case tracking-[0.01em] ${
-              own ? "border-paper/30 text-paper" : "border-ink/20 text-ube"
-            }`}
-          >
-            Ver en el mapa →
-          </a>
+    <li className={`flex items-end gap-2 ${own ? "justify-end" : "justify-start"}`}>
+      {avatar ? (
+        // Siempre ocupa su sitio, aunque sólo se vea en el último de la racha:
+        // así las burbujas seguidas quedan alineadas.
+        <span className={`mb-5 shrink-0 ${showMeta ? "" : "invisible"}`}>{avatar}</span>
+      ) : null}
+      <div className={`flex min-w-0 max-w-[85%] flex-col ${own ? "items-end" : "items-start"}`}>
+        <div
+          className={`min-w-0 break-words rounded-[20px] px-3.5 py-2.5 text-[0.95rem] leading-relaxed ${
+            rich ? "" : "whitespace-pre-wrap"
+          } ${
+            own
+              ? "rounded-br-md bg-ink text-paper"
+              : "rounded-bl-md border-[1.5px] border-ink/12 bg-white text-ink/85 shadow-[0_1px_0_0_rgba(27,11,46,0.06)]"
+          }`}
+        >
+          {typing ? (
+            <TypingDots />
+          ) : rich ? (
+            <RichText text={m.body} linkFor={linkFor} />
+          ) : (
+            m.body
+          )}
+          {maps ? (
+            <a
+              href={maps}
+              target="_blank"
+              rel="noopener"
+              className={`u-mono mt-2 block rounded-xl border-[1.5px] px-3 py-2 text-center normal-case tracking-[0.01em] ${
+                own ? "border-paper/30 text-paper" : "border-ink/20 text-ube"
+              }`}
+            >
+              Ver en el mapa →
+            </a>
+          ) : null}
+        </div>
+        {showMeta ? (
+          <span className="u-mono mt-1 px-1 text-ink/35">
+            {own || avatar ? "" : `${m.senderName} · `}
+            {typing ? "escribiendo…" : formatClock(m.createdAt)}
+          </span>
         ) : null}
       </div>
-      <span className="u-mono mt-1 text-ink/35">
-        {own ? "" : `${m.senderName} · `}
-        {formatClock(m.createdAt)}
-      </span>
     </li>
+  );
+}
+
+/** Tres puntos que laten mientras llega la respuesta. */
+function TypingDots() {
+  return (
+    <span className="flex h-6 items-center gap-1 px-0.5" role="status" aria-label="Escribiendo">
+      {[0, 1, 2].map((i) => (
+        <span
+          key={i}
+          className="typing-dot h-2 w-2 rounded-full bg-ink/35"
+          style={{ animationDelay: `${i * 160}ms` }}
+        />
+      ))}
+    </span>
   );
 }
 

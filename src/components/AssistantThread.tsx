@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import ChatThread from "./ChatThread";
+import AssistantFace from "./AssistantFace";
 import { useCart } from "./CartProvider";
+import { useSite } from "./SiteProvider";
 import { useAssistantActions } from "./useAssistantActions";
 import type { ChatMessage } from "@/actions/chat";
 import type { AssistantAction } from "@/lib/assistant";
@@ -21,9 +23,24 @@ import type { AssistantAction } from "@/lib/assistant";
 const STORAGE_KEY = "blend.asistente.hilo";
 const MAX_KEPT = 30;
 
-const QUICK = ["¿Qué me recomiendas?", "¿Dónde están?", "¿Cuánto vale el domicilio?"];
+/** Para empezar, con el hilo vacío. Cortas y de lo que más se pregunta. */
+const QUICK = [
+  "¿Qué me recomiendas hoy?",
+  "¿Qué hay del día?",
+  "¿Dónde están y a qué hora abren?",
+  "¿Cuánto vale el domicilio?",
+];
 
 const ASSISTANT = "Asistente";
+
+/** Para comparar nombres sin que molesten mayúsculas, tildes ni espacios de más. */
+const norm = (s: string) =>
+  s
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
 
 function load(): ChatMessage[] {
   try {
@@ -40,6 +57,18 @@ export default function AssistantThread({ signedIn }: { signedIn: boolean }) {
   const pathname = usePathname();
   const { lines } = useCart();
   const run = useAssistantActions();
+  const { products } = useSite();
+
+  // Una negrita que es el nombre de una bebida abre su ficha. Sólo si el
+  // nombre coincide entero: «**4 sedes**» o «**ácido**» se quedan en negrita.
+  const byName = useMemo(() => new Map(products.map((p) => [norm(p.name), p.id])), [products]);
+  const linkFor = useCallback(
+    (bold: string) => {
+      const id = byName.get(norm(bold));
+      return id ? () => run({ name: "abrir_producto", productId: id }) : null;
+    },
+    [byName, run],
+  );
   // Vacío en el servidor y en el primer render: lo guardado entra en el efecto.
   const [messages, setMessages] = useState<ChatMessage[] | null>(null);
   const abort = useRef<AbortController | null>(null);
@@ -152,16 +181,29 @@ export default function AssistantThread({ signedIn }: { signedIn: boolean }) {
       messages={messages}
       mine={["customer"]}
       onSend={send}
-      quickReplies={messages && messages.length === 0 ? QUICK : []}
+      rich
+      linkFor={linkFor}
+      avatar={<AssistantFace size={28} />}
+      suggestions={messages && messages.length === 0 ? QUICK : []}
       placeholder="Pregúntame lo que quieras…"
       empty={
-        <>
-          Hola 👋 Soy el asistente de la tienda. Te ayudo a elegir, te digo precios, horarios y
-          cómo pedir, y te llevo a lo que busques.{" "}
-          {signedIn
-            ? "Si necesitas a una persona, la pestaña «La barra» es con ellos."
-            : "Si necesitas a una persona, entra a tu cuenta y escríbele a la barra."}
-        </>
+        <div className="flex gap-3">
+          <AssistantFace size={40} />
+          <div className="grid gap-1.5">
+            <p className="u-display text-[1.15rem] leading-tight text-ink">
+              Hola, soy el asistente de BLEND
+            </p>
+            <p>
+              Te ayudo a elegir, te digo precios, horarios y cómo pedir, y te llevo a lo que
+              busques en la página.
+            </p>
+            <p className="text-[0.85rem] text-ink/50">
+              {signedIn
+                ? "¿Prefieres a una persona? En «La barra» te responde el equipo."
+                : "¿Prefieres a una persona? Entra a tu cuenta y escríbele a la barra."}
+            </p>
+          </div>
+        </div>
       }
     />
   );

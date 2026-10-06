@@ -570,6 +570,32 @@
   }
 }
 
+/* «Escribiendo…» del asistente: tres puntos que laten por turnos. */
+.typing-dot {
+  animation: blend-typing 1.1s ease-in-out infinite;
+}
+
+@keyframes blend-typing {
+  0%,
+  60%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.45;
+  }
+  30% {
+    transform: translateY(-4px);
+    opacity: 1;
+  }
+}
+
+/* Sin movimiento: los puntos se quedan quietos pero se siguen viendo. */
+@media (prefers-reduced-motion: reduce) {
+  .typing-dot {
+    animation: none;
+    opacity: 0.6;
+  }
+}
+
 /* En móvil las sedes quedan cerca y las etiquetas se pisan entre sí:
    sólo se muestra la de la sede seleccionada. */
 @media (max-width: 639px) {
