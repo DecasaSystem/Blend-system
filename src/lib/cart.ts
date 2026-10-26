@@ -45,9 +45,8 @@ export type CartLine = {
   listPrice?: number;
   qty: number;
   /**
-   * Opciones de la bebida. En un blend armado a mano sólo cuentan la base, los
-   * adicionales y la nota: el tamaño va vacío porque el constructor cobra un
-   * precio único.
+   * Opciones de la bebida. En un blend armado a mano cuentan el tamaño, la
+   * base, los adicionales y la nota; el dulzor no.
    */
   options?: LineOptions;
   /** Base y luego ingredientes elegidos en "Arma tu blend". */
@@ -185,18 +184,56 @@ export function offerPriceOf(
 }
 
 /**
- * Precio de un blend armado a mano, antes de adicionales: el precio base cubre
- * `included` ingredientes y cada uno de más suma el recargo.
+ * Lo que cuesta un blend armado en un tamaño, con los ingredientes incluidos,
+ * o null si no se arma en ese tamaño.
+ *
+ * Antes el blend no tenía tamaño: un precio único y la barra tenía que
+ * adivinar el vaso. Ahora sigue la misma regla que el menú: el equipo pone
+ * un precio por tamaño (`pricing.builder.prices`) y uno vacío es uno que no
+ * se ofrece. Mientras no ponga ninguno, el precio de siempre (`base`) vale
+ * sólo para el primer vaso: no se inventa el de los demás.
  */
-export function builderPrice(ingredients: number, pricing: Pricing, rules: BuilderConfig) {
-  return (
-    pricing.builder.base + Math.max(0, ingredients - rules.included) * pricing.builder.perExtra
-  );
+export function builderSizePrice(
+  sizeId: string | undefined,
+  pricing: Pricing,
+  sizes: Size[],
+): number | null {
+  if (!sizeId || !sizes.some((s) => s.id === sizeId)) return null;
+  const prices = pricing.builder.prices;
+  if (prices && Object.values(prices).some(isPrice)) {
+    const v = prices[sizeId];
+    return isPrice(v) ? v : null;
+  }
+  return sizeId === sizes[0]?.id && isPrice(pricing.builder.base) ? pricing.builder.base : null;
 }
 
-/** Opciones de un blend armado: sin tamaño ni dulzor, sólo lo que se cobra y se lee. */
-export const builderOptions = (base: string, extras: string[], note = ""): LineOptions => ({
-  size: "",
+/** Los tamaños en que se puede armar un blend, en el orden del equipo. */
+export function builderSizes(pricing: Pricing, sizes: Size[]): Size[] {
+  return sizes.filter((s) => builderSizePrice(s.id, pricing, sizes) !== null);
+}
+
+/**
+ * Precio de un blend armado a mano, antes de adicionales: el precio del vaso
+ * (`start`, de `builderSizePrice`) cubre `included` ingredientes y cada uno
+ * de más suma el recargo. Sin `start`, el precio base de siempre.
+ */
+export function builderPrice(
+  ingredients: number,
+  pricing: Pricing,
+  rules: BuilderConfig,
+  start = pricing.builder.base,
+) {
+  return start + Math.max(0, ingredients - rules.included) * pricing.builder.perExtra;
+}
+
+/** Opciones de un blend armado: tamaño, base y lo que se cobra aparte. Sin dulzor. */
+export const builderOptions = (
+  base: string,
+  extras: string[],
+  note = "",
+  size = "",
+): LineOptions => ({
+  size,
   base,
   sweet: "normal",
   extras,
@@ -230,9 +267,15 @@ export function lineKey(productId: string, options?: LineOptions, suffix = "") {
  */
 export function describe(line: CartLine, sizes: Size[] = []): string {
   const o = line.options;
-  // Blend armado: la receta va junta y los adicionales después, como en el resto.
+  // Blend armado: el vaso primero, la receta junta y los adicionales después.
   if (line.custom) {
-    return [line.custom.join(", "), ...(o?.extras ?? []), o?.note?.trim()]
+    const size = o?.size ? sizes.find((s) => s.id === o.size) : undefined;
+    return [
+      size ? `${size.label} ${size.volume}` : o?.size,
+      line.custom.join(", "),
+      ...(o?.extras ?? []),
+      o?.note?.trim(),
+    ]
       .filter(Boolean)
       .join(" · ");
   }
@@ -285,16 +328,25 @@ export function repriceLines(
       ) {
         return { error: "Uno de los blends que armaste ya no está disponible." };
       }
-      const price = builderPrice(known.length, site.pricing, site.builder);
+      // El vaso: el pedido. Un carrito guardado antes de que el blend tuviera
+      // tamaño no trae ninguno y va en el primero en que se arma.
+      const sizeId =
+        String(line.options?.size ?? "") || builderSizes(site.pricing, site.sizes)[0]?.id;
+      const start = builderSizePrice(sizeId, site.pricing, site.sizes);
+      if (start === null) {
+        return { error: "Tu blend ya no se arma en ese tamaño. Elígelo de nuevo." };
+      }
+      const price = builderPrice(known.length, site.pricing, site.builder, start);
 
       // Los adicionales sólo se cobran si el constructor los ofrece y siguen
-      // existiendo; el tamaño y el dulzor no aplican y se dejan neutros.
+      // existiendo; el dulzor no aplica y se deja neutro.
       const raw = line.options?.extras;
       const asked = Array.isArray(raw) ? raw : [];
       const options = builderOptions(
         base.name,
         site.builder.toppings ? asked.filter((n) => site.toppings.some((t) => t.name === n)) : [],
         String(line.options?.note ?? "").slice(0, 140),
+        sizeId,
       );
 
       out.push({

@@ -1,11 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import SectionHead from "./SectionHead";
 import VesselArt from "./VesselArt";
 import { useCart } from "./CartProvider";
 import { useSite } from "./SiteProvider";
 import { defaultOptions, firstSizeId, fromPrice, money, priceOf, sizesFor } from "@/lib/cart";
+import type { Product } from "@/lib/content";
+import { buildIndex, completions, searchMenu, suggestions } from "@/lib/search";
 
 /**
  * Productos por página. Doce se reparte parejo en las rejillas de 2, 3 y 4
@@ -16,13 +18,44 @@ const PAGE_SIZE = 12;
 export default function MenuSection() {
   const [cat, setCatState] = useState("todo");
   const [page, setPage] = useState(1);
-  const { add, openSheet } = useCart();
   const site = useSite();
-  const { sections, categories, products, builderBases } = site;
+  const { sections, categories, products, dailyIds } = site;
   /** Marca fija justo antes de los filtros: a dónde se vuelve al cambiar de página. */
   const topRef = useRef<HTMLDivElement>(null);
 
-  const all = cat === "todo" ? products : products.filter((p) => p.category === cat);
+  // Búsqueda. Se escribe en `query` al instante; los resultados se calculan
+  // con `useDeferredValue` para que el teclado nunca espere a la rejilla.
+  const [query, setQuery] = useState("");
+  const [focused, setFocused] = useState(false);
+  const deferred = useDeferredValue(query);
+  const searching = deferred.trim().length > 0;
+  const index = useMemo(
+    () => buildIndex(products, categories, (p) => fromPrice(p, site)),
+    [products, categories, site],
+  );
+  const result = useMemo(() => searchMenu(index, deferred), [index, deferred]);
+  const ideas = useMemo(() => suggestions(index), [index]);
+  const completes = useMemo(() => completions(index, query), [index, query]);
+
+  /*
+   * Recomendados: lo que el equipo marcó como «Más pedido», luego lo nuevo y
+   * lo del día. Salen al abrir el buscador vacío y cuando una búsqueda no
+   * encuentra nada, para que nunca quede una pantalla en blanco.
+   */
+  const recommended = useMemo(() => {
+    const rank = (p: Product) =>
+      p.badge === "Más pedido" ? 0 : p.badge === "Nuevo" ? 1 : dailyIds.includes(p.id) ? 2 : 3;
+    return products
+      .filter((p) => !p.soldOut && rank(p) < 3)
+      .sort((x, y) => rank(x) - rank(y))
+      .slice(0, 4);
+  }, [products, dailyIds]);
+
+  const all = searching
+    ? result.products
+    : cat === "todo"
+      ? products
+      : products.filter((p) => p.category === cat);
   const active = categories.find((c) => c.id === cat);
   const pages = Math.max(1, Math.ceil(all.length / PAGE_SIZE));
   // Si el equipo quita productos con la página abierta, no quedarse en una página vacía.
@@ -31,6 +64,12 @@ export default function MenuSection() {
 
   const setCat = (id: string) => {
     setCatState(id);
+    setQuery("");
+    setPage(1);
+  };
+
+  const search = (text: string) => {
+    setQuery(text);
     setPage(1);
   };
 
@@ -45,31 +84,57 @@ export default function MenuSection() {
     window.scrollTo({ top, behavior: reduce ? "auto" : "smooth" });
   };
 
+  const trimmed = deferred.trim();
+  const status = !searching
+    ? (active?.note ?? "Fruta congelada, nunca hielo")
+    : result.products.length === 0
+      ? `Nada con «${trimmed}»`
+      : result.partial
+        ? `Nada exacto con «${trimmed}» · lo más parecido`
+        : `${result.products.length} ${result.products.length === 1 ? "resultado" : "resultados"} para «${trimmed}»`;
+
   return (
     <section id="menu" className="scroll-mt-[-4.5rem] lg:scroll-mt-[-6.5rem] relative bg-paper py-20 lg:py-28">
       <div className="mx-auto max-w-[1400px] px-4 sm:px-6 lg:px-10">
         <SectionHead copy={sections.menu} tone="#8FD14F" />
 
         <div ref={topRef} aria-hidden="true" />
-        {/* Filtros. Pegajosos bajo la barra en móvil: la lista es larga. */}
+        {/* Buscador y filtros. Pegajosos bajo la barra en móvil: la lista es larga. */}
         <div className="sticky top-[4.25rem] z-30 -mx-4 mt-10 border-b-[1.5px] border-ink/10 bg-paper/95 px-4 py-2 backdrop-blur lg:static lg:mx-0 lg:border-0 lg:bg-transparent lg:px-0 lg:py-0 lg:backdrop-blur-none">
-          <CategoryRail activeKey={cat}>
-            <FilterPill active={cat === "todo"} onClick={() => setCat("todo")}>
-              Todo <span className="opacity-45">{products.length}</span>
-            </FilterPill>
-            {categories.map((c) => {
-              const n = products.filter((p) => p.category === c.id).length;
-              return (
-                <FilterPill key={c.id} active={cat === c.id} onClick={() => setCat(c.id)}>
-                  {c.name} <span className="opacity-45">{n}</span>
-                </FilterPill>
-              );
-            })}
-          </CategoryRail>
+          <SearchBox
+            value={query}
+            onChange={search}
+            onFocusChange={setFocused}
+            completions={completes}
+            ideas={ideas}
+            recommended={recommended}
+            open={focused && !query.trim()}
+          />
+          <div className="mt-2 lg:mt-4">
+            <CategoryRail activeKey={searching ? "buscar" : cat}>
+              <FilterPill active={!searching && cat === "todo"} onClick={() => setCat("todo")}>
+                Todo <span className="opacity-45">{products.length}</span>
+              </FilterPill>
+              {categories.map((c) => {
+                const n = products.filter((p) => p.category === c.id).length;
+                return (
+                  <FilterPill
+                    key={c.id}
+                    active={!searching && cat === c.id}
+                    onClick={() => setCat(c.id)}
+                  >
+                    {c.name} <span className="opacity-45">{n}</span>
+                  </FilterPill>
+                );
+              })}
+            </CategoryRail>
+          </div>
         </div>
 
         <div className="mt-4 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-          <p className="u-mono text-ink/40">{active?.note ?? "Fruta congelada, nunca hielo"}</p>
+          <p className="u-mono text-ink/40" aria-live="polite">
+            {status}
+          </p>
           {pages > 1 ? (
             <p className="u-mono text-ink/40">
               {(current - 1) * PAGE_SIZE + 1}–{(current - 1) * PAGE_SIZE + list.length} de{" "}
@@ -78,6 +143,32 @@ export default function MenuSection() {
           ) : null}
         </div>
 
+        {/* Sin resultados: nunca una pantalla vacía. Ideas que sí encuentran
+            algo y lo más pedido, para seguir desde ahí. */}
+        {searching && result.products.length === 0 ? (
+          <div className="mt-8">
+            <p className="text-ink/70">Prueba con otra palabra o con una de estas ideas:</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {ideas.map((idea) => (
+                <IdeaChip key={idea} onClick={() => search(idea)}>
+                  {idea}
+                </IdeaChip>
+              ))}
+              <IdeaChip onClick={() => search("")}>Ver todo el menú</IdeaChip>
+            </div>
+            {recommended.length > 0 ? (
+              <>
+                <p className="u-mono mt-10 text-ink/45">Te puede gustar</p>
+                <div className="mt-4 grid grid-cols-1 gap-4 min-[360px]:grid-cols-2 sm:gap-5 lg:grid-cols-3 xl:grid-cols-4">
+                  {recommended.map((p) => (
+                    <ProductCard key={p.id} p={p} />
+                  ))}
+                </div>
+              </>
+            ) : null}
+          </div>
+        ) : null}
+
         {/* Rejilla. Cuatro columnas sólo desde xl: en un portátil de 1024–1280 px
             la carta quedaba en 180–245 px de contenido y el pie (precio + Editar
             + agregar, ~250 px) no cabía: el precio se montaba sobre «Editar». */}
@@ -85,135 +176,309 @@ export default function MenuSection() {
             una tarjeta de 136 px no deja sitio ni al precio ni a la foto. */}
         <div className="mt-8 grid grid-cols-1 gap-4 min-[360px]:grid-cols-2 sm:gap-5 lg:grid-cols-3 xl:grid-cols-4">
           {list.map((p) => (
-            <article
-              key={p.id}
-              // `@container`: el botón «Editar» decide si se muestra según el
-              // ancho real de la carta, no el de la pantalla.
-              className={`card-ink group @container flex flex-col p-4 sm:p-5 ${p.soldOut ? "opacity-60" : ""}`}
-            >
-              {/* Altura fija aunque no haya etiqueta: si no, la foto de esa
-                  tarjeta sube y la fila queda desalineada. */}
-              <div className="flex min-h-7 items-start justify-between gap-2">
-                {p.soldOut ? (
-                  <span className="sticker" style={{ background: "#EFE4FF" }}>
-                    Agotado
-                  </span>
-                ) : p.badge ? (
-                  <span
-                    className="sticker"
-                    style={{ background: p.badge === "Nuevo" ? "#8FD14F" : "#FFD166" }}
-                  >
-                    {p.badge}
-                  </span>
-                ) : null}
-              </div>
-
-              <button
-                type="button"
-                onClick={() => openSheet(p)}
-                disabled={p.soldOut}
-                className="relative mx-auto my-1 w-[72%] max-w-[170px] transition-transform duration-500 group-hover:-rotate-2 group-hover:scale-105 disabled:cursor-not-allowed"
-                style={{ filter: "drop-shadow(3px 5px 0 rgba(27,11,46,0.09))" }}
-                aria-label={`Personalizar ${p.name}`}
-              >
-                <VesselArt
-                  uid={`menu-${p.id}`}
-                  vessel={p.vessel}
-                  color={p.color}
-                  ingredients={p.ingredients}
-                  media={p.media}
-                  mediaScale={p.mediaScale}
-                  className="h-auto w-full"
-                  alt={p.name}
-                />
-              </button>
-
-              {/* En móvil no hay botón "Editar": el nombre y la ilustración abren la hoja. */}
-              <button
-                type="button"
-                onClick={() => openSheet(p)}
-                disabled={p.soldOut}
-                className="text-left disabled:cursor-not-allowed"
-              >
-                <h3 className="u-display text-[1.35rem] leading-none sm:text-[1.75rem] lg:text-3xl">
-                  {p.name}
-                </h3>
-                <p className="mt-2 line-clamp-3 text-[0.8rem] leading-snug text-ink/60 sm:line-clamp-2 sm:text-[0.9rem]">
-                  {p.tagline}
-                </p>
-              </button>
-
-              <div className="mt-3 flex gap-1.5">
-                {p.ingredients.map((ing) => (
-                  <span
-                    key={ing.name}
-                    title={ing.name}
-                    className="h-3 w-3 rounded-full border border-ink/25"
-                    style={{ background: ing.color }}
-                  />
-                ))}
-              </div>
-
-              <div className="mt-auto flex flex-wrap items-center justify-between gap-1.5 pt-4 @[14rem]:gap-2 sm:pt-5">
-                {/* El menú anuncia el vaso más barato; el resto se ve al elegir.
-                    «desde» va encima, en su propia línea, y el tamaño del precio
-                    lo decide el ancho real de la tarjeta (`@container`): en la
-                    rejilla de un teléfono mide 150–170 px y con el precio grande
-                    el botón de agregar se le montaba encima. Si aun así no cabe,
-                    el botón baja a su propia línea (`flex-wrap` + `ml-auto`). */}
-                <span className="u-price min-w-0 text-[0.95rem] @[14rem]:text-lg @[18rem]:text-xl">
-                  {sizesFor(p, site).length > 1 ? (
-                    <span className="u-mono block text-[0.55rem] leading-none text-ink/40">
-                      desde
-                    </span>
-                  ) : null}
-                  {money(fromPrice(p, site))}
-                </span>
-                <div className="ml-auto flex shrink-0 items-center gap-1.5">
-                  {/* Sólo si la carta tiene ≥ 16rem de contenido, que es lo que
-                      cabe junto al precio. En móvil y en cartas estrechas el
-                      nombre y la ilustración ya abren la hoja. */}
-                  <button
-                    type="button"
-                    onClick={() => openSheet(p)}
-                    disabled={p.soldOut}
-                    className="u-mono hidden min-h-11 items-center rounded-full border-[1.5px] border-ink/20 px-3 text-ink/60 transition-colors hover:border-ink hover:text-ink disabled:opacity-40 @[16rem]:inline-flex"
-                  >
-                    Editar
-                  </button>
-                  <button
-                    type="button"
-                    disabled={p.soldOut}
-                    onClick={() =>
-                      add({
-                        productId: p.id,
-                        name: p.name,
-                        color: p.color,
-                        basePrice: priceOf(p, firstSizeId(p, site), site),
-                        options: defaultOptions(builderBases[0]?.name ?? "", firstSizeId(p, site)),
-                      })
-                    }
-                    className="grid h-10 w-10 place-items-center rounded-full border-[1.5px] border-ink bg-mango text-white transition-transform active:scale-95 disabled:bg-ink/20 disabled:text-ink/40 @[14rem]:h-11 @[14rem]:w-11"
-                    aria-label={`Agregar ${p.name} al pedido`}
-                  >
-                    <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
-                      <path
-                        d="M8 1v14M1 8h14"
-                        stroke="currentColor"
-                        strokeWidth="2.2"
-                        strokeLinecap="round"
-                      />
-                    </svg>
-                  </button>
-                </div>
-              </div>
-            </article>
+            <ProductCard key={p.id} p={p} />
           ))}
         </div>
 
         {pages > 1 ? <Pagination page={current} pages={pages} onChange={goTo} /> : null}
       </div>
     </section>
+  );
+}
+
+/**
+ * La caja de búsqueda.
+ *
+ * Busca mientras se escribe. Vacía y con el foco, ofrece ideas que sí dan
+ * resultados y lo más pedido; escribiendo, completa la palabra con las del
+ * menú. Escape la borra.
+ */
+function SearchBox({
+  value,
+  onChange,
+  onFocusChange,
+  completions,
+  ideas,
+  recommended,
+  open,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  onFocusChange: (v: boolean) => void;
+  completions: string[];
+  ideas: string[];
+  recommended: Product[];
+  open: boolean;
+}) {
+  const { openSheet } = useCart();
+  const input = useRef<HTMLInputElement>(null);
+  // El panel se cierra al salir del buscador, pero no antes de que el clic
+  // dentro de él llegue: por eso se espera un instante al perder el foco.
+  const blur = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const pick = (text: string) => {
+    onChange(text);
+    input.current?.focus();
+  };
+
+  return (
+    <div
+      className="relative"
+      onFocus={() => {
+        clearTimeout(blur.current);
+        onFocusChange(true);
+      }}
+      onBlur={() => {
+        blur.current = setTimeout(() => onFocusChange(false), 120);
+      }}
+    >
+      <label htmlFor="menu-search" className="sr-only">
+        Buscar en el menú
+      </label>
+      <div className="flex min-h-12 items-center gap-2 rounded-full border-[1.5px] border-ink bg-white px-4 focus-within:shadow-[2px_3px_0_0_var(--color-ink)]">
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 18 18"
+          aria-hidden="true"
+          className="shrink-0 text-ink/50"
+        >
+          <circle cx="7.5" cy="7.5" r="5.5" fill="none" stroke="currentColor" strokeWidth="2" />
+          <path d="m12 12 4.5 4.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+        </svg>
+        <input
+          ref={input}
+          id="menu-search"
+          type="search"
+          inputMode="search"
+          enterKeyHint="search"
+          autoComplete="off"
+          spellCheck={false}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") onChange("");
+            // Enter cierra el teclado del teléfono: los resultados ya están.
+            if (e.key === "Enter") input.current?.blur();
+          }}
+          placeholder="Busca: mango, sin azúcar, café, tropical…"
+          className="min-w-0 flex-1 bg-transparent py-3 text-base text-ink outline-none placeholder:text-ink/40 [&::-webkit-search-cancel-button]:hidden"
+        />
+        {value ? (
+          <button
+            type="button"
+            onClick={() => pick("")}
+            aria-label="Borrar búsqueda"
+            className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-ink/50 hover:bg-ink/5 hover:text-ink"
+          >
+            <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
+              <path
+                d="M2 2l8 8M10 2l-8 8"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+              />
+            </svg>
+          </button>
+        ) : null}
+      </div>
+
+      {/* Completar la palabra mientras se escribe. */}
+      {value.trim() && completions.length > 0 ? (
+        <div className="rail mt-2 flex gap-2" aria-label="Sugerencias">
+          {completions.map((c) => (
+            <IdeaChip key={c} onClick={() => pick(c)}>
+              {c}
+            </IdeaChip>
+          ))}
+        </div>
+      ) : null}
+
+      {/* Buscador vacío con el foco: ideas y lo más pedido. */}
+      {open && (ideas.length > 0 || recommended.length > 0) ? (
+        <div className="absolute inset-x-0 top-full z-40 mt-2 rounded-[22px] border-[1.5px] border-ink bg-white p-4 shadow-[3px_4px_0_0_var(--color-ink)]">
+          {ideas.length > 0 ? (
+            <>
+              <p className="u-mono text-ink/45">Ideas</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {ideas.map((idea) => (
+                  <IdeaChip key={idea} onClick={() => pick(idea)}>
+                    {idea}
+                  </IdeaChip>
+                ))}
+              </div>
+            </>
+          ) : null}
+          {recommended.length > 0 ? (
+            <>
+              <p className="u-mono mt-4 text-ink/45">Lo más pedido</p>
+              <ul className="mt-1 divide-y divide-ink/10">
+                {recommended.map((p) => (
+                  <li key={p.id}>
+                    <button
+                      type="button"
+                      onClick={() => openSheet(p)}
+                      className="flex min-h-11 w-full items-center gap-3 py-2 text-left hover:text-mango-deep"
+                    >
+                      <span
+                        className="h-4 w-4 shrink-0 rounded-full border border-ink/25"
+                        style={{ background: p.color }}
+                        aria-hidden="true"
+                      />
+                      <span className="min-w-0 flex-1 truncate">{p.name}</span>
+                      {p.badge ? <span className="u-mono text-ink/40">{p.badge}</span> : null}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function IdeaChip({ onClick, children }: { onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="min-h-9 shrink-0 whitespace-nowrap rounded-full border-[1.5px] border-ink/20 bg-white px-3.5 text-[0.85rem] text-ink/75 transition-colors hover:border-ink hover:text-ink"
+    >
+      {children}
+    </button>
+  );
+}
+
+/** Una bebida del menú. La usan la rejilla, los resultados y las recomendaciones. */
+function ProductCard({ p }: { p: Product }) {
+  const { add, openSheet } = useCart();
+  const site = useSite();
+  const { builderBases } = site;
+  return (
+    <article
+      // `@container`: el botón «Editar» decide si se muestra según el
+      // ancho real de la carta, no el de la pantalla.
+      className={`card-ink group @container flex flex-col p-4 sm:p-5 ${p.soldOut ? "opacity-60" : ""}`}
+    >
+      {/* Altura fija aunque no haya etiqueta: si no, la foto de esa
+          tarjeta sube y la fila queda desalineada. */}
+      <div className="flex min-h-7 items-start justify-between gap-2">
+        {p.soldOut ? (
+          <span className="sticker" style={{ background: "#EFE4FF" }}>
+            Agotado
+          </span>
+        ) : p.badge ? (
+          <span
+            className="sticker"
+            style={{ background: p.badge === "Nuevo" ? "#8FD14F" : "#FFD166" }}
+          >
+            {p.badge}
+          </span>
+        ) : null}
+      </div>
+
+      <button
+        type="button"
+        onClick={() => openSheet(p)}
+        disabled={p.soldOut}
+        className="relative mx-auto my-1 w-[72%] max-w-[170px] transition-transform duration-500 group-hover:-rotate-2 group-hover:scale-105 disabled:cursor-not-allowed"
+        style={{ filter: "drop-shadow(3px 5px 0 rgba(27,11,46,0.09))" }}
+        aria-label={`Personalizar ${p.name}`}
+      >
+        <VesselArt
+          uid={`menu-${p.id}`}
+          vessel={p.vessel}
+          color={p.color}
+          ingredients={p.ingredients}
+          media={p.media}
+          mediaScale={p.mediaScale}
+          className="h-auto w-full"
+          alt={p.name}
+        />
+      </button>
+
+      {/* En móvil no hay botón "Editar": el nombre y la ilustración abren la hoja. */}
+      <button
+        type="button"
+        onClick={() => openSheet(p)}
+        disabled={p.soldOut}
+        className="text-left disabled:cursor-not-allowed"
+      >
+        <h3 className="u-display text-[1.35rem] leading-none sm:text-[1.75rem] lg:text-3xl">
+          {p.name}
+        </h3>
+        <p className="mt-2 line-clamp-3 text-[0.8rem] leading-snug text-ink/60 sm:line-clamp-2 sm:text-[0.9rem]">
+          {p.tagline}
+        </p>
+      </button>
+
+      <div className="mt-3 flex gap-1.5">
+        {/* Por posición: hay bebidas con ingredientes sin nombre o repetidos. */}
+        {p.ingredients.map((ing, i) => (
+          <span
+            key={i}
+            title={ing.name}
+            className="h-3 w-3 rounded-full border border-ink/25"
+            style={{ background: ing.color }}
+          />
+        ))}
+      </div>
+
+      <div className="mt-auto flex flex-wrap items-center justify-between gap-1.5 pt-4 @[14rem]:gap-2 sm:pt-5">
+        {/* El menú anuncia el vaso más barato; el resto se ve al elegir.
+            «desde» va encima, en su propia línea, y el tamaño del precio
+            lo decide el ancho real de la tarjeta (`@container`): en la
+            rejilla de un teléfono mide 150–170 px y con el precio grande
+            el botón de agregar se le montaba encima. Si aun así no cabe,
+            el botón baja a su propia línea (`flex-wrap` + `ml-auto`). */}
+        <span className="u-price min-w-0 text-[0.95rem] @[14rem]:text-lg @[18rem]:text-xl">
+          {sizesFor(p, site).length > 1 ? (
+            <span className="u-mono block text-[0.55rem] leading-none text-ink/40">
+              desde
+            </span>
+          ) : null}
+          {money(fromPrice(p, site))}
+        </span>
+        <div className="ml-auto flex shrink-0 items-center gap-1.5">
+          {/* Sólo si la carta tiene ≥ 16rem de contenido, que es lo que
+              cabe junto al precio. En móvil y en cartas estrechas el
+              nombre y la ilustración ya abren la hoja. */}
+          <button
+            type="button"
+            onClick={() => openSheet(p)}
+            disabled={p.soldOut}
+            className="u-mono hidden min-h-11 items-center rounded-full border-[1.5px] border-ink/20 px-3 text-ink/60 transition-colors hover:border-ink hover:text-ink disabled:opacity-40 @[16rem]:inline-flex"
+          >
+            Editar
+          </button>
+          <button
+            type="button"
+            disabled={p.soldOut}
+            onClick={() =>
+              add({
+                productId: p.id,
+                name: p.name,
+                color: p.color,
+                basePrice: priceOf(p, firstSizeId(p, site), site),
+                options: defaultOptions(builderBases[0]?.name ?? "", firstSizeId(p, site)),
+              })
+            }
+            className="grid h-10 w-10 place-items-center rounded-full border-[1.5px] border-ink bg-mango text-white transition-transform active:scale-95 disabled:bg-ink/20 disabled:text-ink/40 @[14rem]:h-11 @[14rem]:w-11"
+            aria-label={`Agregar ${p.name} al pedido`}
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+              <path
+                d="M8 1v14M1 8h14"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+              />
+            </svg>
+          </button>
+        </div>
+      </div>
+    </article>
   );
 }
 

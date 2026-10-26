@@ -6,7 +6,14 @@ import InkField from "./InkField";
 import { useCart } from "./CartProvider";
 import { useSite } from "./SiteProvider";
 import { useCollapsed } from "./useCollapsed";
-import { builderOptions, builderPrice, money, unitPrice } from "@/lib/cart";
+import {
+  builderOptions,
+  builderPrice,
+  builderSizePrice,
+  builderSizes,
+  money,
+  unitPrice,
+} from "@/lib/cart";
 import type { BuilderItem } from "@/lib/content";
 import type { Topping } from "@/lib/site";
 
@@ -71,8 +78,15 @@ function MoreChip({
 
 export default function BlendBuilder() {
   const { add } = useCart();
-  const { sections, builder, builderBases, builderIngredients, pricing, toppings } = useSite();
+  const { sections, builder, builderBases, builderIngredients, pricing, toppings, sizes } =
+    useSite();
   const MAX = builder.max;
+
+  // El vaso va primero: sin él la barra no sabe cuánto preparar ni cuánto
+  // cobrar. Se guarda el id; si el equipo quita ese tamaño, cae al primero.
+  const vasos = builderSizes(pricing, sizes);
+  const [sizeId, setSizeId] = useState(vasos[0]?.id ?? "");
+  const size = vasos.find((s) => s.id === sizeId) ?? vasos[0];
 
   const [baseName, setBaseName] = useState(builderBases[0]?.name ?? "");
   // Lo que viene marcado al abrir lo decide el equipo; ya llega filtrado a
@@ -105,9 +119,10 @@ export default function BlendBuilder() {
   const isExtra = useCallback((t: Topping) => extras.includes(t.name), [extras]);
   const ingredientList = useCollapsed(builderIngredients, isPicked, 8);
   const toppingList = useCollapsed(toppings, isExtra, 6);
-  const options = builderOptions(base.name, offerToppings ? extras : []);
+  const options = builderOptions(base.name, offerToppings ? extras : [], "", size?.id ?? "");
   // Se cotiza lo que existe, igual que hará el servidor al cobrar.
-  const basePrice = builderPrice(chosen.length, pricing, builder);
+  const start = (size && builderSizePrice(size.id, pricing, sizes)) ?? pricing.builder.base;
+  const basePrice = builderPrice(chosen.length, pricing, builder, start);
   const price = unitPrice(basePrice, options, toppings);
   const extrasTotal = price - basePrice;
 
@@ -127,6 +142,11 @@ export default function BlendBuilder() {
     setPicked([]);
     setExtras([]);
   };
+
+  // Lo que se lleva, en una línea, justo encima del botón: tamaño, base y receta.
+  const summary = [size ? `${size.label} ${size.volume}` : null, base.name, ...picked]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
     <section id="constructor" className="scroll-mt-[-4.5rem] lg:scroll-mt-[-6.5rem] relative overflow-hidden bg-ink py-20 text-paper lg:py-28">
@@ -180,6 +200,11 @@ export default function BlendBuilder() {
               <div className="mt-5 text-center sm:mt-6">
                 <p className="u-mono text-paper/45">Se llamaría</p>
                 <p className="u-display mt-1 text-3xl sm:text-5xl">{name}</p>
+                {size ? (
+                  <p className="u-mono mt-2 text-paper/55">
+                    {size.label} · {size.volume}
+                  </p>
+                ) : null}
               </div>
 
               <dl
@@ -196,7 +221,56 @@ export default function BlendBuilder() {
 
           {/* Controles */}
           <div className="order-2">
-            <p className="u-mono mb-3 text-paper/50">Base</p>
+            {/* 1. Tamaño. Con un solo vaso no hay nada que elegir: se dice cuál es. */}
+            <StepTitle n={1} label="Tamaño" />
+            {vasos.length > 1 ? (
+              <div
+                className={`grid gap-2 ${vasos.length > 2 ? "grid-cols-3" : "grid-cols-2"}`}
+                role="radiogroup"
+                aria-label="Tamaño del vaso"
+              >
+                {vasos.map((s) => {
+                  const on = size?.id === s.id;
+                  const p = builderPrice(
+                    chosen.length,
+                    pricing,
+                    builder,
+                    builderSizePrice(s.id, pricing, sizes) ?? 0,
+                  );
+                  return (
+                    <button
+                      key={s.id}
+                      type="button"
+                      role="radio"
+                      aria-checked={on}
+                      onClick={() => setSizeId(s.id)}
+                      className={`rounded-2xl border-[1.5px] px-3 py-3 text-left transition-colors ${
+                        on
+                          ? "border-paper bg-paper text-ink"
+                          : "border-paper/25 text-paper/80 hover:border-paper"
+                      }`}
+                    >
+                      <span className="block text-[0.95rem] font-semibold leading-tight">
+                        {s.label}
+                      </span>
+                      <span className={`u-mono block ${on ? "text-ink/55" : "text-paper/45"}`}>
+                        {s.volume}
+                      </span>
+                      <span className={`u-mono mt-1 block ${on ? "text-ink" : "text-paper/70"}`}>
+                        {money(p)}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : size ? (
+              <p className="u-mono text-paper/70">
+                {size.label} · {size.volume}
+              </p>
+            ) : null}
+
+            {/* 2. Base */}
+            <StepTitle n={2} label="Base" className="mt-8" />
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
               {builderBases.map((b) => (
                 <button
@@ -220,7 +294,7 @@ export default function BlendBuilder() {
             </div>
 
             <div className="mt-8 flex items-baseline justify-between">
-              <p className="u-mono text-paper/50">Ingredientes</p>
+              <StepTitle n={3} label={`Ingredientes · hasta ${MAX}`} className="mb-0" />
               {/* El color vive aquí también: al elegir, la preview puede quedar fuera de pantalla */}
               <p className="u-mono flex items-center gap-2 text-paper/50">
                 <span
@@ -277,7 +351,7 @@ export default function BlendBuilder() {
             {offerToppings ? (
               <>
                 <div className="mt-8 flex items-baseline justify-between">
-                  <p className="u-mono text-paper/50">Adicionales</p>
+                  <StepTitle n={4} label="Adicionales · opcional" className="mb-0" />
                   {extras.length > 0 ? (
                     <p className="u-mono text-paper/50">+{money(extrasTotal)}</p>
                   ) : null}
@@ -315,14 +389,19 @@ export default function BlendBuilder() {
               </>
             ) : null}
 
-            <div className="mt-8 flex flex-wrap items-center gap-3">
+            {/* Antes de agregar, lo que se lleva: que no haya sorpresas en la barra. */}
+            <p className="mt-8 text-[0.9rem] text-paper/75" aria-live="polite">
+              {picked.length > 0 ? summary : "Elige al menos un ingrediente para tu blend."}
+            </p>
+
+            <div className="mt-3 flex flex-wrap items-center gap-3">
               <button
                 type="button"
-                disabled={picked.length === 0}
+                disabled={picked.length === 0 || !size}
                 onClick={() =>
                   add({
                     productId: "custom",
-                    keySuffix: `${base.name}-${picked.join("+")}`,
+                    keySuffix: `${size?.id ?? ""}-${base.name}-${picked.join("+")}`,
                     name,
                     color,
                     basePrice,
@@ -351,6 +430,18 @@ export default function BlendBuilder() {
         </div>
       </div>
     </section>
+  );
+}
+
+/** Título de cada paso: el número dice el orden en que se arma. */
+function StepTitle({ n, label, className = "" }: { n: number; label: string; className?: string }) {
+  return (
+    <p className={`u-mono mb-3 flex items-center gap-2 text-paper/50 ${className}`}>
+      <span className="grid h-5 w-5 place-items-center rounded-full border border-paper/40 text-[0.65rem] text-paper/80">
+        {n}
+      </span>
+      {label}
+    </p>
   );
 }
 

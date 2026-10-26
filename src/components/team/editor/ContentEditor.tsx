@@ -18,7 +18,15 @@ import {
   Text,
   Toggle,
 } from "./fields";
-import { builderPrice, fromPrice, money, sizePrice, type PriceCtx } from "@/lib/cart";
+import {
+  builderPrice,
+  builderSizePrice,
+  builderSizes,
+  fromPrice,
+  money,
+  sizePrice,
+  type PriceCtx,
+} from "@/lib/cart";
 import {
   BUILDER_MAX_LIMIT,
   blankBuilderItem,
@@ -729,22 +737,51 @@ export default function ContentEditor() {
 
             <Panel
               title="Precio"
-              meta={`Desde ${money(builderPrice(0, draft.pricing, rules))} · +${money(
-                draft.pricing.builder.perExtra,
-              )} por extra`}
+              meta={
+                builderSizes(draft.pricing, draft.sizes)
+                  .map(
+                    (s) =>
+                      `${s.label} ${money(builderSizePrice(s.id, draft.pricing, draft.sizes) ?? 0)}`,
+                  )
+                  .join(" · ") || "Sin precio"
+              }
               defaultOpen
             >
+              {/* Como en las categorías: un precio por vaso, con los
+                  ingredientes incluidos. Vacío = no se arma en ese tamaño.
+                  Mientras no haya ninguno, el precio de siempre vale sólo
+                  para el primer vaso y aparece ahí para ajustarlo. */}
+              {draft.sizes.length > 0 ? (
+                <div>
+                  <span className="u-mono mb-1.5 block text-ink/45">
+                    Precio por tamaño (hasta {rules.included} ingredientes)
+                  </span>
+                  <Row cols={draft.sizes.length > 2 ? 3 : 2}>
+                    {draft.sizes.map((t) => (
+                      <MaybeMoney
+                        key={t.id}
+                        label={`${t.label} · ${t.volume}`}
+                        value={builderSizePrice(t.id, draft.pricing, draft.sizes) ?? undefined}
+                        onChange={(v) => {
+                          // Al tocar uno se fijan todos los que se ven: si no, el
+                          // precio de respaldo del primer vaso desaparecería.
+                          const next: Record<string, number> = {};
+                          for (const s of builderSizes(draft.pricing, draft.sizes)) {
+                            next[s.id] = builderSizePrice(s.id, draft.pricing, draft.sizes)!;
+                          }
+                          if (v === undefined) delete next[t.id];
+                          else next[t.id] = v;
+                          set("pricing", {
+                            ...draft.pricing,
+                            builder: { ...draft.pricing.builder, prices: next },
+                          });
+                        }}
+                      />
+                    ))}
+                  </Row>
+                </div>
+              ) : null}
               <Row>
-                <Money
-                  label={`Precio base (hasta ${rules.included} ingredientes)`}
-                  value={draft.pricing.builder.base}
-                  onChange={(v) =>
-                    set("pricing", {
-                      ...draft.pricing,
-                      builder: { ...draft.pricing.builder, base: v },
-                    })
-                  }
-                />
                 <Money
                   label="Recargo por cada ingrediente extra"
                   value={draft.pricing.builder.perExtra}
@@ -757,9 +794,14 @@ export default function ContentEditor() {
                 />
               </Row>
               <p className="u-mono normal-case tracking-[0.01em] text-ink/35">
-                Con los {rules.max} ingredientes sale en{" "}
-                {money(builderPrice(rules.max, draft.pricing, rules))}. Los adicionales se suman
-                aparte, cada uno con su precio. Se cobra desde el servidor con estos mismos números.
+                Vacío = el blend no se arma en ese vaso.
+                {rules.max > rules.included && draft.pricing.builder.perExtra > 0
+                  ? ` Con los ${rules.max} ingredientes se suman ${money(
+                      builderPrice(rules.max, draft.pricing, rules, 0),
+                    )} al precio del vaso.`
+                  : ""}{" "}
+                Los adicionales van aparte, cada uno con su precio. Se cobra desde el servidor con
+                estos mismos números.
               </p>
             </Panel>
 
