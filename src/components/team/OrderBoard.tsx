@@ -14,6 +14,7 @@ import { chatUnreadTotal } from "@/actions/chat";
 import {
   askForNotifications,
   chime,
+  reloadIfStale,
   useMediaQuery,
   useNewOrderAlert,
   useNow,
@@ -71,7 +72,7 @@ export default function OrderBoard({
           chatSeen.current = n;
           setChatUnread(n);
         })
-        .catch(() => {});
+        .catch(reloadIfStale);
     tick();
     const t = setInterval(tick, 8000);
     return () => clearInterval(t);

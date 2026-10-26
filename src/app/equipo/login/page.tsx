@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import LoginForm from "@/components/team/LoginForm";
+import { safeNext } from "@/lib/safe-next";
 import { getSessionUser } from "@/lib/session";
 
 export const metadata: Metadata = {
@@ -13,8 +14,8 @@ export default async function LoginPage({
 }: {
   searchParams: Promise<{ next?: string }>;
 }) {
-  // Con sesión abierta no tiene sentido pedir la clave otra vez.
-  if (await getSessionUser()) redirect("/equipo");
   const { next } = await searchParams;
+  // Con sesión abierta no tiene sentido pedir la clave otra vez.
+  if (await getSessionUser()) redirect(safeNext(next, "/equipo", "/equipo"));
   return <LoginForm next={next} />;
 }

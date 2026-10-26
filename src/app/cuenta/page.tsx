@@ -14,7 +14,8 @@ export const dynamic = "force-dynamic";
 
 export default async function CuentaPage() {
   const customer = await getCustomer();
-  if (!customer) redirect("/cuenta/entrar");
+  // Por /cuenta/caducada, que borra la cookie vieja si la hay.
+  if (!customer) redirect("/cuenta/caducada");
 
   const [orders, addresses, stamps] = await Promise.all([myOrders(), myAddresses(), myStamps()]);
 

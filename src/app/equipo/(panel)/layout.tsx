@@ -10,6 +10,7 @@ import { getSessionUser } from "@/lib/session";
  */
 export default async function PanelLayout({ children }: { children: React.ReactNode }) {
   const user = await getSessionUser();
-  if (!user) redirect("/equipo/login");
+  // Por /equipo/caducada, que borra la cookie vieja si la hay.
+  if (!user) redirect("/equipo/caducada");
   return <>{children}</>;
 }
