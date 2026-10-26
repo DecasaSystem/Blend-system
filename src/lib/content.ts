@@ -515,7 +515,16 @@ export type Pricing = {
    * «Arma tu blend»: precio con hasta `builder.included` ingredientes y
    * recargo por cada uno de más.
    */
-  builder: { base: number; perExtra: number };
+  builder: {
+    base: number;
+    perExtra: number;
+    /**
+     * Precio por tamaño, con los ingredientes incluidos: `{ chico: 18900 }`.
+     * Vacío en un tamaño = el blend no se arma en ese vaso. Sin ninguno,
+     * `base` vale sólo para el primer tamaño. Ver `builderSizePrice`.
+     */
+    prices?: Record<string, number>;
+  };
 };
 
 export const pricing: Pricing = {

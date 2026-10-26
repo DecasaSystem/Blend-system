@@ -1,7 +1,15 @@
 import "server-only";
 import type { FunctionTool } from "openai/resources/responses/responses";
 import type { SiteContent } from "./site";
-import { firstSizeId, money, priceOf, sizePrice, sizesFor } from "./cart";
+import {
+  builderSizePrice,
+  builderSizes,
+  firstSizeId,
+  money,
+  priceOf,
+  sizePrice,
+  sizesFor,
+} from "./cart";
 
 /**
  * El asistente de la tienda: lo que sabe y lo que puede hacer.
@@ -148,7 +156,7 @@ ${sedes}
 - Sellos: ${site.rewards.body} Cada ${site.rewards.stamps} pedidos entregados, uno va por la casa.
 
 # «Arma tu blend» (sección constructor)
-Precio ${money(pricing.builder.base)} con hasta ${site.builder.included} ingredientes; cada uno de más suma ${money(pricing.builder.perExtra)}; máximo ${site.builder.max}. Bases: ${bases}. Ingredientes: ${ingredientes}.
+Primero se elige el tamaño: ${builderSizes(pricing, site.sizes).map((t) => `${t.label} ${t.volume} ${money(builderSizePrice(t.id, pricing, site.sizes) ?? 0)}`).join(", ")}, con hasta ${site.builder.included} ingredientes; cada uno de más suma ${money(pricing.builder.perExtra)}; máximo ${site.builder.max}. Bases: ${bases}. Ingredientes: ${ingredientes}.
 
 # Cómo se prepara
 ${pasos}
