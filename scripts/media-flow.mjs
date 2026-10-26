@@ -13,7 +13,15 @@ import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { chromium } from "playwright-core";
-import { CHROME, createTempUser, deleteUser, login, reporter, sqlClient } from "./lib/team.mjs";
+import {
+  backupSiteContent,
+  CHROME,
+  createTempUser,
+  deleteUser,
+  login,
+  reporter,
+  sqlClient,
+} from "./lib/team.mjs";
 
 const URL = process.argv[2] ?? "http://localhost:3000";
 const sql = sqlClient();
@@ -70,6 +78,9 @@ ctx.on("page", (p) => {
   p.on("pageerror", (e) => errors.push(String(e)));
   p.on("console", (m) => m.type() === "error" && errors.push(m.text()));
 });
+
+// La base es la de verdad: lo publicado se guarda y se repone al final.
+const restoreSiteContent = await backupSiteContent(sql);
 
 try {
   await sql`delete from site_content`;
@@ -169,7 +180,7 @@ try {
   crashed(err);
 } finally {
   for (const u of subidas) await limpiar(u);
-  await sql`delete from site_content`;
+  await restoreSiteContent();
   await deleteUser(sql, user.email);
   await browser.close();
   await sql.end();

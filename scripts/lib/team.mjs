@@ -71,3 +71,26 @@ export function reporter() {
     },
   };
 }
+
+/**
+ * Guarda el contenido publicado de la tienda y devuelve con qué ponerlo de
+ * vuelta.
+ *
+ * Las pruebas del editor parten de la tienda de fábrica y por eso vacían
+ * `site_content`. Pero la cadena de `.env.local` es la base de verdad: el
+ * 2026-10-26 una prueba borró así el menú que el equipo había cargado. Ahora
+ * cada prueba que lo toca lo guarda antes y lo repone al terminar, pase lo
+ * que pase.
+ */
+export async function backupSiteContent(sql) {
+  const rows = await sql`select id, data, updated_by from site_content`;
+  return async function restoreSiteContent() {
+    await sql`delete from site_content`;
+    for (const r of rows) {
+      await sql`
+        insert into site_content (id, data, updated_by)
+        values (${r.id}, ${sql.json(r.data)}, ${r.updated_by})
+      `;
+    }
+  };
+}

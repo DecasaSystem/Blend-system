@@ -4,7 +4,15 @@
  *   node --env-file=.env.local scripts/editor-flow.mjs [url]
  */
 import { chromium } from "playwright-core";
-import { CHROME, createTempUser, deleteUser, login, reporter, sqlClient } from "./lib/team.mjs";
+import {
+  backupSiteContent,
+  CHROME,
+  createTempUser,
+  deleteUser,
+  login,
+  reporter,
+  sqlClient,
+} from "./lib/team.mjs";
 
 const URL = process.argv[2] ?? "http://localhost:3000";
 const sql = sqlClient();
@@ -18,6 +26,9 @@ ctx.on("page", (p) => {
   p.on("pageerror", (e) => errors.push(String(e)));
   p.on("console", (m) => m.type() === "error" && errors.push(m.text()));
 });
+
+// La base es la de verdad: lo publicado se guarda y se repone al final.
+const restoreSiteContent = await backupSiteContent(sql);
 
 try {
   await sql`delete from site_content`;
@@ -126,7 +137,7 @@ try {
 } finally {
   await browser.close();
   await deleteUser(sql, user.email);
-  await sql`delete from site_content`;
+  await restoreSiteContent();
   const failures = finish(errors);
   await sql.end({ timeout: 5 });
   process.exit(failures ? 1 : 0);

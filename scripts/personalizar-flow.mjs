@@ -9,7 +9,15 @@
  *   node --env-file=.env.local scripts/personalizar-flow.mjs [url]
  */
 import { chromium } from "playwright-core";
-import { CHROME, createTempUser, deleteUser, login, reporter, sqlClient } from "./lib/team.mjs";
+import {
+  backupSiteContent,
+  CHROME,
+  createTempUser,
+  deleteUser,
+  login,
+  reporter,
+  sqlClient,
+} from "./lib/team.mjs";
 
 const URL = process.argv[2] ?? "http://localhost:3000";
 const sql = sqlClient();
@@ -32,6 +40,9 @@ const publish = async (page) => {
   await page.getByRole("button", { name: "Publicar" }).click();
   await page.getByText("Publicado. La tienda ya lo muestra.").waitFor({ timeout: 30000 });
 };
+
+// La base es la de verdad: lo publicado se guarda y se repone al final.
+const restoreSiteContent = await backupSiteContent(sql);
 
 try {
   await sql`delete from site_content`;
@@ -224,7 +235,7 @@ try {
 } catch (err) {
   crashed(err);
 } finally {
-  await sql`delete from site_content`;
+  await restoreSiteContent();
   await sql`delete from orders where customer->>'name' = 'Prueba Manipulada'`;
   await deleteUser(sql, user.email);
   await browser.close();
