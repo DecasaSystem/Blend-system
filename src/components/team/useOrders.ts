@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { unstable_isUnrecognizedActionError } from "next/navigation";
 import { listOrders } from "@/actions/orders";
 import type { Order } from "@/lib/orders";
 
@@ -12,6 +13,19 @@ import type { Order } from "@/lib/orders";
  * falta más inmediatez, el siguiente paso son eventos del servidor (SSE).
  */
 const REFRESH_MS = 4000;
+
+/**
+ * Tras cada despliegue, una pantalla que lleva horas abierta sigue llamando
+ * a las acciones de servidor del despliegue anterior, que ya no existen. Cada
+ * consulta fallaba en silencio: el tablero se quedaba «sin conexión» y los
+ * botones dejaban de responder hasta recargar a mano, y parecía que se había
+ * perdido el acceso. Recargar trae la versión nueva; la sesión sigue igual.
+ */
+export function reloadIfStale(error: unknown) {
+  if (!unstable_isUnrecognizedActionError(error)) return false;
+  window.location.reload();
+  return true;
+}
 
 export function useOrders(initial: Order[]) {
   const [orders, setOrders] = useState<Order[]>(initial);
@@ -25,7 +39,8 @@ export function useOrders(initial: Order[]) {
     try {
       setOrders(await listOrders());
       setOffline(false);
-    } catch {
+    } catch (e) {
+      if (reloadIfStale(e)) return;
       setOffline(true);
     } finally {
       inFlight.current = false;

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import AuthForm from "@/components/account/AuthForm";
 import { getCustomer } from "@/lib/customer-session";
+import { safeNext } from "@/lib/safe-next";
 
 export const metadata: Metadata = {
   title: "Entrar",
@@ -13,8 +14,8 @@ export default async function EntrarPage({
 }: {
   searchParams: Promise<{ next?: string }>;
 }) {
-  if (await getCustomer()) redirect("/cuenta");
   const { next } = await searchParams;
+  if (await getCustomer()) redirect(safeNext(next, "/", "/cuenta"));
   return (
     <AuthForm
       mode="entrar"

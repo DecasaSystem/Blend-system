@@ -10,6 +10,7 @@ import {
   type ChatSummary,
 } from "@/actions/chat";
 import { formatClock } from "@/lib/orders";
+import { reloadIfStale } from "./useOrders";
 
 /**
  * El chat visto desde la barra.
@@ -36,8 +37,9 @@ export default function ChatPanel() {
   const loadList = useCallback(async () => {
     try {
       setChats(await listChats());
-    } catch {
-      /* se reintenta en el siguiente ciclo */
+    } catch (e) {
+      // Se reintenta en el siguiente ciclo, salvo tras un despliegue.
+      reloadIfStale(e);
     }
   }, []);
 

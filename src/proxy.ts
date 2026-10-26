@@ -31,6 +31,12 @@ export function proxy(request: NextRequest) {
   const hasTeam = request.cookies.has(TEAM_COOKIE);
   const hasCustomer = request.cookies.has(CUSTOMER_COOKIE);
 
+  // Limpian una cookie cuya sesión ya no vale (ver `src/lib/session.ts`):
+  // tienen que pasar haya cookie o no.
+  if (pathname === "/equipo/caducada" || pathname === "/cuenta/caducada") {
+    return NextResponse.next();
+  }
+
   // --- Vista de equipo -------------------------------------------------
   if (pathname === "/equipo/login") {
     if (hasTeam) {

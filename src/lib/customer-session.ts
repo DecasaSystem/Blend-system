@@ -95,9 +95,21 @@ export async function requireCustomer(): Promise<Customer> {
     try {
       (await cookies()).delete(COOKIE);
     } catch {
-      // Al renderizar una página no se pueden tocar cookies; ahí basta redirigir.
+      // Al renderizar una página no se pueden tocar cookies: /cuenta/caducada
+      // sí puede, y evita el mismo bucle que en `src/lib/session.ts`.
+      redirect("/cuenta/caducada");
     }
     redirect("/cuenta/entrar");
   }
   return customer;
+}
+
+/** Borra la cookie sólo si ya no vale. Si la base no responde, no toca nada. */
+export async function clearStaleCustomerSession() {
+  try {
+    if (await lookupCustomer()) return;
+  } catch {
+    return;
+  }
+  (await cookies()).delete(COOKIE);
 }

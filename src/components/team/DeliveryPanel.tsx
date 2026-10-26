@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import Logo from "../Logo";
 import { useSite } from "../SiteProvider";
-import { chime, useNow } from "./useOrders";
+import { chime, reloadIfStale, useNow } from "./useOrders";
 import { describe, money } from "@/lib/cart";
 import { alertsOf, elapsedMinutes, formatClock, type Order } from "@/lib/orders";
 import {
@@ -90,7 +90,8 @@ export default function DeliveryPanel({
       setBoard(next);
       setUnread(un);
       setOffline(false);
-    } catch {
+    } catch (e) {
+      if (reloadIfStale(e)) return;
       setOffline(true);
     } finally {
       inFlight.current = false;
